@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Linq;
 using UnityEngine;
+using Random = UnityEngine.Random;
 
 namespace Player.Ragdoll
 {
@@ -108,7 +109,7 @@ namespace Player.Ragdoll
             Rigidbody closestRb = GetClosestBoneRb(hitPoint);
             closestRb.AddForce(impulse, ForceMode.Impulse);
             closestRb.AddTorque(
-                UnityEngine.Random.insideUnitSphere * impulse.magnitude * 0.15f,
+                Random.insideUnitSphere * impulse.magnitude * 0.15f,
                 ForceMode.Impulse);
 
             OnImpactTriggered?.Invoke(impulse, hitPoint);
