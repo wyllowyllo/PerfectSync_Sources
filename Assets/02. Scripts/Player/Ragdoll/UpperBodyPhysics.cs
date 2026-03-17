@@ -39,9 +39,7 @@ namespace Player.Ragdoll
             float speed = angularVelocity.magnitude;
             if (speed > 0.001f)
             {
-                Quaternion delta = Quaternion.AngleAxis(
-                    speed * Mathf.Rad2Deg * Time.deltaTime,
-                    angularVelocity / speed);
+                Quaternion delta = Quaternion.AngleAxis(speed * Mathf.Rad2Deg * Time.deltaTime, angularVelocity / speed);
                 rotationOffset = delta * rotationOffset;
             }
 

@@ -12,7 +12,7 @@ namespace Player.Test
         [SerializeField] private float testImpulseForce = 15f;
         [FormerlySerializedAs("testStumbleForce")] [SerializeField] private float testLightHitForce = 5f;
 
-        private IRagdollInput _ragdollInput;
+        private IRagdoll _ragdollInput;
 
         private void Awake()
         {

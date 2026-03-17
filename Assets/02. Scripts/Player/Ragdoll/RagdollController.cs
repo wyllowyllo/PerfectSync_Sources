@@ -4,7 +4,7 @@ using UnityEngine;
 namespace Player.Ragdoll
 {
     [RequireComponent(typeof(RagdollPhysicsToggle), typeof(RagdollRecovery))]
-    public class RagdollController : MonoBehaviour, IRagdollInput
+    public class RagdollController : MonoBehaviour, IRagdoll
     {
         [Header("Ragdoll Settings")]
         [SerializeField] private float _ragdollThreshold = 8f;
@@ -16,7 +16,7 @@ namespace Player.Ragdoll
         private RagdollRecovery _recovery;
         private UpperBodyPhysics _upperBodyPhysics;
         private ERagdollState _currentState = ERagdollState.Animated;
-        private RagdollImpactApplier _impactApplier;
+        private RagdollImpactTransfer _impactTransfer;
         private Coroutine _activeCoroutine;
 
         public ERagdollState CurrentState => _currentState;
@@ -26,7 +26,7 @@ namespace Player.Ragdoll
             _physicsToggle = GetComponent<RagdollPhysicsToggle>();
             _recovery = GetComponent<RagdollRecovery>();
             _upperBodyPhysics = GetComponent<UpperBodyPhysics>();
-            _impactApplier = new RagdollImpactApplier(_physicsToggle.RagdollRigidbodies);
+            _impactTransfer = new RagdollImpactTransfer(_physicsToggle.RagdollRigidbodies);
         }
 
         public void OnHitImpact(Vector3 impulse, Vector3 hitPoint)
@@ -51,13 +51,9 @@ namespace Player.Ragdoll
 
             Vector3 inheritedVelocity = _physicsToggle.CapsuleRigidbody.linearVelocity;
             _physicsToggle.Activate();
-            _impactApplier.Apply(impact, inheritedVelocity);
+            _impactTransfer.TransferImpact(impact, inheritedVelocity);
 
-            float duration = Mathf.Clamp(
-                impact.Magnitude * _durationPerImpulse,
-                _minRagdollDuration,
-                _maxRagdollDuration);
-            _activeCoroutine = StartCoroutine(WaitThenRecover(duration));
+            float duration = Mathf.Clamp(impact.Magnitude * _durationPerImpulse, _minRagdollDuration, _maxRagdollDuration); _activeCoroutine = StartCoroutine(WaitThenRecover(duration));
         }
 
         private IEnumerator WaitThenRecover(float duration)
@@ -73,11 +69,7 @@ namespace Player.Ragdoll
                 if (_upperBodyPhysics != null)
                     _upperBodyPhysics.SetActive(false);
 
-                _recovery.StartRecovery(
-                    _physicsToggle.RagdollBones,
-                    _physicsToggle.Animator,
-                    _physicsToggle.CapsuleRigidbody,
-                    OnRecoveryComplete);
+                _recovery.StartRecovery(_physicsToggle.RagdollBones, _physicsToggle.Animator, _physicsToggle.CapsuleRigidbody, OnRecoveryComplete);
             }
 
             _activeCoroutine = null;

@@ -3,25 +3,23 @@ using Random = UnityEngine.Random;
 
 namespace Player.Ragdoll
 {
-    public class RagdollImpactApplier
+    public class RagdollImpactTransfer
     {
         private readonly Rigidbody[] _ragdollRbs;
 
-        public RagdollImpactApplier(Rigidbody[] ragdollRbs)
+        public RagdollImpactTransfer(Rigidbody[] ragdollRbs)
         {
             _ragdollRbs = ragdollRbs;
         }
 
-        public void Apply(ImpactData impact, Vector3 inheritedVelocity)
+        public void TransferImpact(ImpactData impact, Vector3 inheritedVelocity)
         {
             foreach (var rb in _ragdollRbs)
                 rb.linearVelocity = inheritedVelocity;
 
             Rigidbody closestRb = GetClosestBoneRb(impact.HitPoint);
             closestRb.AddForce(impact.Impulse, ForceMode.Impulse);
-            closestRb.AddTorque(
-                Random.insideUnitSphere * impact.Magnitude * 0.15f,
-                ForceMode.Impulse);
+            closestRb.AddTorque(Random.insideUnitSphere * impact.Magnitude * 0.15f, ForceMode.Impulse);
         }
 
         private Rigidbody GetClosestBoneRb(Vector3 point)

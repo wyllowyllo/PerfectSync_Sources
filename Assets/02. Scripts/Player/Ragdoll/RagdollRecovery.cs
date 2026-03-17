@@ -8,7 +8,6 @@ namespace Player.Ragdoll
         [SerializeField] private float _blendDuration = 0.3f;
         [SerializeField] private float _groundCheckDistance = 10f;
         [SerializeField] private LayerMask _groundLayer;
-        [SerializeField] private bool _useGetUpAnimation = true;
 
         private Transform[] _bones;
         private Animator _animator;
@@ -68,31 +67,15 @@ namespace Player.Ragdoll
             {
                 for (int i = 0; i < _bones.Length; i++)
                 {
-                    _bones[i].position = Vector3.Lerp(
-                        _bonePositionSnapshot[i],
-                        _bones[i].position,
-                        t);
-
-                    _bones[i].rotation = Quaternion.Slerp(
-                        _boneRotationSnapshot[i],
-                        _bones[i].rotation,
-                        t);
+                    _bones[i].position = Vector3.Lerp(_bonePositionSnapshot[i], _bones[i].position, t);
+                    _bones[i].rotation = Quaternion.Slerp(_boneRotationSnapshot[i], _bones[i].rotation, t);
                 }
                 return;
             }
 
             _isBlending = false;
-
-            if (_useGetUpAnimation)
-            {
-                string getUpClip = _savedFaceUp ? "GetUp_Back" : "GetUp_Front";
-                _animator.CrossFade(getUpClip, 0.2f);
-            }
-            else
-            {
-                _animator.CrossFade("Locomotion", 0.2f);
-            }
-
+            
+            _animator.CrossFade("Locomotion", 0.2f);
             _onComplete?.Invoke();
         }
 
@@ -100,8 +83,7 @@ namespace Player.Ragdoll
         {
             Vector3 rayOrigin = origin + Vector3.up * 0.5f;
 
-            if (Physics.Raycast(rayOrigin, Vector3.down, out RaycastHit hit,
-                    _groundCheckDistance, _groundLayer))
+            if (Physics.Raycast(rayOrigin, Vector3.down, out RaycastHit hit, _groundCheckDistance, _groundLayer))
                 return hit.point.y;
 
             return origin.y;

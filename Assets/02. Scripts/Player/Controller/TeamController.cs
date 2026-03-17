@@ -26,9 +26,9 @@ namespace Player.Controller
         private bool _pendingSwitch;
         private ETeamMode _pendingSwitchTarget;
 
-        private IRagdollState _mergedRagdoll;
-        private IRagdollState _avatarARagdoll;
-        private IRagdollState _avatarBRagdoll;
+        private IRagdoll _mergedRagdoll;
+        private IRagdoll _avatarARagdoll;
+        private IRagdoll _avatarBRagdoll;
 
         public ETeamMode CurrentMode => _currentMode;
 
@@ -49,16 +49,16 @@ namespace Player.Controller
             _avatarAController.SetCameraTransform(cameraTransform);
             _avatarBController.SetCameraTransform(cameraTransform);
 
-            _mergedRagdoll = _mergedBody.GetComponent<IRagdollState>();
-            _avatarARagdoll = _avatarA.GetComponent<IRagdollState>();
-            _avatarBRagdoll = _avatarB.GetComponent<IRagdollState>();
+            _mergedRagdoll = _mergedBody.GetComponent<IRagdoll>();
+            _avatarARagdoll = _avatarA.GetComponent<IRagdoll>();
+            _avatarBRagdoll = _avatarB.GetComponent<IRagdoll>();
 
             InitializeMode(_startMode);
         }
 
         private void Update()
         {
-            if (UnityEngine.Input.GetKeyDown(KeyCode.M))
+            if (Input.GetKeyDown(KeyCode.M))
             {
                 ETeamMode target = _currentMode == ETeamMode.Merged
                     ? ETeamMode.Separated

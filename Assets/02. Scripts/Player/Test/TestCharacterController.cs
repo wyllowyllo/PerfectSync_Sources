@@ -16,7 +16,7 @@ namespace Player.Test
         [SerializeField] private Rigidbody capsuleRb;
         [SerializeField] private RagdollController ragdollController;
 
-        private IRagdollInput _ragdollInput;
+        private IRagdoll _ragdollInput;
         private Transform cameraTransform;
         private Vector3 currentVelocity;
         private ERagdollState previousRagdollState;
