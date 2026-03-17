@@ -58,24 +58,7 @@ namespace Player.Controller
             if (!input.IsOwner)
                 return;
 
-            Vector2 move = input.MoveInput;
-            bool jump = input.JumpPressed;
-            bool dive = input.DivePressed;
-
-            var activeBodies = _avatarTransformer.ActiveBodies;
-
-            if (_avatarTransformer.CurrentMode == ETeamMode.Merged)
-            {
-                Vector2 combined = DualInputCombiner.Combine(move, move);
-                activeBodies[0].ApplyInput(combined, jump, dive);
-            }
-            else
-            {
-                for (int i = 0; i < activeBodies.Count; i++)
-                {
-                    activeBodies[i].ApplyInput(move, jump, dive);
-                }
-            }
+            _avatarTransformer.ApplyInput(input.MoveInput, input.JumpPressed, input.DivePressed);
         }
     }
 }

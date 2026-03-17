@@ -24,7 +24,7 @@ namespace Player.Controller
 
         private Animator _animator;
         private Rigidbody _capsuleRb;
-        private RagdollController _ragdollController;
+        private IRagdoll _ragdoll;
         private Transform _cameraTransform;
         private Vector3 _currentVelocity;
         private ERagdollState _previousRagdollState;
@@ -44,7 +44,7 @@ namespace Player.Controller
             {
                 _animator = GetComponent<Animator>();
                 _capsuleRb = GetComponent<Rigidbody>();
-                _ragdollController = GetComponent<RagdollController>();
+                _ragdoll = GetComponent<IRagdoll>();
                 _initialized = true;
             }
 
@@ -69,7 +69,7 @@ namespace Player.Controller
 
         private void Update()
         {
-            ERagdollState currentRagdollState = _ragdollController.CurrentState;
+            ERagdollState currentRagdollState = _ragdoll.CurrentState;
 
             // 래그돌 복귀 감지 → 속도 초기화.
             if (_previousRagdollState != ERagdollState.Animated && currentRagdollState == ERagdollState.Animated)
@@ -105,7 +105,7 @@ namespace Player.Controller
 
         private void FixedUpdate()
         {
-            if (_ragdollController.CurrentState != ERagdollState.Animated)
+            if (_ragdoll.CurrentState != ERagdollState.Animated)
                 return;
 
             Vector3 velocity = _capsuleRb.linearVelocity;
@@ -138,8 +138,7 @@ namespace Player.Controller
 
         public Transform BodyTransform => transform;
 
-        public bool IsRagdollActive => _ragdollController.CurrentState == ERagdollState.Ragdoll
-            || _ragdollController.CurrentState == ERagdollState.BlendToAnim;
+        public bool IsRagdollActive => _ragdoll.IsRagdollActive;
 
         private Vector3 GetCameraRelativeDirection(Vector2 input)
         {

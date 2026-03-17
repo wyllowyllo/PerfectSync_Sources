@@ -22,7 +22,6 @@ namespace Player.Controller
         private ETeamMode _pendingSwitchTarget;
         private readonly List<IControllableBody> _activeBodies = new();
 
-        public ETeamMode CurrentMode => _currentMode;
         public IReadOnlyList<IControllableBody> ActiveBodies => _activeBodies;
 
         public event Action<ETeamMode> OnModeChanged;
@@ -60,6 +59,22 @@ namespace Player.Controller
         {
             ETeamMode target = _currentMode == ETeamMode.Merged ? ETeamMode.Separated : ETeamMode.Merged;
             SwitchMode(target);
+        }
+
+        public void ApplyInput(Vector2 move, bool jump, bool dive)
+        {
+            if (_currentMode == ETeamMode.Merged)
+            {
+                Vector2 combined = DualInputCombiner.Combine(move, move);
+                _activeBodies[0].ApplyInput(combined, jump, dive);
+            }
+            else
+            {
+                for (int i = 0; i < _activeBodies.Count; i++)
+                {
+                    _activeBodies[i].ApplyInput(move, jump, dive);
+                }
+            }
         }
 
         public void Tick()
