@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using UnityEngine;
 
 namespace Player.Ragdoll
@@ -6,33 +7,51 @@ namespace Player.Ragdoll
     public class RagdollRecovery : MonoBehaviour
     {
         [Header("Spring")]
-        [SerializeField] private float _springForce = 100f;
-        [SerializeField] private float _damping = 15f;
+        [SerializeField] private float _springForce = 150f;
+        [SerializeField] private float _damping = 20f;
+
+        [Header("Lift")]
+        [SerializeField] private float _liftForce = 80f;
 
         [Header("Recovery")]
-        [SerializeField] private float _recoveryDuration = 1f;
+        [SerializeField] private float _recoveryDuration = 1.2f;
         [SerializeField] private float _groundCheckDistance = 10f;
         [SerializeField] private LayerMask _groundLayer;
 
         private Rigidbody[] _ragdollRbs;
         private Quaternion[] _targetLocalRotations;
+        private float _standingHipsHeight;
         private Rigidbody _capsuleRb;
         private Action _onComplete;
         private float _recoveryTimer;
         private bool _isRecovering;
+        private bool _initialized;
 
         public bool IsRecovering => _isRecovering;
 
         public void Initialize(Rigidbody[] ragdollRbs)
         {
             _ragdollRbs = ragdollRbs;
+            StartCoroutine(CaptureTargetPoseAfterFrame());
+        }
 
-            // 초기 포즈(서있는 상태)의 본 로컬 회전 저장.
+        private IEnumerator CaptureTargetPoseAfterFrame()
+        {
+            // Animator가 첫 프레임 평가를 완료할 때까지 대기.
+            yield return null;
+
             _targetLocalRotations = new Quaternion[_ragdollRbs.Length];
             for (int i = 0; i < _ragdollRbs.Length; i++)
             {
                 _targetLocalRotations[i] = _ragdollRbs[i].transform.localRotation;
             }
+
+            // 서있을 때 힙 높이 저장 (지면 기준).
+            Transform hips = _ragdollRbs[0].transform;
+            float groundY = GetGroundY(hips.position);
+            _standingHipsHeight = hips.position.y - groundY;
+
+            _initialized = true;
         }
 
         public void StartRecovery(Rigidbody capsuleRb, Action onComplete)
@@ -42,13 +61,12 @@ namespace Player.Ragdoll
             _recoveryTimer = 0f;
             _isRecovering = true;
 
-            // 캡슐 위치를 힙 기준으로 보정.
             SnapCapsuleToHips();
         }
 
         private void FixedUpdate()
         {
-            if (!_isRecovering)
+            if (!_isRecovering || !_initialized)
                 return;
 
             _recoveryTimer += Time.fixedDeltaTime;
@@ -57,6 +75,7 @@ namespace Player.Ragdoll
             // 스프링 강도를 점진적으로 증가.
             float currentSpring = Mathf.Lerp(0f, _springForce, t);
 
+            // 각 본에 스프링 토크 적용.
             for (int i = 0; i < _ragdollRbs.Length; i++)
             {
                 if (_ragdollRbs[i] == null)
@@ -64,6 +83,9 @@ namespace Player.Ragdoll
 
                 ApplySpringTorque(_ragdollRbs[i], _targetLocalRotations[i], currentSpring);
             }
+
+            // 힙을 서있는 높이로 끌어올림.
+            ApplyHipsLift(currentSpring);
 
             // 캡슐을 힙 위치에 추적.
             SnapCapsuleToHips();
@@ -92,11 +114,24 @@ namespace Player.Ragdoll
                 ? bone.parent.TransformDirection(axis.normalized)
                 : axis.normalized;
 
-            // 스프링 토크 - 감쇠 토크.
             Vector3 torque = worldAxis * (angle * Mathf.Deg2Rad * spring)
                              - rb.angularVelocity * _damping;
 
             rb.AddTorque(torque, ForceMode.Acceleration);
+        }
+
+        private void ApplyHipsLift(float spring)
+        {
+            Rigidbody hipsRb = _ragdollRbs[0];
+            Transform hips = hipsRb.transform;
+
+            float groundY = GetGroundY(hips.position);
+            float targetY = groundY + _standingHipsHeight;
+            float heightDiff = targetY - hips.position.y;
+
+            // 수직 스프링 힘.
+            float liftAccel = heightDiff * _liftForce - hipsRb.linearVelocity.y * _damping;
+            hipsRb.AddForce(Vector3.up * liftAccel, ForceMode.Acceleration);
         }
 
         private void SnapCapsuleToHips()
@@ -107,7 +142,6 @@ namespace Player.Ragdoll
 
             _capsuleRb.MovePosition(new Vector3(hipsPos.x, groundY, hipsPos.z));
 
-            // 캡슐 회전을 힙 전방 방향으로 갱신.
             Vector3 hipsForward = hips.rotation * Vector3.forward;
             hipsForward.y = 0f;
             if (hipsForward.sqrMagnitude > 0.001f)
