@@ -3,19 +3,18 @@ using UnityEngine;
 
 namespace Player.Ragdoll
 {
+    [RequireComponent(typeof(RagdollPhysicsToggle), typeof(RagdollRecovery))]
     public class RagdollController : MonoBehaviour, IRagdollInput
     {
-        [Header("References")]
-        [SerializeField] private RagdollPhysicsToggle _physicsToggle;
-        [SerializeField] private RagdollRecovery _recovery;
-        [SerializeField] private UpperBodyPhysics _upperBodyPhysics;
-
         [Header("Ragdoll Settings")]
         [SerializeField] private float _ragdollThreshold = 8f;
         [SerializeField] private float _minRagdollDuration = 0.5f;
         [SerializeField] private float _maxRagdollDuration = 2.0f;
         [SerializeField] private float _durationPerImpulse = 0.1f;
 
+        private RagdollPhysicsToggle _physicsToggle;
+        private RagdollRecovery _recovery;
+        private UpperBodyPhysics _upperBodyPhysics;
         private ERagdollState _currentState = ERagdollState.Animated;
         private RagdollImpactApplier _impactApplier;
         private Coroutine _activeCoroutine;
@@ -24,6 +23,9 @@ namespace Player.Ragdoll
 
         private void Awake()
         {
+            _physicsToggle = GetComponent<RagdollPhysicsToggle>();
+            _recovery = GetComponent<RagdollRecovery>();
+            _upperBodyPhysics = GetComponent<UpperBodyPhysics>();
             _impactApplier = new RagdollImpactApplier(_physicsToggle.RagdollRigidbodies);
         }
 

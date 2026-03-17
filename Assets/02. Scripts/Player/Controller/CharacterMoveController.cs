@@ -3,13 +3,9 @@ using UnityEngine;
 
 namespace Player.Controller
 {
+    [RequireComponent(typeof(Animator), typeof(Rigidbody), typeof(RagdollController))]
     public class CharacterMoveController : MonoBehaviour
     {
-        [Header("References")]
-        [SerializeField] private Animator _animator;
-        [SerializeField] private Rigidbody _capsuleRb;
-        [SerializeField] private RagdollController _ragdollController;
-
         [Header("Movement")]
         [SerializeField] private float _moveSpeed = 5f;
         [SerializeField] private float _accelerationTime = 0.15f;
@@ -26,6 +22,9 @@ namespace Player.Controller
         [SerializeField] private float _diveForce = 8f;
         [SerializeField] private float _diveCooldown = 0.5f;
 
+        private Animator _animator;
+        private Rigidbody _capsuleRb;
+        private RagdollController _ragdollController;
         private Transform _cameraTransform;
         private Vector3 _currentVelocity;
         private ERagdollState _previousRagdollState;
@@ -33,10 +32,35 @@ namespace Player.Controller
         private float _lastDiveTime = -Mathf.Infinity;
         private bool _jumpRequested;
         private bool _diveRequested;
+        private bool _initialized;
         private Vector3 _inputDirection;
 
         private const float CoyoteTime = 0.1f;
         private static readonly int s_speedHash = Animator.StringToHash("Speed");
+
+        private void OnEnable()
+        {
+            if (!_initialized)
+            {
+                _animator = GetComponent<Animator>();
+                _capsuleRb = GetComponent<Rigidbody>();
+                _ragdollController = GetComponent<RagdollController>();
+                _initialized = true;
+            }
+
+            _capsuleRb.isKinematic = false;
+        }
+
+        private void OnDisable()
+        {
+            if (!_initialized)
+                return;
+
+            _capsuleRb.isKinematic = true;
+            _currentVelocity = Vector3.zero;
+            _jumpRequested = false;
+            _diveRequested = false;
+        }
 
         private void Start()
         {
@@ -100,19 +124,6 @@ namespace Player.Controller
         public void SetCameraTransform(Transform cameraTransform)
         {
             _cameraTransform = cameraTransform;
-        }
-
-        public void SetPhysicsActive(bool active)
-        {
-            _capsuleRb.isKinematic = !active;
-            enabled = active;
-
-            if (!active)
-            {
-                _currentVelocity = Vector3.zero;
-                _jumpRequested = false;
-                _diveRequested = false;
-            }
         }
 
         public Vector3 GetVelocity()

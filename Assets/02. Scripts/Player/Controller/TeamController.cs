@@ -5,16 +5,9 @@ using UnityEngine;
 
 namespace Player.Controller
 {
+    [RequireComponent(typeof(LocalPlayerInput))]
     public class TeamController : MonoBehaviour
     {
-        [Header("Input")]
-        [SerializeField] private LocalPlayerInput _playerInput;
-
-        [Header("Controllers")]
-        [SerializeField] private CharacterMoveController _mergedController;
-        [SerializeField] private CharacterMoveController _avatarAController;
-        [SerializeField] private CharacterMoveController _avatarBController;
-
         [Header("Bodies")]
         [SerializeField] private GameObject _mergedBody;
         [SerializeField] private GameObject _avatarA;
@@ -24,6 +17,10 @@ namespace Player.Controller
         [SerializeField] private ETeamMode _startMode = ETeamMode.Merged;
         [SerializeField] private float _separationOffset = 1.0f;
 
+        private LocalPlayerInput _playerInput;
+        private CharacterMoveController _mergedController;
+        private CharacterMoveController _avatarAController;
+        private CharacterMoveController _avatarBController;
         private ETeamMode _currentMode;
         private TpsCameraController _cameraController;
         private bool _pendingSwitch;
@@ -37,6 +34,11 @@ namespace Player.Controller
 
         private void Start()
         {
+            _playerInput = GetComponent<LocalPlayerInput>();
+            _mergedController = _mergedBody.GetComponent<CharacterMoveController>();
+            _avatarAController = _avatarA.GetComponent<CharacterMoveController>();
+            _avatarBController = _avatarB.GetComponent<CharacterMoveController>();
+
             _cameraController = FindAnyObjectByType<TpsCameraController>();
 
             Transform cameraTransform = _cameraController != null
@@ -122,9 +124,6 @@ namespace Player.Controller
                     _mergedBody.SetActive(true);
                     _avatarA.SetActive(false);
                     _avatarB.SetActive(false);
-                    _mergedController.SetPhysicsActive(true);
-                    _avatarAController.SetPhysicsActive(false);
-                    _avatarBController.SetPhysicsActive(false);
                     SetCameraTarget(_mergedBody.transform);
                     break;
 
@@ -132,9 +131,6 @@ namespace Player.Controller
                     _mergedBody.SetActive(false);
                     _avatarA.SetActive(true);
                     _avatarB.SetActive(true);
-                    _mergedController.SetPhysicsActive(false);
-                    _avatarAController.SetPhysicsActive(true);
-                    _avatarBController.SetPhysicsActive(true);
                     SetCameraTarget(_avatarA.transform);
                     break;
             }
@@ -161,15 +157,12 @@ namespace Player.Controller
             Vector3 avgPosition = (_avatarA.transform.position + _avatarB.transform.position) * 0.5f;
             Vector3 avgVelocity = (_avatarAController.GetVelocity() + _avatarBController.GetVelocity()) * 0.5f;
 
-            // 먼저 velocity 설정 후 활성화 (한 프레임 원점 물리 방지).
+            // SetActive(true) → OnEnable에서 isKinematic = false 처리.
             _mergedBody.transform.position = avgPosition;
-            _mergedController.SetVelocity(avgVelocity);
             _mergedBody.SetActive(true);
-            _mergedController.SetPhysicsActive(true);
+            _mergedController.SetVelocity(avgVelocity);
 
-            // 비활성화.
-            _avatarAController.SetPhysicsActive(false);
-            _avatarBController.SetPhysicsActive(false);
+            // SetActive(false) → OnDisable에서 정리.
             _avatarA.SetActive(false);
             _avatarB.SetActive(false);
 
@@ -186,18 +179,15 @@ namespace Player.Controller
             Vector3 posA = basePosition - right * _separationOffset;
             Vector3 posB = basePosition + right * _separationOffset;
 
-            // 먼저 velocity 설정 후 활성화.
+            // SetActive(true) → OnEnable에서 isKinematic = false 처리.
             _avatarA.transform.position = posA;
             _avatarB.transform.position = posB;
-            _avatarAController.SetVelocity(velocity);
-            _avatarBController.SetVelocity(velocity);
             _avatarA.SetActive(true);
             _avatarB.SetActive(true);
-            _avatarAController.SetPhysicsActive(true);
-            _avatarBController.SetPhysicsActive(true);
+            _avatarAController.SetVelocity(velocity);
+            _avatarBController.SetVelocity(velocity);
 
-            // 비활성화.
-            _mergedController.SetPhysicsActive(false);
+            // SetActive(false) → OnDisable에서 정리.
             _mergedBody.SetActive(false);
 
             SetCameraTarget(_avatarA.transform);

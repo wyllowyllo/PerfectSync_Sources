@@ -3,14 +3,15 @@ using UnityEngine;
 
 namespace Player.Ragdoll
 {
+    [RequireComponent(typeof(Animator), typeof(Rigidbody))]
     public class RagdollPhysicsToggle : MonoBehaviour
     {
-        [SerializeField] private Animator _animator;
-        [SerializeField] private Collider _capsuleCollider;
-        [SerializeField] private Rigidbody _capsuleRb;
         [SerializeField] private Transform _hipsRoot;
-        [SerializeField] private UpperBodyPhysics _upperBodyPhysics;
 
+        private Animator _animator;
+        private CapsuleCollider _capsuleCollider;
+        private Rigidbody _capsuleRb;
+        private UpperBodyPhysics _upperBodyPhysics;
         private Rigidbody[] _ragdollRbs;
         private Collider[] _ragdollCols;
         private Transform[] _ragdollBones;
@@ -22,6 +23,11 @@ namespace Player.Ragdoll
 
         private void Awake()
         {
+            _animator = GetComponent<Animator>();
+            _capsuleCollider = GetComponent<CapsuleCollider>();
+            _capsuleRb = GetComponent<Rigidbody>();
+            _upperBodyPhysics = GetComponent<UpperBodyPhysics>();
+
             _ragdollRbs = _hipsRoot.GetComponentsInChildren<Rigidbody>();
             _ragdollCols = _hipsRoot.GetComponentsInChildren<Collider>();
             _ragdollBones = _ragdollRbs.Select(rb => rb.transform).ToArray();
