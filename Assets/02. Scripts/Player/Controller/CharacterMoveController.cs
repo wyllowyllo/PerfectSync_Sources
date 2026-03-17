@@ -4,7 +4,7 @@ using UnityEngine;
 namespace Player.Controller
 {
     [RequireComponent(typeof(Animator), typeof(Rigidbody), typeof(RagdollController))]
-    public class CharacterMoveController : MonoBehaviour
+    public class CharacterMoveController : MonoBehaviour, IControllableBody
     {
         [Header("Movement")]
         [SerializeField] private float _moveSpeed = 5f;
@@ -126,16 +126,20 @@ namespace Player.Controller
             _cameraTransform = cameraTransform;
         }
 
-        public Vector3 GetVelocity()
+        public Vector3 Velocity
         {
-            return _capsuleRb.linearVelocity;
+            get => _capsuleRb.linearVelocity;
+            set
+            {
+                _capsuleRb.linearVelocity = value;
+                _currentVelocity = new Vector3(value.x, 0f, value.z);
+            }
         }
 
-        public void SetVelocity(Vector3 velocity)
-        {
-            _capsuleRb.linearVelocity = velocity;
-            _currentVelocity = new Vector3(velocity.x, 0f, velocity.z);
-        }
+        public Transform BodyTransform => transform;
+
+        public bool IsRagdollActive => _ragdollController.CurrentState == ERagdollState.Ragdoll
+            || _ragdollController.CurrentState == ERagdollState.BlendToAnim;
 
         private Vector3 GetCameraRelativeDirection(Vector2 input)
         {
