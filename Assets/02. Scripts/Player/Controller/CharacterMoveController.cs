@@ -25,7 +25,6 @@ namespace Player.Controller
         private Animator _animator;
         private Rigidbody _capsuleRb;
         private IRagdoll _ragdoll;
-        private Transform _cameraTransform;
         private Vector3 _currentVelocity;
         private ERagdollState _previousRagdollState;
         private float _lastGroundedTime;
@@ -34,31 +33,24 @@ namespace Player.Controller
         private bool _initialized;
         private Vector3 _inputDirection;
 
+        // 프로퍼티
+        public Vector3 Velocity
+        {
+            get => _capsuleRb.linearVelocity;
+            set
+            {
+                _capsuleRb.linearVelocity = value;
+                _currentVelocity = new Vector3(value.x, 0f, value.z);
+            }
+        }
+        public Transform BodyTransform => transform;
+        public bool IsRagdollActive => _ragdoll.IsRagdollActive;
+        
+        // 상수
         private const float CoyoteTime = 0.1f;
         private static readonly int s_speedHash = Animator.StringToHash("Speed");
 
-        private void OnEnable()
-        {
-            if (!_initialized)
-            {
-                _animator = GetComponent<Animator>();
-                _capsuleRb = GetComponent<Rigidbody>();
-                _ragdoll = GetComponent<IRagdoll>();
-                _initialized = true;
-            }
-
-            _capsuleRb.isKinematic = false;
-        }
-
-        private void OnDisable()
-        {
-            if (!_initialized)
-                return;
-
-            _capsuleRb.isKinematic = true;
-            _currentVelocity = Vector3.zero;
-            _jumpRequested = false;
-        }
+       
 
         private void Start()
         {
@@ -110,53 +102,13 @@ namespace Player.Controller
             _capsuleRb.linearVelocity = velocity;
         }
 
-        public void ApplyInput(Vector2 move, bool jump)
+        public void ApplyInput(Vector3 worldDirection, bool jump)
         {
-            _inputDirection = GetCameraRelativeDirection(move);
+            _inputDirection = worldDirection;
             _jumpRequested |= jump;
         }
 
-        public void SetCameraTransform(Transform cameraTransform)
-        {
-            _cameraTransform = cameraTransform;
-        }
-
-        public Vector3 Velocity
-        {
-            get => _capsuleRb.linearVelocity;
-            set
-            {
-                _capsuleRb.linearVelocity = value;
-                _currentVelocity = new Vector3(value.x, 0f, value.z);
-            }
-        }
-
-        public Transform BodyTransform => transform;
-
-        public bool IsRagdollActive => _ragdoll.IsRagdollActive;
-
-        private Vector3 GetCameraRelativeDirection(Vector2 input)
-        {
-            float h = input.x;
-            float v = input.y;
-
-            if (_cameraTransform == null)
-            {
-                var worldDir = new Vector3(h, 0f, v);
-                return worldDir.sqrMagnitude > 1f ? worldDir.normalized : worldDir;
-            }
-
-            Vector3 camForward = _cameraTransform.forward;
-            camForward.y = 0f;
-            camForward.Normalize();
-
-            Vector3 camRight = _cameraTransform.right;
-            camRight.y = 0f;
-            camRight.Normalize();
-
-            Vector3 direction = camRight * h + camForward * v;
-            return direction.sqrMagnitude > 1f ? direction.normalized : direction;
-        }
+       
 
         private void Accelerate(Vector3 targetVelocity)
         {
@@ -218,6 +170,30 @@ namespace Player.Controller
             Vector3 diveDirection = transform.forward + Vector3.down * 0.2f;
             _capsuleRb.AddForce(diveDirection.normalized * _diveForce, ForceMode.Impulse);
             _lastDiveTime = Time.time;
+        }
+        
+        
+        private void OnEnable()
+        {
+            if (!_initialized)
+            {
+                _animator = GetComponent<Animator>();
+                _capsuleRb = GetComponent<Rigidbody>();
+                _ragdoll = GetComponent<IRagdoll>();
+                _initialized = true;
+            }
+
+            _capsuleRb.isKinematic = false;
+        }
+
+        private void OnDisable()
+        {
+            if (!_initialized)
+                return;
+
+            _capsuleRb.isKinematic = true;
+            _currentVelocity = Vector3.zero;
+            _jumpRequested = false;
         }
     }
 }

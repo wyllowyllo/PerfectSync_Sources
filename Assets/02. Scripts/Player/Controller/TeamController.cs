@@ -4,59 +4,85 @@ using UnityEngine;
 
 namespace Player.Controller
 {
-    [RequireComponent(typeof(LocalPlayerInput), typeof(AvatarTransformer))]
+    [RequireComponent(typeof(LocalPlayerInput), typeof(AvatarController))]
     public class TeamController : MonoBehaviour
     {
         [Header("Settings")]
         [SerializeField] private ETeamMode _startMode = ETeamMode.Merged;
 
-        private IPlayerInput _playerInput;
-        private AvatarTransformer _avatarTransformer;
-        private TpsCameraController _cameraController;
+        [Header("Cameras")]
+        [SerializeField] private TpsCameraController _cameraControllerA;
+        [SerializeField] private TpsCameraController _cameraControllerB;
+
+        private IPlayerInput _playerInputA;
+        private IPlayerInput _playerInputB;
+        private AvatarController avatarController;
+        private Transform _cameraTransformA;
+        private Transform _cameraTransformB;
 
         private void Start()
         {
-            _playerInput = GetComponent<LocalPlayerInput>();
-            _avatarTransformer = GetComponent<AvatarTransformer>();
-            _cameraController = FindAnyObjectByType<TpsCameraController>();
+            _playerInputA = GetComponent<LocalPlayerInput>();
+            avatarController = GetComponent<AvatarController>();
 
-            Transform cameraTransform = _cameraController != null
-                ? _cameraController.transform
+            if (_cameraControllerA == null)
+                _cameraControllerA = FindAnyObjectByType<TpsCameraController>();
+
+            _cameraTransformA = _cameraControllerA != null
+                ? _cameraControllerA.transform
                 : Camera.main.transform;
 
-            _avatarTransformer.OnModeChanged += HandleModeChanged;
-            _avatarTransformer.Initialize(_startMode, cameraTransform);
+            _cameraTransformB = _cameraControllerB != null
+                ? _cameraControllerB.transform
+                : null;
+
+            avatarController.OnModeChanged += HandleModeChanged;
+            avatarController.Initialize(_startMode);
+
+            if (_cameraControllerA != null)
+                _cameraControllerA.SetTarget(avatarController.PrimaryBodyTransform);
+
+            if (_cameraControllerB != null)
+                _cameraControllerB.SetTarget(avatarController.SecondaryBodyTransform);
 
             TeamModeManager.Instance.OnSwitchRequested += HandleSwitchRequested;
         }
-        
 
         private void Update()
         {
-            _avatarTransformer.Tick();
+            avatarController.Tick();
             RouteInput();
         }
 
         private void HandleSwitchRequested()
         {
-            _avatarTransformer.ToggleMode();
+            avatarController.ToggleMode();
         }
 
         private void HandleModeChanged(ETeamMode newMode)
         {
-            if (_cameraController == null)
-                return;
+            if (_cameraControllerA != null)
+                _cameraControllerA.SetTarget(avatarController.PrimaryBodyTransform);
 
-            _cameraController.SetTarget(_avatarTransformer.PrimaryBodyTransform);
+            if (_cameraControllerB != null)
+                _cameraControllerB.SetTarget(avatarController.SecondaryBodyTransform);
         }
 
         private void RouteInput()
         {
-            IPlayerInput input = _playerInput;
-            if (!input.IsOwner)
+            if (_playerInputA != null && !_playerInputA.IsOwner)
                 return;
 
-            _avatarTransformer.ApplyInput(input.MoveInput, input.JumpPressed);
+            Vector2 rawA = _playerInputA != null ? _playerInputA.MoveInput : Vector2.zero;
+            bool jumpA = _playerInputA != null && _playerInputA.JumpPressed;
+
+            Vector2 rawB = _playerInputB != null ? _playerInputB.MoveInput : Vector2.zero;
+            bool jumpB = _playerInputB != null && _playerInputB.JumpPressed;
+
+            Vector3 worldDirA = CameraRelativeConverter.Convert(rawA, _cameraTransformA);
+            Vector3 worldDirB = CameraRelativeConverter.Convert(rawB, _cameraTransformB);
+
+            avatarController.ApplyInput(worldDirA, worldDirB, jumpA, jumpB);
         }
     }
 }

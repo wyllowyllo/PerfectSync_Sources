@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace Player.Controller
 {
-    public class AvatarTransformer : MonoBehaviour
+    public class AvatarController : MonoBehaviour
     {
         [Header("Bodies")]
         [SerializeField] private GameObject _mergedBody;
@@ -27,17 +27,19 @@ namespace Player.Controller
             _ => _mergedControllable.BodyTransform
         };
 
+        public Transform SecondaryBodyTransform => _currentMode switch
+        {
+            ETeamMode.Separated => _avatarBControllable.BodyTransform,
+            _ => _mergedControllable.BodyTransform
+        };
+
         public event Action<ETeamMode> OnModeChanged;
 
-        public void Initialize(ETeamMode startMode, Transform cameraTransform)
+        public void Initialize(ETeamMode startMode)
         {
             _mergedControllable = _mergedBody.GetComponent<IControllableBody>();
             _avatarAControllable = _avatarA.GetComponent<IControllableBody>();
             _avatarBControllable = _avatarB.GetComponent<IControllableBody>();
-
-            _mergedControllable.SetCameraTransform(cameraTransform);
-            _avatarAControllable.SetCameraTransform(cameraTransform);
-            _avatarBControllable.SetCameraTransform(cameraTransform);
 
             _currentMode = startMode;
             ApplyMode(startMode);
@@ -64,18 +66,18 @@ namespace Player.Controller
             SwitchMode(target);
         }
 
-        public void ApplyInput(Vector2 move, bool jump)
+        public void ApplyInput(Vector3 worldDirA, Vector3 worldDirB, bool jumpA, bool jumpB)
         {
             switch (_currentMode)
             {
                 case ETeamMode.Merged:
-                    Vector2 combined = DualInputCombiner.Combine(move, move);
-                    _mergedControllable.ApplyInput(combined, jump);
+                    Vector3 combined = DualInputCombiner.Combine(worldDirA, worldDirB);
+                    _mergedControllable.ApplyInput(combined, jumpA || jumpB);
                     break;
 
                 case ETeamMode.Separated:
-                    _avatarAControllable.ApplyInput(move, jump);
-                    _avatarBControllable.ApplyInput(move, jump);
+                    _avatarAControllable.ApplyInput(worldDirA, jumpA);
+                    _avatarBControllable.ApplyInput(worldDirB, jumpB);
                     break;
             }
         }

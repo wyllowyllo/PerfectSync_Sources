@@ -6,10 +6,10 @@ namespace Player.Controller
     {
         private const float MaxMergedMagnitude = 1.5f;
 
-        public static Vector2 Combine(Vector2 inputA, Vector2 inputB)
+        public static Vector3 Combine(Vector3 inputA, Vector3 inputB)
         {
-            Vector2 sum = inputA + inputB;
-            return Vector2.ClampMagnitude(sum, MaxMergedMagnitude);
+            Vector3 sum = inputA + inputB;
+            return Vector3.ClampMagnitude(sum, MaxMergedMagnitude);
         }
     }
 }
