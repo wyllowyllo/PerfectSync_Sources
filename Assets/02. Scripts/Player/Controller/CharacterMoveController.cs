@@ -12,6 +12,9 @@ namespace Player.Controller
         [SerializeField] private float _decelerationTime = 0.1f;
         [SerializeField] private float _rotationSpeed = 10f;
 
+        [Header("Air Control")]
+        [SerializeField, Range(0f, 1f)] private float _airControlFactor = 0.6f;
+
         [Header("Jump")]
         [SerializeField] private float _jumpForce = 10f;
         [SerializeField] private float _groundCheckRadius = 0.3f;
@@ -30,6 +33,7 @@ namespace Player.Controller
         private float _lastGroundedTime;
         private float _lastDiveTime = -Mathf.Infinity;
         private bool _jumpRequested;
+        private bool _isGrounded;
         private bool _initialized;
         private Vector3 _inputDirection;
 
@@ -73,10 +77,12 @@ namespace Player.Controller
             if (currentRagdollState != ERagdollState.Animated)
                 return;
 
-            if (IsGrounded())
+            _isGrounded = IsGrounded();
+            if (_isGrounded)
                 _lastGroundedTime = Time.time;
 
-            Accelerate(_inputDirection * _moveSpeed);
+            float speedMultiplier = _isGrounded ? 1f : _airControlFactor;
+            Accelerate(_inputDirection * _moveSpeed * speedMultiplier);
             RotateToVelocity();
             UpdateAnimator();
 
@@ -126,10 +132,7 @@ namespace Player.Controller
         {
             if (_currentVelocity.sqrMagnitude > 0.01f)
             {
-                transform.rotation = Quaternion.Slerp(
-                    transform.rotation,
-                    Quaternion.LookRotation(_currentVelocity),
-                    Time.deltaTime * _rotationSpeed);
+                transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(_currentVelocity), Time.deltaTime * _rotationSpeed);
             }
         }
 
