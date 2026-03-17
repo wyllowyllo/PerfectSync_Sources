@@ -5,73 +5,113 @@ namespace Player.Ragdoll
 {
     public class RagdollRecovery : MonoBehaviour
     {
-        [SerializeField] private float _blendDuration = 0.3f;
+        [Header("Spring")]
+        [SerializeField] private float _springForce = 100f;
+        [SerializeField] private float _damping = 15f;
+
+        [Header("Recovery")]
+        [SerializeField] private float _recoveryDuration = 1f;
         [SerializeField] private float _groundCheckDistance = 10f;
         [SerializeField] private LayerMask _groundLayer;
 
-        private Transform[] _bones;
-        private Animator _animator;
+        private Rigidbody[] _ragdollRbs;
+        private Quaternion[] _targetLocalRotations;
+        private Rigidbody _capsuleRb;
         private Action _onComplete;
+        private float _recoveryTimer;
+        private bool _isRecovering;
 
-        private Vector3[] _bonePositionSnapshot;
-        private Quaternion[] _boneRotationSnapshot;
-        private float _blendTimer;
-        private bool _isBlending;
+        public bool IsRecovering => _isRecovering;
 
-        public bool IsRecovering => _isBlending;
-
-        public void StartRecovery(Transform[] bones, Animator animator, Rigidbody capsuleRb, Action onComplete)
+        public void Initialize(Rigidbody[] ragdollRbs)
         {
-            _bones = bones;
-            _animator = animator;
-            _onComplete = onComplete;
-            
-            _bonePositionSnapshot = new Vector3[_bones.Length];
-            _boneRotationSnapshot = new Quaternion[_bones.Length];
+            _ragdollRbs = ragdollRbs;
 
-            for (int i = 0; i < _bones.Length; i++)
+            // 초기 포즈(서있는 상태)의 본 로컬 회전 저장.
+            _targetLocalRotations = new Quaternion[_ragdollRbs.Length];
+            for (int i = 0; i < _ragdollRbs.Length; i++)
             {
-                _bonePositionSnapshot[i] = _bones[i].position;
-                _boneRotationSnapshot[i] = _bones[i].rotation;
+                _targetLocalRotations[i] = _ragdollRbs[i].transform.localRotation;
             }
-
-            // 캡슐 위치를 힙 위치 기준으로 보정.
-            Vector3 hipsPos = _bones[0].position;
-            float groundY = GetGroundY(hipsPos);
-            capsuleRb.position = new Vector3(hipsPos.x, groundY, hipsPos.z);
-
-            Vector3 hipsForward = _bones[0].rotation * Vector3.forward;
-            hipsForward.y = 0f;
-            if (hipsForward.sqrMagnitude > 0.001f)
-                capsuleRb.rotation = Quaternion.LookRotation(hipsForward);
-
-            // 잔여 속도 제거.
-            capsuleRb.linearVelocity = Vector3.zero;
-            capsuleRb.angularVelocity = Vector3.zero;
-
-            _blendTimer = 0f;
-            _isBlending = true;
         }
 
-        private void LateUpdate()
+        public void StartRecovery(Rigidbody capsuleRb, Action onComplete)
         {
-            if (!_isBlending) return;
+            _capsuleRb = capsuleRb;
+            _onComplete = onComplete;
+            _recoveryTimer = 0f;
+            _isRecovering = true;
 
-            _blendTimer += Time.deltaTime;
-            float t = Mathf.Clamp01(_blendTimer / _blendDuration);
+            // 캡슐 위치를 힙 기준으로 보정.
+            SnapCapsuleToHips();
+        }
 
-            if (t < 1f)
-            {
-                for (int i = 0; i < _bones.Length; i++)
-                {
-                    _bones[i].position = Vector3.Lerp(_bonePositionSnapshot[i], _bones[i].position, t);
-                    _bones[i].rotation = Quaternion.Slerp(_boneRotationSnapshot[i], _bones[i].rotation, t);
-                }
+        private void FixedUpdate()
+        {
+            if (!_isRecovering)
                 return;
+
+            _recoveryTimer += Time.fixedDeltaTime;
+            float t = Mathf.Clamp01(_recoveryTimer / _recoveryDuration);
+
+            // 스프링 강도를 점진적으로 증가.
+            float currentSpring = Mathf.Lerp(0f, _springForce, t);
+
+            for (int i = 0; i < _ragdollRbs.Length; i++)
+            {
+                if (_ragdollRbs[i] == null)
+                    continue;
+
+                ApplySpringTorque(_ragdollRbs[i], _targetLocalRotations[i], currentSpring);
             }
 
-            _isBlending = false;
-            _onComplete?.Invoke();
+            // 캡슐을 힙 위치에 추적.
+            SnapCapsuleToHips();
+
+            if (t >= 1f)
+            {
+                _isRecovering = false;
+                _onComplete?.Invoke();
+            }
+        }
+
+        private void ApplySpringTorque(Rigidbody rb, Quaternion targetLocalRot, float spring)
+        {
+            Transform bone = rb.transform;
+            Quaternion rotDiff = targetLocalRot * Quaternion.Inverse(bone.localRotation);
+
+            rotDiff.ToAngleAxis(out float angle, out Vector3 axis);
+            if (angle > 180f)
+                angle -= 360f;
+
+            if (axis.sqrMagnitude < 0.001f || Mathf.Abs(angle) < 0.1f)
+                return;
+
+            // 로컬 축을 월드 스페이스로 변환.
+            Vector3 worldAxis = bone.parent != null
+                ? bone.parent.TransformDirection(axis.normalized)
+                : axis.normalized;
+
+            // 스프링 토크 - 감쇠 토크.
+            Vector3 torque = worldAxis * (angle * Mathf.Deg2Rad * spring)
+                             - rb.angularVelocity * _damping;
+
+            rb.AddTorque(torque, ForceMode.Acceleration);
+        }
+
+        private void SnapCapsuleToHips()
+        {
+            Transform hips = _ragdollRbs[0].transform;
+            Vector3 hipsPos = hips.position;
+            float groundY = GetGroundY(hipsPos);
+
+            _capsuleRb.MovePosition(new Vector3(hipsPos.x, groundY, hipsPos.z));
+
+            // 캡슐 회전을 힙 전방 방향으로 갱신.
+            Vector3 hipsForward = hips.rotation * Vector3.forward;
+            hipsForward.y = 0f;
+            if (hipsForward.sqrMagnitude > 0.001f)
+                _capsuleRb.MoveRotation(Quaternion.LookRotation(hipsForward));
         }
 
         private float GetGroundY(Vector3 origin)
