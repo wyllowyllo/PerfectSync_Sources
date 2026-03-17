@@ -47,9 +47,7 @@ namespace Player.Controller
             if (_cameraController == null)
                 return;
 
-            var activeBodies = _avatarTransformer.ActiveBodies;
-            if (activeBodies.Count > 0)
-                _cameraController.SetTarget(activeBodies[0].BodyTransform);
+            _cameraController.SetTarget(_avatarTransformer.PrimaryBodyTransform);
         }
 
         private void RouteInput()

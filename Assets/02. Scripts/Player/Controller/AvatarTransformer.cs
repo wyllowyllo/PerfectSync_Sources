@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using UnityEngine;
 
 namespace Player.Controller
@@ -20,9 +19,13 @@ namespace Player.Controller
         private ETeamMode _currentMode;
         private bool _pendingSwitch;
         private ETeamMode _pendingSwitchTarget;
-        private readonly List<IControllableBody> _activeBodies = new();
 
-        public IReadOnlyList<IControllableBody> ActiveBodies => _activeBodies;
+        public Transform PrimaryBodyTransform => _currentMode switch
+        {
+            ETeamMode.Merged => _mergedControllable.BodyTransform,
+            ETeamMode.Separated => _avatarAControllable.BodyTransform,
+            _ => _mergedControllable.BodyTransform
+        };
 
         public event Action<ETeamMode> OnModeChanged;
 
@@ -63,17 +66,17 @@ namespace Player.Controller
 
         public void ApplyInput(Vector2 move, bool jump, bool dive)
         {
-            if (_currentMode == ETeamMode.Merged)
+            switch (_currentMode)
             {
-                Vector2 combined = DualInputCombiner.Combine(move, move);
-                _activeBodies[0].ApplyInput(combined, jump, dive);
-            }
-            else
-            {
-                for (int i = 0; i < _activeBodies.Count; i++)
-                {
-                    _activeBodies[i].ApplyInput(move, jump, dive);
-                }
+                case ETeamMode.Merged:
+                    Vector2 combined = DualInputCombiner.Combine(move, move);
+                    _mergedControllable.ApplyInput(combined, jump, dive);
+                    break;
+
+                case ETeamMode.Separated:
+                    _avatarAControllable.ApplyInput(move, jump, dive);
+                    _avatarBControllable.ApplyInput(move, jump, dive);
+                    break;
             }
         }
 
@@ -99,7 +102,6 @@ namespace Player.Controller
             }
 
             _currentMode = targetMode;
-            RebuildActiveBodies();
             OnModeChanged?.Invoke(targetMode);
         }
 
@@ -153,36 +155,18 @@ namespace Player.Controller
                     break;
             }
 
-            RebuildActiveBodies();
             OnModeChanged?.Invoke(mode);
-        }
-
-        private void RebuildActiveBodies()
-        {
-            _activeBodies.Clear();
-
-            switch (_currentMode)
-            {
-                case ETeamMode.Merged:
-                    _activeBodies.Add(_mergedControllable);
-                    break;
-
-                case ETeamMode.Separated:
-                    _activeBodies.Add(_avatarAControllable);
-                    _activeBodies.Add(_avatarBControllable);
-                    break;
-            }
         }
 
         private bool IsAnyRagdollActive()
         {
-            for (int i = 0; i < _activeBodies.Count; i++)
+            return _currentMode switch
             {
-                if (_activeBodies[i].IsRagdollActive)
-                    return true;
-            }
-
-            return false;
+                ETeamMode.Merged => _mergedControllable.IsRagdollActive,
+                ETeamMode.Separated => _avatarAControllable.IsRagdollActive
+                    || _avatarBControllable.IsRagdollActive,
+                _ => false
+            };
         }
     }
 }
