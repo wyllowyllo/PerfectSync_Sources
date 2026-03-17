@@ -10,7 +10,7 @@ namespace Player.Controller
         [Header("Settings")]
         [SerializeField] private ETeamMode _startMode = ETeamMode.Merged;
 
-        private LocalPlayerInput _playerInput;
+        private IPlayerInput _playerInput;
         private AvatarTransformer _avatarTransformer;
         private TpsCameraController _cameraController;
 

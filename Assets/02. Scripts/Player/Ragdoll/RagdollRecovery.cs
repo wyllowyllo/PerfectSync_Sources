@@ -16,7 +16,6 @@ namespace Player.Ragdoll
         private Vector3[] _bonePositionSnapshot;
         private Quaternion[] _boneRotationSnapshot;
         private float _blendTimer;
-        private bool _savedFaceUp;
         private bool _isBlending;
 
         public bool IsRecovering => _isBlending;
@@ -26,9 +25,7 @@ namespace Player.Ragdoll
             _bones = bones;
             _animator = animator;
             _onComplete = onComplete;
-
-            _savedFaceUp = Vector3.Dot(_bones[0].up, Vector3.up) > 0;
-
+            
             _bonePositionSnapshot = new Vector3[_bones.Length];
             _boneRotationSnapshot = new Quaternion[_bones.Length];
 
