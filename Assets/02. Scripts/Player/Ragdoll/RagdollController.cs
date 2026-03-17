@@ -1,253 +1,101 @@
-using System;
 using System.Collections;
-using System.Linq;
 using UnityEngine;
-using Random = UnityEngine.Random;
 
 namespace Player.Ragdoll
 {
     public class RagdollController : MonoBehaviour, IRagdollInput
     {
         [Header("References")]
-        [SerializeField] private Animator animator;
-        [SerializeField] private Collider capsuleCollider;
-        [SerializeField] private Rigidbody capsuleRb;
-        [SerializeField] private Transform hipsRoot;
-        [SerializeField] private UpperBodyPhysics upperBodyPhysics;
+        [SerializeField] private RagdollPhysicsToggle _physicsToggle;
+        [SerializeField] private RagdollRecovery _recovery;
+        [SerializeField] private UpperBodyPhysics _upperBodyPhysics;
 
         [Header("Ragdoll Settings")]
-        [SerializeField] private float minRagdollDuration = 0.5f;
-        [SerializeField] private float maxRagdollDuration = 2.0f;
-        [SerializeField] private float durationPerImpulse = 0.1f;
-        [SerializeField] private float blendDuration = 0.3f;
-        [SerializeField] private float groundCheckDistance = 10f;
-        [SerializeField] private LayerMask groundLayer;
-        [SerializeField] private bool useGetUpAnimation = true;
+        [SerializeField] private float _ragdollThreshold = 8f;
+        [SerializeField] private float _minRagdollDuration = 0.5f;
+        [SerializeField] private float _maxRagdollDuration = 2.0f;
+        [SerializeField] private float _durationPerImpulse = 0.1f;
 
-        [Header("Impact Thresholds")]
-        [SerializeField] private float ragdollThreshold = 8f;
+        private ERagdollState _currentState = ERagdollState.Animated;
+        private RagdollImpactApplier _impactApplier;
+        private Coroutine _activeCoroutine;
 
-        private ERagdollState currentState = ERagdollState.Animated;
-        private Rigidbody[] ragdollRbs;
-        private Collider[] ragdollCols;
-        private Transform[] ragdollBones;
-
-        private Vector3[] bonePositionSnapshot;
-        private Quaternion[] boneRotationSnapshot;
-        private float blendTimer;
-        private Coroutine activeCoroutine;
-        private bool savedFaceUp;
-
-        public ERagdollState CurrentState => currentState;
-
-        public event Action<Vector3, Vector3> OnImpactTriggered;
-        public event Action OnDeathTriggered;
+        public ERagdollState CurrentState => _currentState;
 
         private void Awake()
         {
-            ragdollRbs = hipsRoot.GetComponentsInChildren<Rigidbody>();
-            ragdollCols = hipsRoot.GetComponentsInChildren<Collider>();
-            ragdollBones = ragdollRbs.Select(rb => rb.transform).ToArray();
-
-            bonePositionSnapshot = new Vector3[ragdollBones.Length];
-            boneRotationSnapshot = new Quaternion[ragdollBones.Length];
-
-            SetRagdollActive(false);
-
-            capsuleRb.constraints = RigidbodyConstraints.FreezeRotation;
-        }
-
-        private void SetRagdollActive(bool active)
-        {
-            foreach (var rb in ragdollRbs)
-                rb.isKinematic = !active;
-
-            foreach (var col in ragdollCols)
-                col.enabled = active;
-
-            capsuleCollider.enabled = !active;
-            capsuleRb.isKinematic = active;
-
-            animator.enabled = !active;
-
-            if (upperBodyPhysics != null)
-                upperBodyPhysics.SetActive(!active);
+            _impactApplier = new RagdollImpactApplier(_physicsToggle.RagdollRigidbodies);
         }
 
         public void OnHitImpact(Vector3 impulse, Vector3 hitPoint)
         {
-            if (currentState == ERagdollState.Dead) return;
+            var impact = new ImpactData(impulse, hitPoint);
 
-            float magnitude = impulse.magnitude;
-
-            if (magnitude >= ragdollThreshold)
+            if (impact.Magnitude >= _ragdollThreshold)
             {
-                EnterRagdoll(impulse, hitPoint);
+                EnterRagdoll(impact);
                 return;
             }
 
-            if (upperBodyPhysics != null)
-                upperBodyPhysics.AddImpulse(impulse);
+            if (_upperBodyPhysics != null)
+                _upperBodyPhysics.AddImpulse(impulse);
         }
 
-        private void EnterRagdoll(Vector3 impulse, Vector3 hitPoint)
+        private void EnterRagdoll(ImpactData impact)
         {
-            if (activeCoroutine != null)
-            {
-                StopCoroutine(activeCoroutine);
-                activeCoroutine = null;
-            }
+            StopActiveCoroutine();
 
-            currentState = ERagdollState.Ragdoll;
+            _currentState = ERagdollState.Ragdoll;
 
-            Vector3 inheritedVelocity = capsuleRb.linearVelocity;
-            SetRagdollActive(true);
-
-            foreach (var rb in ragdollRbs)
-                rb.linearVelocity = inheritedVelocity;
-
-            Rigidbody closestRb = GetClosestBoneRb(hitPoint);
-            closestRb.AddForce(impulse, ForceMode.Impulse);
-            closestRb.AddTorque(
-                Random.insideUnitSphere * impulse.magnitude * 0.15f,
-                ForceMode.Impulse);
-
-            OnImpactTriggered?.Invoke(impulse, hitPoint);
+            Vector3 inheritedVelocity = _physicsToggle.CapsuleRigidbody.linearVelocity;
+            _physicsToggle.Activate();
+            _impactApplier.Apply(impact, inheritedVelocity);
 
             float duration = Mathf.Clamp(
-                impulse.magnitude * durationPerImpulse,
-                minRagdollDuration,
-                maxRagdollDuration);
-            activeCoroutine = StartCoroutine(RagdollToBlendCoroutine(duration));
+                impact.Magnitude * _durationPerImpulse,
+                _minRagdollDuration,
+                _maxRagdollDuration);
+            _activeCoroutine = StartCoroutine(WaitThenRecover(duration));
         }
 
-        public void OnDeath()
-        {
-            if (activeCoroutine != null)
-            {
-                StopCoroutine(activeCoroutine);
-                activeCoroutine = null;
-            }
-
-            currentState = ERagdollState.Dead;
-            SetRagdollActive(true);
-
-            OnDeathTriggered?.Invoke();
-        }
-
-        private Rigidbody GetClosestBoneRb(Vector3 point)
-        {
-            Rigidbody closest = ragdollRbs[0];
-            float closestSqr = (closest.position - point).sqrMagnitude;
-
-            for (int i = 1; i < ragdollRbs.Length; i++)
-            {
-                float sqr = (ragdollRbs[i].position - point).sqrMagnitude;
-                if (sqr < closestSqr)
-                {
-                    closest = ragdollRbs[i];
-                    closestSqr = sqr;
-                }
-            }
-
-            return closest;
-        }
-
-        private IEnumerator RagdollToBlendCoroutine(float duration)
+        private IEnumerator WaitThenRecover(float duration)
         {
             yield return new WaitForSeconds(duration);
 
-            if (currentState == ERagdollState.Ragdoll)
-                StartBlendToAnimation();
+            if (_currentState == ERagdollState.Ragdoll)
+            {
+                _currentState = ERagdollState.BlendToAnim;
+                _physicsToggle.Deactivate();
 
-            activeCoroutine = null;
+                // BlendToAnim 동안 UpperBodyPhysics 비활성화.
+                if (_upperBodyPhysics != null)
+                    _upperBodyPhysics.SetActive(false);
+
+                _recovery.StartRecovery(
+                    _physicsToggle.RagdollBones,
+                    _physicsToggle.Animator,
+                    _physicsToggle.CapsuleRigidbody,
+                    OnRecoveryComplete);
+            }
+
+            _activeCoroutine = null;
         }
 
-        private void StartBlendToAnimation()
+        private void OnRecoveryComplete()
         {
-            currentState = ERagdollState.BlendToAnim;
+            _currentState = ERagdollState.Animated;
 
-            savedFaceUp = Vector3.Dot(ragdollBones[0].up, Vector3.up) > 0;
-
-            for (int i = 0; i < ragdollBones.Length; i++)
-            {
-                bonePositionSnapshot[i] = ragdollBones[i].position;
-                boneRotationSnapshot[i] = ragdollBones[i].rotation;
-            }
-
-            Vector3 hipsPos = ragdollBones[0].position;
-            float groundY = GetGroundY(hipsPos);
-
-            capsuleRb.position = new Vector3(hipsPos.x, groundY, hipsPos.z);
-
-            Vector3 hipsForward = ragdollBones[0].rotation * Vector3.forward;
-            hipsForward.y = 0f;
-            if (hipsForward.sqrMagnitude > 0.001f)
-                capsuleRb.rotation = Quaternion.LookRotation(hipsForward);
-
-            // 이제 물리 모드 전환
-            SetRagdollActive(false);
-
-            // 잔여 속도 제거
-            capsuleRb.linearVelocity = Vector3.zero;
-            capsuleRb.angularVelocity = Vector3.zero;
-
-            // BlendToAnim 동안 UpperBodyPhysics 비활성화
-            if (upperBodyPhysics != null)
-                upperBodyPhysics.SetActive(false);
-
-            blendTimer = 0f;
+            if (_upperBodyPhysics != null)
+                _upperBodyPhysics.SetActive(true);
         }
 
-        private float GetGroundY(Vector3 origin)
+        private void StopActiveCoroutine()
         {
-            Vector3 rayOrigin = origin + Vector3.up * 0.5f;
-
-            if (Physics.Raycast(rayOrigin, Vector3.down, out RaycastHit hit,
-                    groundCheckDistance, groundLayer))
-                return hit.point.y;
-
-            return origin.y;
-        }
-
-        private void LateUpdate()
-        {
-            if (currentState != ERagdollState.BlendToAnim) return;
-
-            blendTimer += Time.deltaTime;
-            float t = Mathf.Clamp01(blendTimer / blendDuration);
-
-            // Phase 1: 본 블렌드
-            if (t < 1f)
+            if (_activeCoroutine != null)
             {
-                for (int i = 0; i < ragdollBones.Length; i++)
-                {
-                    ragdollBones[i].position = Vector3.Lerp(
-                        bonePositionSnapshot[i],
-                        ragdollBones[i].position,
-                        t);
-
-                    ragdollBones[i].rotation = Quaternion.Slerp(
-                        boneRotationSnapshot[i],
-                        ragdollBones[i].rotation,
-                        t);
-                }
-                return;
+                StopCoroutine(_activeCoroutine);
+                _activeCoroutine = null;
             }
-
-            currentState = ERagdollState.Animated;
-            if (useGetUpAnimation)
-            {
-                string getUpClip = savedFaceUp ? "GetUp_Back" : "GetUp_Front";
-                animator.CrossFade(getUpClip, 0.2f);
-            }
-            else
-            {
-                animator.CrossFade("Locomotion", 0.2f);
-            }
-
-            if (upperBodyPhysics != null)
-                upperBodyPhysics.SetActive(true);
         }
     }
 }

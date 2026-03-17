@@ -16,12 +16,17 @@ namespace Player.Test
         [SerializeField] private Rigidbody capsuleRb;
         [SerializeField] private RagdollController ragdollController;
 
+        private IRagdollInput _ragdollInput;
         private Transform cameraTransform;
-
         private Vector3 currentVelocity;
         private ERagdollState previousRagdollState;
 
         private static readonly int SpeedHash = Animator.StringToHash("Speed");
+
+        private void Awake()
+        {
+            _ragdollInput = ragdollController;
+        }
 
         private void Start()
         {
@@ -31,9 +36,9 @@ namespace Player.Test
 
         private void Update()
         {
-            ERagdollState currentRagdollState = ragdollController.CurrentState;
+            ERagdollState currentRagdollState = _ragdollInput.CurrentState;
 
-            // 래그돌 복귀 감지 → 속도 초기화 (Fix 5)
+            // 래그돌 복귀 감지 → 속도 초기화.
             if (previousRagdollState != ERagdollState.Animated
                 && currentRagdollState == ERagdollState.Animated)
             {
@@ -54,7 +59,7 @@ namespace Player.Test
 
         private void FixedUpdate()
         {
-            if (ragdollController.CurrentState != ERagdollState.Animated)
+            if (_ragdollInput.CurrentState != ERagdollState.Animated)
                 return;
 
             Vector3 velocity = capsuleRb.linearVelocity;

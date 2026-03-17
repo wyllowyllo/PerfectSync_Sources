@@ -48,8 +48,7 @@ namespace Player.Controller
             ERagdollState currentRagdollState = _ragdollController.CurrentState;
 
             // 래그돌 복귀 감지 → 속도 초기화.
-            if (_previousRagdollState != ERagdollState.Animated
-                && currentRagdollState == ERagdollState.Animated)
+            if (_previousRagdollState != ERagdollState.Animated && currentRagdollState == ERagdollState.Animated)
             {
                 _currentVelocity = Vector3.zero;
                 UpdateAnimator();
