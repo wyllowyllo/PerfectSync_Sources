@@ -9,5 +9,6 @@ namespace Player.Ragdoll
         ERagdollState CurrentState { get; }
         bool IsRagdollActive => CurrentState == ERagdollState.Ragdoll || CurrentState == ERagdollState.BlendToAnim;
         void OnHitImpact(Vector3 impulse, Vector3 hitPoint);
+        void ForceRagdoll();
     }
 }

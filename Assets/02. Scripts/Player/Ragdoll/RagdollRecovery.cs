@@ -71,8 +71,6 @@ namespace Player.Ragdoll
             }
 
             _isBlending = false;
-            
-            _animator.CrossFade("Locomotion", 0.2f);
             _onComplete?.Invoke();
         }
 

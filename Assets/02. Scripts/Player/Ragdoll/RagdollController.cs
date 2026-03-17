@@ -1,4 +1,6 @@
 using System.Collections;
+using Player.Controller;
+using Player.Controller.Ability;
 using UnityEngine;
 
 namespace Player.Ragdoll
@@ -15,6 +17,7 @@ namespace Player.Ragdoll
         private RagdollPhysicsToggle _physicsToggle;
         private RagdollRecovery _recovery;
         private UpperBodyPhysics _upperBodyPhysics;
+        private JumpAbility _jumpAbility;
         private ERagdollState _currentState = ERagdollState.Animated;
         private RagdollImpactTransfer _impactTransfer;
         private Coroutine _activeCoroutine;
@@ -26,6 +29,7 @@ namespace Player.Ragdoll
             _physicsToggle = GetComponent<RagdollPhysicsToggle>();
             _recovery = GetComponent<RagdollRecovery>();
             _upperBodyPhysics = GetComponent<UpperBodyPhysics>();
+            _jumpAbility = GetComponent<JumpAbility>();
             _impactTransfer = new RagdollImpactTransfer(_physicsToggle.RagdollRigidbodies);
         }
 
@@ -43,6 +47,13 @@ namespace Player.Ragdoll
                 _upperBodyPhysics.AddImpulse(impulse);
         }
 
+        public void ForceRagdoll()
+        {
+            var impulse = _physicsToggle.CapsuleRigidbody.linearVelocity.normalized * _ragdollThreshold;
+            var impact = new ImpactData(impulse, _physicsToggle.CapsuleRigidbody.position);
+            EnterRagdoll(impact);
+        }
+
         private void EnterRagdoll(ImpactData impact)
         {
             StopActiveCoroutine();
@@ -53,7 +64,8 @@ namespace Player.Ragdoll
             _physicsToggle.Activate();
             _impactTransfer.TransferImpact(impact, inheritedVelocity);
 
-            float duration = Mathf.Clamp(impact.Magnitude * _durationPerImpulse, _minRagdollDuration, _maxRagdollDuration); _activeCoroutine = StartCoroutine(WaitThenRecover(duration));
+            float duration = Mathf.Clamp(impact.Magnitude * _durationPerImpulse, _minRagdollDuration, _maxRagdollDuration);
+            _activeCoroutine = StartCoroutine(WaitThenRecover(duration));
         }
 
         private IEnumerator WaitThenRecover(float duration)
@@ -78,6 +90,7 @@ namespace Player.Ragdoll
         private void OnRecoveryComplete()
         {
             _currentState = ERagdollState.Animated;
+            _jumpAbility.ResetState();
 
             if (_upperBodyPhysics != null)
                 _upperBodyPhysics.SetActive(true);
