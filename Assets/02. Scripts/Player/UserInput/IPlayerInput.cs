@@ -7,6 +7,5 @@ namespace Player.UserInput
         bool IsOwner { get; }
         Vector2 MoveInput { get; }
         bool JumpPressed { get; }
-        bool DivePressed { get; }
     }
 }

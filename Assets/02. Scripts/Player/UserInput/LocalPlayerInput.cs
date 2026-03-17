@@ -11,7 +11,5 @@ namespace Player.UserInput
             Input.GetAxisRaw("Vertical"));
 
         public bool JumpPressed => Input.GetButtonDown("Jump");
-
-        public bool DivePressed => Input.GetKeyDown(KeyCode.LeftShift);
     }
 }

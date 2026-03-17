@@ -56,7 +56,7 @@ namespace Player.Controller
             if (!input.IsOwner)
                 return;
 
-            _avatarTransformer.ApplyInput(input.MoveInput, input.JumpPressed, input.DivePressed);
+            _avatarTransformer.ApplyInput(input.MoveInput, input.JumpPressed);
         }
     }
 }

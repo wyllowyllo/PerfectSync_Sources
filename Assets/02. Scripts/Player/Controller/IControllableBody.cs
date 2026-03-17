@@ -4,7 +4,7 @@ namespace Player.Controller
 {
     public interface IControllableBody
     {
-        void ApplyInput(Vector2 move, bool jump, bool dive);
+        void ApplyInput(Vector2 move, bool jump);
         void SetCameraTransform(Transform cameraTransform);
         Vector3 Velocity { get; set; }
         Transform BodyTransform { get; }

@@ -64,18 +64,18 @@ namespace Player.Controller
             SwitchMode(target);
         }
 
-        public void ApplyInput(Vector2 move, bool jump, bool dive)
+        public void ApplyInput(Vector2 move, bool jump)
         {
             switch (_currentMode)
             {
                 case ETeamMode.Merged:
                     Vector2 combined = DualInputCombiner.Combine(move, move);
-                    _mergedControllable.ApplyInput(combined, jump, dive);
+                    _mergedControllable.ApplyInput(combined, jump);
                     break;
 
                 case ETeamMode.Separated:
-                    _avatarAControllable.ApplyInput(move, jump, dive);
-                    _avatarBControllable.ApplyInput(move, jump, dive);
+                    _avatarAControllable.ApplyInput(move, jump);
+                    _avatarBControllable.ApplyInput(move, jump);
                     break;
             }
         }

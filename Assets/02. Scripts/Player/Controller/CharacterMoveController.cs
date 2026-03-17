@@ -31,7 +31,6 @@ namespace Player.Controller
         private float _lastGroundedTime;
         private float _lastDiveTime = -Mathf.Infinity;
         private bool _jumpRequested;
-        private bool _diveRequested;
         private bool _initialized;
         private Vector3 _inputDirection;
 
@@ -59,7 +58,6 @@ namespace Player.Controller
             _capsuleRb.isKinematic = true;
             _currentVelocity = Vector3.zero;
             _jumpRequested = false;
-            _diveRequested = false;
         }
 
         private void Start()
@@ -92,14 +90,12 @@ namespace Player.Controller
 
             if (_jumpRequested)
             {
-                TryJump();
+                bool grounded = Time.time - _lastGroundedTime <= CoyoteTime;
+                if (grounded)
+                    TryJump();
+                else
+                    TryDive();
                 _jumpRequested = false;
-            }
-
-            if (_diveRequested)
-            {
-                TryDive();
-                _diveRequested = false;
             }
         }
 
@@ -114,11 +110,10 @@ namespace Player.Controller
             _capsuleRb.linearVelocity = velocity;
         }
 
-        public void ApplyInput(Vector2 move, bool jump, bool dive)
+        public void ApplyInput(Vector2 move, bool jump)
         {
             _inputDirection = GetCameraRelativeDirection(move);
             _jumpRequested |= jump;
-            _diveRequested |= dive;
         }
 
         public void SetCameraTransform(Transform cameraTransform)
