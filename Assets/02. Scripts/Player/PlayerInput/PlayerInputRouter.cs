@@ -43,10 +43,10 @@ namespace Player.PlayerInput
             _playerFormController.Initialize(_startMode);
 
             if (_cameraControllerA != null)
-                _cameraControllerA.SetTarget(_playerFormController.PrimaryBodyTransform);
+                _cameraControllerA.SetTarget(_playerFormController.PrimaryCameraFollowPoint);
 
             if (_cameraControllerB != null)
-                _cameraControllerB.SetTarget(_playerFormController.SecondaryBodyTransform);
+                _cameraControllerB.SetTarget(_playerFormController.SecondaryCameraFollowPoint);
 
             TeamModeManager.Instance.OnSwitchRequested += HandleSwitchRequested;
         }
@@ -75,10 +75,10 @@ namespace Player.PlayerInput
         private void HandleModeChanged(ETeamMode newMode)
         {
             if (_cameraControllerA != null)
-                _cameraControllerA.SetTarget(_playerFormController.PrimaryBodyTransform);
+                _cameraControllerA.SetTarget(_playerFormController.PrimaryCameraFollowPoint);
 
             if (_cameraControllerB != null)
-                _cameraControllerB.SetTarget(_playerFormController.SecondaryBodyTransform);
+                _cameraControllerB.SetTarget(_playerFormController.SecondaryCameraFollowPoint);
         }
 
         private void RouteInput()

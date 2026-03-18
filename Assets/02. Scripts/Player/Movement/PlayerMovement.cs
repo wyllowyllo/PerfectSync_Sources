@@ -1,4 +1,5 @@
 using Player.Animation;
+using Player.CameraSystem;
 using Player.Domain;
 using Player.Ragdoll;
 using UnityEngine;
@@ -6,7 +7,7 @@ using UnityEngine;
 namespace Player.Movement
 {
     [RequireComponent(typeof(Animator), typeof(Rigidbody), typeof(RagdollController))]
-    [RequireComponent(typeof(PlayerJump), typeof(PlayerAnimation))]
+    [RequireComponent(typeof(PlayerJump), typeof(PlayerAnimation), typeof(CameraTarget))]
     public class PlayerMovement : MonoBehaviour, IControllableBody
     {
         [Header("Movement")]
@@ -27,6 +28,7 @@ namespace Player.Movement
         private IRagdoll _ragdoll;
         private PlayerJump _playerJump;
         private PlayerAnimation _anim;
+        private CameraTarget _cameraTarget;
         private Vector3 _currentVelocity;
         private ERagdollState _previousRagdollState;
         private float _lastGroundedTime;
@@ -48,6 +50,7 @@ namespace Player.Movement
             }
         }
         public Transform BodyTransform => transform;
+        public Transform CameraFollowPoint => _cameraTarget.FollowPoint;
         public bool IsRagdollActive => _ragdoll.IsRagdollActive;
 
         private void Start()
@@ -169,6 +172,7 @@ namespace Player.Movement
                 _ragdoll = GetComponent<IRagdoll>();
                 _playerJump = GetComponent<PlayerJump>();
                 _anim = GetComponent<PlayerAnimation>();
+                _cameraTarget = GetComponent<CameraTarget>();
                 _initialized = true;
             }
 

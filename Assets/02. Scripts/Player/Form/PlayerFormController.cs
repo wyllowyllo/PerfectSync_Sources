@@ -39,7 +39,18 @@ namespace Player.Form
             _ => _mergedControllable.BodyTransform
         };
 
-       
+        public Transform PrimaryCameraFollowPoint => _currentMode switch
+        {
+            ETeamMode.Merged => _mergedControllable.CameraFollowPoint,
+            ETeamMode.Separated => _avatarAControllable.CameraFollowPoint,
+            _ => _mergedControllable.CameraFollowPoint
+        };
+
+        public Transform SecondaryCameraFollowPoint => _currentMode switch
+        {
+            ETeamMode.Separated => _avatarBControllable.CameraFollowPoint,
+            _ => _mergedControllable.CameraFollowPoint
+        };
 
         public void Initialize(ETeamMode startMode)
         {
