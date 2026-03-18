@@ -85,13 +85,11 @@ namespace Player.Ragdoll
                 // Deactivate 전에 RB에서 스냅샷 캡처 + 루트 정렬.
                 bool isFaceUp = _recovery.PrepareRecovery();
 
-                // 래그돌 물리만 먼저 비활성화. 캡슐은 아직 kinematic 유지.
-                _physicsToggle.DeactivateRagdoll();
+                _physicsToggle.Deactivate();
 
-                // 1프레임 대기하여 래그돌 콜라이더 겹침을 해소한 뒤 캡슐 활성화.
-                yield return null;
-
-                _physicsToggle.ActivateCapsule();
+                Rigidbody capsuleRb = _physicsToggle.CapsuleRigidbody;
+                capsuleRb.linearVelocity = Vector3.zero;
+                capsuleRb.angularVelocity = Vector3.zero;
 
                 _animation.PlayGetUp(isFaceUp);
                 _recovery.StartBlending(OnRecoveryComplete);

@@ -47,24 +47,13 @@ namespace Player.Ragdoll
 
         public void Deactivate()
         {
-            DeactivateRagdoll();
-            ActivateCapsule();
-        }
-
-        public void DeactivateRagdoll()
-        {
             foreach (var rb in _ragdollRbs)
                 rb.isKinematic = true;
 
             foreach (var col in _ragdollCols)
                 col.enabled = false;
-        }
 
-        public void ActivateCapsule()
-        {
             _capsuleRb.isKinematic = false;
-            _capsuleRb.linearVelocity = Vector3.zero;
-            _capsuleRb.angularVelocity = Vector3.zero;
         }
     }
 }
