@@ -5,7 +5,8 @@ namespace Player.Ragdoll
 {
     public class RagdollRecovery : MonoBehaviour
     {
-        [SerializeField] private float _blendDuration = 0.3f;
+        [SerializeField] private float _blendDuration = 0.5f;
+        [SerializeField] private float _mecanimTransitionWaitTime = 0.05f;
         [SerializeField] private float _groundCheckDistance = 10f;
         [SerializeField] private LayerMask _groundLayer;
 
@@ -17,10 +18,17 @@ namespace Player.Ragdoll
         private Quaternion[] _boneRotationSnapshot;
         private float _blendTimer;
         private bool _isBlending;
+        private bool _waitingForMecanim;
+        private float _mecanimWaitTimer;
 
-        public bool IsRecovering => _isBlending;
+        public bool IsRecovering => _isBlending || _waitingForMecanim;
 
-        public void StartRecovery(Transform[] bones, Animator animator, Rigidbody capsuleRb, Action onComplete)
+        public bool DetectFaceUp(Transform hipsRoot)
+        {
+            return hipsRoot.forward.y > 0f;
+        }
+
+        public void StartRecovery(Transform[] bones, Animator animator, Rigidbody capsuleRb, Transform hipsRoot, Action onComplete)
         {
             _bones = bones;
             _animator = animator;
@@ -40,7 +48,7 @@ namespace Player.Ragdoll
             float groundY = GetGroundY(hipsPos);
             capsuleRb.position = new Vector3(hipsPos.x, groundY, hipsPos.z);
 
-            Vector3 hipsForward = _bones[0].rotation * Vector3.forward;
+            Vector3 hipsForward = hipsRoot.rotation * Vector3.forward;
             hipsForward.y = 0f;
             if (hipsForward.sqrMagnitude > 0.001f)
                 capsuleRb.rotation = Quaternion.LookRotation(hipsForward);
@@ -50,11 +58,34 @@ namespace Player.Ragdoll
             capsuleRb.angularVelocity = Vector3.zero;
 
             _blendTimer = 0f;
-            _isBlending = true;
+            _isBlending = false;
+            _waitingForMecanim = true;
+            _mecanimWaitTimer = 0f;
         }
 
         private void LateUpdate()
         {
+            // Phase 1: Mecanim 전환 대기 — 스냅샷 포즈 고정.
+            if (_waitingForMecanim)
+            {
+                _mecanimWaitTimer += Time.deltaTime;
+
+                for (int i = 0; i < _bones.Length; i++)
+                {
+                    _bones[i].position = _bonePositionSnapshot[i];
+                    _bones[i].rotation = _boneRotationSnapshot[i];
+                }
+
+                if (_mecanimWaitTimer >= _mecanimTransitionWaitTime)
+                {
+                    _waitingForMecanim = false;
+                    _isBlending = true;
+                }
+
+                return;
+            }
+
+            // Phase 2: 래그돌 스냅샷 → GetUp 애니메이션 포즈 블렌딩.
             if (!_isBlending) return;
 
             _blendTimer += Time.deltaTime;

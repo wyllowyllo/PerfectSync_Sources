@@ -7,7 +7,7 @@ namespace Player.Ragdoll
     public interface IRagdoll
     {
         ERagdollState CurrentState { get; }
-        bool IsRagdollActive => CurrentState == ERagdollState.Ragdoll || CurrentState == ERagdollState.BlendToAnim;
+        bool IsRagdollActive => CurrentState != ERagdollState.Animated;
         void OnHitImpact(Vector3 impulse, Vector3 hitPoint);
         void ForceRagdoll();
     }

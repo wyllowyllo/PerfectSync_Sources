@@ -20,6 +20,8 @@ namespace Player.Controller.Ability
         private static readonly int SIsGroundedHash = Animator.StringToHash("IsGrounded");
         private static readonly int SJumpHash = Animator.StringToHash("Jump");
         private static readonly int SDiveHash = Animator.StringToHash("Dive");
+        private static readonly int SGetUpFromBackHash = Animator.StringToHash("GetUpFromBack");
+        private static readonly int SGetUpFromBellyHash = Animator.StringToHash("GetUpFromBelly");
 
         private const float CoyoteTime = 0.1f;
 
@@ -76,6 +78,24 @@ namespace Player.Controller.Ability
             _animator.SetFloat(SSpeedHash, 0f);
             _animator.SetBool(SIsGroundedHash, true);
             _isDiving = false;
+        }
+
+        public void PlayGetUp(bool isFaceUp)
+        {
+            _animator.ResetTrigger(SJumpHash);
+            _animator.ResetTrigger(SDiveHash);
+            _animator.SetFloat(SSpeedHash, 0f);
+            _animator.SetBool(SIsGroundedHash, true);
+            _isDiving = false;
+
+            _animator.SetBool(SGetUpFromBackHash, isFaceUp);
+            _animator.SetBool(SGetUpFromBellyHash, !isFaceUp);
+        }
+
+        public void ClearGetUpState()
+        {
+            _animator.SetBool(SGetUpFromBackHash, false);
+            _animator.SetBool(SGetUpFromBellyHash, false);
         }
     }
 }

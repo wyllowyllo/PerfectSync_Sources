@@ -20,6 +20,10 @@ namespace Player.Controller
         private bool _pendingSwitch;
         private ETeamMode _pendingSwitchTarget;
 
+        // 이벤트
+        public event Action<ETeamMode> OnModeChanged;
+        
+        // 프로퍼티
         public Transform PrimaryBodyTransform => _currentMode switch
         {
             ETeamMode.Merged => _mergedControllable.BodyTransform,
@@ -33,7 +37,7 @@ namespace Player.Controller
             _ => _mergedControllable.BodyTransform
         };
 
-        public event Action<ETeamMode> OnModeChanged;
+       
 
         public void Initialize(ETeamMode startMode)
         {

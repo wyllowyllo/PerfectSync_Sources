@@ -76,14 +76,16 @@ namespace Player.Ragdoll
             if (_currentState == ERagdollState.Ragdoll)
             {
                 _currentState = ERagdollState.BlendToAnim;
+
+                bool isFaceUp = _recovery.DetectFaceUp(_physicsToggle.HipsRoot);
                 _physicsToggle.Deactivate();
-                _jumpAbility.ResetState();
+                _jumpAbility.PlayGetUp(isFaceUp);
 
                 // BlendToAnim 동안 UpperBodyPhysics 비활성화.
                 if (_upperBodyPhysics != null)
                     _upperBodyPhysics.SetActive(false);
 
-                _recovery.StartRecovery(_physicsToggle.RagdollBones, _physicsToggle.Animator, _physicsToggle.CapsuleRigidbody, OnRecoveryComplete);
+                _recovery.StartRecovery(_physicsToggle.RagdollBones, _physicsToggle.Animator, _physicsToggle.CapsuleRigidbody, _physicsToggle.HipsRoot, OnRecoveryComplete);
             }
 
             _activeCoroutine = null;
@@ -92,7 +94,7 @@ namespace Player.Ragdoll
         private void OnRecoveryComplete()
         {
             _currentState = ERagdollState.Animated;
-            _jumpAbility.ResetState();
+            _jumpAbility.ClearGetUpState();
 
             if (_upperBodyPhysics != null)
                 _upperBodyPhysics.SetActive(true);

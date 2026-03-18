@@ -20,6 +20,7 @@ namespace Player.Ragdoll
         public Transform[] RagdollBones => _ragdollBones;
         public Rigidbody CapsuleRigidbody => _capsuleRb;
         public Animator Animator => _animator;
+        public Transform HipsRoot => _hipsRoot;
 
         private void Awake()
         {
