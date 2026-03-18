@@ -83,7 +83,7 @@ namespace Player.Ragdoll
                 capsuleRb.linearVelocity = Vector3.zero;
                 capsuleRb.angularVelocity = Vector3.zero;
 
-                _animation.PlayGetUp(isFaceUp);
+                _animation.GetUp(isFaceUp);
                 _recovery.StartBlending(OnRecoveryComplete);
             }
 

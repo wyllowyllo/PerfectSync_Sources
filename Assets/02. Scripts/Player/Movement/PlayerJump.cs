@@ -38,7 +38,7 @@ namespace Player.Movement
             _rb.linearVelocity = velocity;
 
             _rb.AddForce(Vector3.up * _jumpForce, ForceMode.Impulse);
-            _anim.TriggerJump();
+            _anim.Jump();
         }
 
         public bool TryDive(Vector3 inputDirection)
@@ -56,7 +56,7 @@ namespace Player.Movement
             _rb.AddForce(diveDirection.normalized * _diveForce, ForceMode.Impulse);
             _lastDiveTime = Time.time;
             _isDiving = true;
-            _anim.TriggerDive();
+            _anim.Dive();
 
             return true;
         }

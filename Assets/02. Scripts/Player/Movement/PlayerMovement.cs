@@ -81,7 +81,7 @@ namespace Player.Movement
             if (_playerJump.IsDiving && _isGrounded)
             {
                 _playerJump.ClearDiving();
-                _anim.SetDiveLand(true);
+                _anim.Land(true);
                 _currentVelocity = Vector3.zero;
             }
 
@@ -97,7 +97,7 @@ namespace Player.Movement
             float speed = _playerJump.IsDiving
                 ? new Vector3(_capsuleRb.linearVelocity.x, 0f, _capsuleRb.linearVelocity.z).magnitude
                 : _currentVelocity.magnitude;
-            _anim.UpdateLocomotion(_isGrounded, speed);
+            _anim.Locomotion(_isGrounded, speed);
 
             if (_jumpRequested)
             {

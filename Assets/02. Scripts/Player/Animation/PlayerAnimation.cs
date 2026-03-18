@@ -20,29 +20,29 @@ namespace Player.Animation
             _animator = GetComponent<Animator>();
         }
 
-        public void UpdateLocomotion(bool isGrounded, float speed)
+        public void Locomotion(bool isGrounded, float speed)
         {
             _animator.SetFloat(s_speedHash, speed);
             _animator.SetBool(s_isGroundedHash, isGrounded);
         }
 
-        public void TriggerJump()
+        public void Jump()
         {
             _animator.SetTrigger(s_jumpHash);
         }
 
-        public void TriggerDive()
+        public void Dive()
         {
             _animator.SetBool(s_diveLandHash, false);
             _animator.SetTrigger(s_diveHash);
         }
 
-        public void SetDiveLand(bool active)
+        public void Land(bool active)
         {
             _animator.SetBool(s_diveLandHash, active);
         }
 
-        public void PlayGetUp(bool isFaceUp)
+        public void GetUp(bool isFaceUp)
         {
             _animator.ResetTrigger(s_jumpHash);
             _animator.ResetTrigger(s_diveHash);
