@@ -77,7 +77,10 @@ namespace Player.Ragdoll
             {
                 _currentState = ERagdollState.BlendToAnim;
 
+                // Animator 재활성화 전에 래그돌 포즈 캡처.
                 bool isFaceUp = _recovery.DetectFaceUp(_physicsToggle.HipsRoot);
+                _recovery.CaptureSnapshot(_physicsToggle.RagdollBones);
+
                 _physicsToggle.Deactivate();
                 _jumpAbility.PlayGetUp(isFaceUp);
 
@@ -85,7 +88,7 @@ namespace Player.Ragdoll
                 if (_upperBodyPhysics != null)
                     _upperBodyPhysics.SetActive(false);
 
-                _recovery.StartRecovery(_physicsToggle.RagdollBones, _physicsToggle.Animator, _physicsToggle.CapsuleRigidbody, _physicsToggle.HipsRoot, OnRecoveryComplete);
+                _recovery.StartRecovery(_physicsToggle.Animator, _physicsToggle.CapsuleRigidbody, _physicsToggle.HipsRoot, OnRecoveryComplete);
             }
 
             _activeCoroutine = null;

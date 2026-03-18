@@ -28,11 +28,10 @@ namespace Player.Ragdoll
             return hipsRoot.forward.y > 0f;
         }
 
-        public void StartRecovery(Transform[] bones, Animator animator, Rigidbody capsuleRb, Transform hipsRoot, Action onComplete)
+        // Deactivate() 호출 전, 래그돌 본이 물리 포즈를 유지하는 동안 호출.
+        public void CaptureSnapshot(Transform[] bones)
         {
             _bones = bones;
-            _animator = animator;
-            _onComplete = onComplete;
 
             _bonePositionSnapshot = new Vector3[_bones.Length];
             _boneRotationSnapshot = new Quaternion[_bones.Length];
@@ -42,13 +41,20 @@ namespace Player.Ragdoll
                 _bonePositionSnapshot[i] = _bones[i].position;
                 _boneRotationSnapshot[i] = _bones[i].rotation;
             }
+        }
 
-            // 캡슐 위치를 힙 위치 기준으로 보정.
-            Vector3 hipsPos = _bones[0].position;
+        // CaptureSnapshot 이후, Deactivate() 호출 후 호출.
+        public void StartRecovery(Animator animator, Rigidbody capsuleRb, Transform hipsRoot, Action onComplete)
+        {
+            _animator = animator;
+            _onComplete = onComplete;
+
+            // 캡슐 위치를 힙 스냅샷 기준으로 보정.
+            Vector3 hipsPos = _bonePositionSnapshot[0];
             float groundY = GetGroundY(hipsPos);
             capsuleRb.position = new Vector3(hipsPos.x, groundY, hipsPos.z);
 
-            Vector3 hipsForward = hipsRoot.rotation * Vector3.forward;
+            Vector3 hipsForward = _boneRotationSnapshot[0] * Vector3.forward;
             hipsForward.y = 0f;
             if (hipsForward.sqrMagnitude > 0.001f)
                 capsuleRb.rotation = Quaternion.LookRotation(hipsForward);
