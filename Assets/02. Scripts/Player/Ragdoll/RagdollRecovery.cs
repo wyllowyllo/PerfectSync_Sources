@@ -6,92 +6,85 @@ namespace Player.Ragdoll
     public class RagdollRecovery : MonoBehaviour
     {
         [SerializeField] private float _blendDuration = 0.5f;
-        [SerializeField] private float _mecanimTransitionWaitTime = 0.05f;
         [SerializeField] private float _groundCheckDistance = 10f;
         [SerializeField] private LayerMask _groundLayer;
 
         private Transform[] _bones;
-        private Animator _animator;
+        private Rigidbody[] _ragdollRbs;
         private Action _onComplete;
 
         private Vector3[] _bonePositionSnapshot;
         private Quaternion[] _boneRotationSnapshot;
         private float _blendTimer;
         private bool _isBlending;
-        private bool _waitingForMecanim;
-        private float _mecanimWaitTimer;
+        private bool _isOverridingRagdoll;
 
-        public bool IsRecovering => _isBlending || _waitingForMecanim;
+        public bool IsRecovering => _isBlending;
 
-        public bool DetectFaceUp(Transform hipsRoot)
-        {
-            return hipsRoot.forward.y > 0f;
-        }
-
-        // Deactivate() 호출 전, 래그돌 본이 물리 포즈를 유지하는 동안 호출.
-        public void CaptureSnapshot(Transform[] bones)
+        // 래그돌 진입 시 호출. 매 LateUpdate에서 RB→본 복사 시작.
+        public void StartRagdollOverride(Transform[] bones, Rigidbody[] ragdollRbs)
         {
             _bones = bones;
+            _ragdollRbs = ragdollRbs;
+            _isOverridingRagdoll = true;
+            _isBlending = false;
+        }
 
+        // 복구 준비. RB에서 스냅샷 캡처, transform.position으로 루트 정렬, isFaceUp 반환.
+        // Deactivate() 이전에 호출할 것.
+        public bool PrepareRecovery()
+        {
             _bonePositionSnapshot = new Vector3[_bones.Length];
             _boneRotationSnapshot = new Quaternion[_bones.Length];
 
             for (int i = 0; i < _bones.Length; i++)
             {
-                _bonePositionSnapshot[i] = _bones[i].position;
-                _boneRotationSnapshot[i] = _bones[i].rotation;
+                _bonePositionSnapshot[i] = _ragdollRbs[i].position;
+                _boneRotationSnapshot[i] = _ragdollRbs[i].rotation;
             }
-        }
-
-        // CaptureSnapshot 이후, Deactivate() 호출 후 호출.
-        public void StartRecovery(Animator animator, Rigidbody capsuleRb, Transform hipsRoot, Action onComplete)
-        {
-            _animator = animator;
-            _onComplete = onComplete;
 
             // 캡슐 위치를 힙 스냅샷 기준으로 보정.
             Vector3 hipsPos = _bonePositionSnapshot[0];
             float groundY = GetGroundY(hipsPos);
-            capsuleRb.position = new Vector3(hipsPos.x, groundY, hipsPos.z);
+            transform.position = new Vector3(hipsPos.x, groundY, hipsPos.z);
 
+            // 루트 회전을 힙 스냅샷 기준으로 즉시 적용.
             Vector3 hipsForward = _boneRotationSnapshot[0] * Vector3.forward;
             hipsForward.y = 0f;
+
             if (hipsForward.sqrMagnitude > 0.001f)
-                capsuleRb.rotation = Quaternion.LookRotation(hipsForward);
+                transform.rotation = Quaternion.LookRotation(hipsForward);
 
-            // 잔여 속도 제거.
-            capsuleRb.linearVelocity = Vector3.zero;
-            capsuleRb.angularVelocity = Vector3.zero;
+            _isOverridingRagdoll = false;
 
+            // 스냅샷 rotation에서 faceUp 판별.
+            bool isFaceUp = (_boneRotationSnapshot[0] * Vector3.forward).y > 0f;
+            return isFaceUp;
+        }
+
+        // Deactivate() + PlayGetUp() 이후 호출. 블렌드 시작.
+        public void StartBlending(Action onComplete)
+        {
+            _onComplete = onComplete;
             _blendTimer = 0f;
-            _isBlending = false;
-            _waitingForMecanim = true;
-            _mecanimWaitTimer = 0f;
+            _isBlending = true;
         }
 
         private void LateUpdate()
         {
-            // Phase 1: Mecanim 전환 대기 — 스냅샷 포즈 고정.
-            if (_waitingForMecanim)
+            // 래그돌 오버라이드: RB 포즈로 본 덮어쓰기.
+            if (_isOverridingRagdoll)
             {
-                _mecanimWaitTimer += Time.deltaTime;
-
                 for (int i = 0; i < _bones.Length; i++)
                 {
-                    _bones[i].position = _bonePositionSnapshot[i];
-                    _bones[i].rotation = _boneRotationSnapshot[i];
-                }
-
-                if (_mecanimWaitTimer >= _mecanimTransitionWaitTime)
-                {
-                    _waitingForMecanim = false;
-                    _isBlending = true;
+                    _bones[i].position = _ragdollRbs[i].position;
+                    _bones[i].rotation = _ragdollRbs[i].rotation;
                 }
 
                 return;
             }
 
-            // Phase 2: 래그돌 스냅샷 → GetUp 애니메이션 포즈 블렌딩.
+            // 래그돌 스냅샷 → GetUp 애니메이션 포즈 블렌딩.
             if (!_isBlending) return;
 
             _blendTimer += Time.deltaTime;
@@ -104,9 +97,9 @@ namespace Player.Ragdoll
                     _bones[i].position = Vector3.Lerp(_bonePositionSnapshot[i], _bones[i].position, t);
                     _bones[i].rotation = Quaternion.Slerp(_boneRotationSnapshot[i], _bones[i].rotation, t);
                 }
+
                 return;
             }
-
             _isBlending = false;
             _onComplete?.Invoke();
         }

@@ -61,9 +61,14 @@ namespace Player.Ragdoll
 
             _currentState = ERagdollState.Ragdoll;
 
+            _recovery.StartRagdollOverride(_physicsToggle.RagdollBones, _physicsToggle.RagdollRigidbodies);
+
             Vector3 inheritedVelocity = _physicsToggle.CapsuleRigidbody.linearVelocity;
             _physicsToggle.Activate();
             _impactTransfer.TransferImpact(impact, inheritedVelocity);
+
+            if (_upperBodyPhysics != null)
+                _upperBodyPhysics.SetActive(false);
 
             float duration = overrideDuration ?? Mathf.Clamp(impact.Magnitude * _durationPerImpulse, _minRagdollDuration, _maxRagdollDuration);
             _activeCoroutine = StartCoroutine(RecoveryCoroutine(duration));
@@ -77,18 +82,17 @@ namespace Player.Ragdoll
             {
                 _currentState = ERagdollState.BlendToAnim;
 
-                // Animator 재활성화 전에 래그돌 포즈 캡처.
-                bool isFaceUp = _recovery.DetectFaceUp(_physicsToggle.HipsRoot);
-                _recovery.CaptureSnapshot(_physicsToggle.RagdollBones);
+                // Deactivate 전에 RB에서 스냅샷 캡처 + 루트 정렬.
+                bool isFaceUp = _recovery.PrepareRecovery();
 
                 _physicsToggle.Deactivate();
+
+                Rigidbody capsuleRb = _physicsToggle.CapsuleRigidbody;
+                capsuleRb.linearVelocity = Vector3.zero;
+                capsuleRb.angularVelocity = Vector3.zero;
+
                 _jumpAbility.PlayGetUp(isFaceUp);
-
-                // BlendToAnim 동안 UpperBodyPhysics 비활성화.
-                if (_upperBodyPhysics != null)
-                    _upperBodyPhysics.SetActive(false);
-
-                _recovery.StartRecovery(_physicsToggle.Animator, _physicsToggle.CapsuleRigidbody, _physicsToggle.HipsRoot, OnRecoveryComplete);
+                _recovery.StartBlending(OnRecoveryComplete);
             }
 
             _activeCoroutine = null;
