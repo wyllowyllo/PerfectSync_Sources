@@ -33,6 +33,7 @@ namespace Player.Animation
 
         public void TriggerDive()
         {
+            _animator.SetBool(s_diveLandHash, false);
             _animator.SetTrigger(s_diveHash);
         }
 
