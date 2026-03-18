@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using Random = UnityEngine.Random;
 
@@ -5,21 +6,23 @@ namespace Player.Ragdoll
 {
     public class RagdollImpactTransfer
     {
-        private readonly Rigidbody[] _ragdollRbs;
+        private const float TorqueScaleFactor = 0.15f;
 
-        public RagdollImpactTransfer(Rigidbody[] ragdollRbs)
+        private readonly IReadOnlyList<Rigidbody> _ragdollRbs;
+
+        public RagdollImpactTransfer(IReadOnlyList<Rigidbody> ragdollRbs)
         {
             _ragdollRbs = ragdollRbs;
         }
 
         public void TransferImpact(ImpactData impact, Vector3 inheritedVelocity)
         {
-            foreach (var rb in _ragdollRbs)
-                rb.linearVelocity = inheritedVelocity;
+            for (int i = 0; i < _ragdollRbs.Count; i++)
+                _ragdollRbs[i].linearVelocity = inheritedVelocity;
 
             Rigidbody closestRb = GetClosestBoneRb(impact.HitPoint);
             closestRb.AddForce(impact.Impulse, ForceMode.Impulse);
-            closestRb.AddTorque(Random.insideUnitSphere * impact.Magnitude * 0.15f, ForceMode.Impulse);
+            closestRb.AddTorque(Random.insideUnitSphere * impact.Magnitude * TorqueScaleFactor, ForceMode.Impulse);
         }
 
         private Rigidbody GetClosestBoneRb(Vector3 point)
@@ -27,7 +30,7 @@ namespace Player.Ragdoll
             Rigidbody closest = _ragdollRbs[0];
             float closestSqr = (closest.position - point).sqrMagnitude;
 
-            for (int i = 1; i < _ragdollRbs.Length; i++)
+            for (int i = 1; i < _ragdollRbs.Count; i++)
             {
                 float sqr = (_ragdollRbs[i].position - point).sqrMagnitude;
                 if (sqr < closestSqr)

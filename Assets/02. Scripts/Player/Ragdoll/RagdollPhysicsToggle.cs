@@ -1,4 +1,4 @@
-using System.Linq;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace Player.Ragdoll
@@ -11,10 +11,10 @@ namespace Player.Ragdoll
         private Rigidbody _capsuleRb;
         private Rigidbody[] _ragdollRbs;
         private Collider[] _ragdollCols;
-        private Transform[] _ragdollBones;
+        private Bone[] _boneRbPairs;
 
-        public Rigidbody[] RagdollRigidbodies => _ragdollRbs;
-        public Transform[] RagdollBones => _ragdollBones;
+        public IReadOnlyList<Rigidbody> RagdollRigidbodies => _ragdollRbs;
+        public IReadOnlyList<Bone> Bones => _boneRbPairs;
         public Rigidbody CapsuleRigidbody => _capsuleRb;
         public Transform HipsRoot => _hipsRoot;
 
@@ -24,7 +24,10 @@ namespace Player.Ragdoll
 
             _ragdollRbs = _hipsRoot.GetComponentsInChildren<Rigidbody>();
             _ragdollCols = _hipsRoot.GetComponentsInChildren<Collider>();
-            _ragdollBones = _ragdollRbs.Select(rb => rb.transform).ToArray();
+
+            _boneRbPairs = new Bone[_ragdollRbs.Length];
+            for (int i = 0; i < _ragdollRbs.Length; i++)
+                _boneRbPairs[i] = new Bone(_ragdollRbs[i]);
 
             Deactivate();
             _capsuleRb.constraints = RigidbodyConstraints.FreezeRotation;

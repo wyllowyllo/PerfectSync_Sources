@@ -17,19 +17,20 @@ namespace Player.Ragdoll
         private RagdollPhysicsToggle _physicsToggle;
         private RagdollRecovery _recovery;
         private UpperBodyPhysics _upperBodyPhysics;
-        private PlayerAnimation anim;
+        private PlayerAnimation _animation;
         private ERagdollState _currentState = ERagdollState.Animated;
         private RagdollImpactTransfer _impactTransfer;
         private Coroutine _activeCoroutine;
 
         public ERagdollState CurrentState => _currentState;
+        public bool IsRagdollActive => _currentState != ERagdollState.Animated;
 
         private void Awake()
         {
             _physicsToggle = GetComponent<RagdollPhysicsToggle>();
             _recovery = GetComponent<RagdollRecovery>();
             _upperBodyPhysics = GetComponent<UpperBodyPhysics>();
-            anim = GetComponent<PlayerAnimation>();
+            _animation = GetComponent<PlayerAnimation>();
             _impactTransfer = new RagdollImpactTransfer(_physicsToggle.RagdollRigidbodies);
         }
 
@@ -60,14 +61,13 @@ namespace Player.Ragdoll
 
             _currentState = ERagdollState.Ragdoll;
 
-            _recovery.StartRagdollOverride(_physicsToggle.RagdollBones, _physicsToggle.RagdollRigidbodies);
+            _recovery.StartRagdollOverride(_physicsToggle.Bones);
 
             Vector3 inheritedVelocity = _physicsToggle.CapsuleRigidbody.linearVelocity;
             _physicsToggle.Activate();
             _impactTransfer.TransferImpact(impact, inheritedVelocity);
 
-            if (_upperBodyPhysics != null)
-                _upperBodyPhysics.SetActive(false);
+            SetUpperBodyActive(false);
 
             float duration = overrideDuration ?? Mathf.Clamp(impact.Magnitude * _durationPerImpulse, _minRagdollDuration, _maxRagdollDuration);
             _activeCoroutine = StartCoroutine(RecoveryCoroutine(duration));
@@ -90,7 +90,7 @@ namespace Player.Ragdoll
                 capsuleRb.linearVelocity = Vector3.zero;
                 capsuleRb.angularVelocity = Vector3.zero;
 
-                anim.PlayGetUp(isFaceUp);
+                _animation.PlayGetUp(isFaceUp);
                 _recovery.StartBlending(OnRecoveryComplete);
             }
 
@@ -100,10 +100,14 @@ namespace Player.Ragdoll
         private void OnRecoveryComplete()
         {
             _currentState = ERagdollState.Animated;
-            anim.ClearGetUpState();
+            _animation.ClearGetUpState();
+            SetUpperBodyActive(true);
+        }
 
+        private void SetUpperBodyActive(bool active)
+        {
             if (_upperBodyPhysics != null)
-                _upperBodyPhysics.SetActive(true);
+                _upperBodyPhysics.SetActive(active);
         }
 
         private void StopActiveCoroutine()
