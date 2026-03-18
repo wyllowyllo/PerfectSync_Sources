@@ -1,7 +1,7 @@
 public static class PhotonRoomTypes
 {
-    public const string KEY = "rt";
-    public const string RANDOM = "random";
-    public const string CUSTOM = "custom";
-    public const string PARTY = "party";
+    public const string Key = "rt";
+    public const string Random = "random";
+    public const string Custom = "custom";
+    public const string Party = "party";
 }

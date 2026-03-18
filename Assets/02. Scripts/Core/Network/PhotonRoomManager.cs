@@ -25,7 +25,7 @@ public class PhotonRoomManager : SingletonPunCallbacks<PhotonRoomManager>
             return;
         }
 
-        var filter = new Hashtable { { PhotonRoomTypes.KEY, PhotonRoomTypes.RANDOM } };
+        var filter = new Hashtable { { PhotonRoomTypes.Key, PhotonRoomTypes.Random } };
         Debug.Log("[PhotonRoomManager] 랜덤 방 입장 시도...");
         PhotonNetwork.JoinRandomRoom(filter, 0);
     }
@@ -45,9 +45,9 @@ public class PhotonRoomManager : SingletonPunCallbacks<PhotonRoomManager>
         if (customProperties == null)
             customProperties = new Hashtable();
 
-        customProperties[PhotonRoomTypes.KEY] = PhotonRoomTypes.CUSTOM;
+        customProperties[PhotonRoomTypes.Key] = PhotonRoomTypes.Custom;
 
-        var allLobbyProps = new System.Collections.Generic.List<string> { PhotonRoomTypes.KEY };
+        var allLobbyProps = new System.Collections.Generic.List<string> { PhotonRoomTypes.Key };
         if (lobbyProperties != null)
             allLobbyProps.AddRange(lobbyProperties);
 
@@ -102,8 +102,8 @@ public class PhotonRoomManager : SingletonPunCallbacks<PhotonRoomManager>
         var roomOptions = new RoomOptions
         {
             MaxPlayers = _maxPlayers,
-            CustomRoomProperties = new Hashtable { { PhotonRoomTypes.KEY, PhotonRoomTypes.RANDOM } },
-            CustomRoomPropertiesForLobby = new[] { PhotonRoomTypes.KEY }
+            CustomRoomProperties = new Hashtable { { PhotonRoomTypes.Key, PhotonRoomTypes.Random } },
+            CustomRoomPropertiesForLobby = new[] { PhotonRoomTypes.Key }
         };
         PhotonNetwork.CreateRoom(null, roomOptions);
     }
@@ -138,7 +138,7 @@ public class PhotonRoomManager : SingletonPunCallbacks<PhotonRoomManager>
 
         string roomType = GetCurrentRoomType();
 
-        if (roomType == PhotonRoomTypes.CUSTOM)
+        if (roomType == PhotonRoomTypes.Custom)
         {
             PhotonTeamManager.Instance.LeaveTeam();
         }
@@ -150,7 +150,7 @@ public class PhotonRoomManager : SingletonPunCallbacks<PhotonRoomManager>
         Debug.Log($"[PhotonRoomManager] 플레이어 입장: {newPlayer.NickName} (현재 {PhotonNetwork.CurrentRoom.PlayerCount}/{PhotonNetwork.CurrentRoom.MaxPlayers})");
         OnOtherPlayerEntered?.Invoke(newPlayer);
 
-        if (PhotonNetwork.IsMasterClient && GetCurrentRoomType() == PhotonRoomTypes.RANDOM)
+        if (PhotonNetwork.IsMasterClient && GetCurrentRoomType() == PhotonRoomTypes.Random)
         {
             if (PhotonNetwork.CurrentRoom.PlayerCount >= PhotonNetwork.CurrentRoom.MaxPlayers)
             {
@@ -165,7 +165,7 @@ public class PhotonRoomManager : SingletonPunCallbacks<PhotonRoomManager>
         if (!PhotonNetwork.InRoom) return string.Empty;
 
         var props = PhotonNetwork.CurrentRoom.CustomProperties;
-        if (props.TryGetValue(PhotonRoomTypes.KEY, out object roomType))
+        if (props.TryGetValue(PhotonRoomTypes.Key, out object roomType))
             return (string)roomType;
 
         return string.Empty;

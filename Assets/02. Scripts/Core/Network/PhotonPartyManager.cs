@@ -6,16 +6,16 @@ using Hashtable = ExitGames.Client.Photon.Hashtable;
 
 public class PhotonPartyManager : SingletonPunCallbacks<PhotonPartyManager>
 {
-    private const string READY_KEY = "ready";
-    private const string TARGET_ROOM_KEY = "targetRoom";
-    private const string PARTY_CODE_PREFIX = "P-";
-    private const int PARTY_MAX_PLAYERS = 2;
+    private const string ReadyKey = "ready";
+    private const string TargetRoomKey = "targetRoom";
+    private const string PartyCodePrefix = "P-";
+    private const int PartyMaxPlayers = 2;
 
     private string _targetRoom;
     private bool _wasPartyLeader;
 
     public string PartyCode { get; private set; }
-    public bool IsInParty => PhotonNetwork.InRoom && GetCurrentRoomType() == PhotonRoomTypes.PARTY;
+    public bool IsInParty => PhotonNetwork.InRoom && GetCurrentRoomType() == PhotonRoomTypes.Party;
     public bool IsPartyLeader => IsInParty && PhotonNetwork.IsMasterClient;
 
     public event Action<string> OnPartyCreated;
@@ -44,10 +44,10 @@ public class PhotonPartyManager : SingletonPunCallbacks<PhotonPartyManager>
 
         var roomOptions = new RoomOptions
         {
-            MaxPlayers = PARTY_MAX_PLAYERS,
+            MaxPlayers = PartyMaxPlayers,
             IsVisible = false,
-            CustomRoomProperties = new Hashtable { { PhotonRoomTypes.KEY, PhotonRoomTypes.PARTY } },
-            CustomRoomPropertiesForLobby = new[] { PhotonRoomTypes.KEY }
+            CustomRoomProperties = new Hashtable { { PhotonRoomTypes.Key, PhotonRoomTypes.Party } },
+            CustomRoomPropertiesForLobby = new[] { PhotonRoomTypes.Key }
         };
 
         Debug.Log($"[PhotonPartyManager] 파티 생성 시도... (Code: {code})");
@@ -93,13 +93,13 @@ public class PhotonPartyManager : SingletonPunCallbacks<PhotonPartyManager>
     {
         if (!IsInParty) return;
 
-        PhotonNetwork.LocalPlayer.SetCustomProperties(new Hashtable { { READY_KEY, ready } });
+        PhotonNetwork.LocalPlayer.SetCustomProperties(new Hashtable { { ReadyKey, ready } });
         Debug.Log($"[PhotonPartyManager] 준비 상태: {ready}");
     }
 
     public bool IsPlayerReady(Player player)
     {
-        if (player.CustomProperties.TryGetValue(READY_KEY, out object readyObj))
+        if (player.CustomProperties.TryGetValue(ReadyKey, out object readyObj))
             return (bool)readyObj;
 
         return false;
@@ -108,7 +108,7 @@ public class PhotonPartyManager : SingletonPunCallbacks<PhotonPartyManager>
     public bool AreAllReady()
     {
         if (!IsInParty) return false;
-        if (PhotonNetwork.CurrentRoom.PlayerCount < PARTY_MAX_PLAYERS) return false;
+        if (PhotonNetwork.CurrentRoom.PlayerCount < PartyMaxPlayers) return false;
 
         foreach (var player in PhotonNetwork.PlayerList)
         {
@@ -122,10 +122,6 @@ public class PhotonPartyManager : SingletonPunCallbacks<PhotonPartyManager>
 
     #region Matchmaking
 
-    /// <summary>
-    /// 파티장 전용. 랜덤 매칭 방 이름을 생성하고, 파티 방 CustomProperties에 저장 후
-    /// 모든 파티원이 해당 방으로 이동하도록 합니다.
-    /// </summary>
     public void StartMatchmaking()
     {
         if (!IsPartyLeader)
@@ -143,7 +139,7 @@ public class PhotonPartyManager : SingletonPunCallbacks<PhotonPartyManager>
         string targetRoom = "R-" + Guid.NewGuid().ToString("N").Substring(0, 8);
         Debug.Log($"[PhotonPartyManager] 매칭 시작. 대상 방: {targetRoom}");
 
-        var props = new Hashtable { { TARGET_ROOM_KEY, targetRoom } };
+        var props = new Hashtable { { TargetRoomKey, targetRoom } };
         PhotonNetwork.CurrentRoom.SetCustomProperties(props);
     }
 
@@ -155,13 +151,13 @@ public class PhotonPartyManager : SingletonPunCallbacks<PhotonPartyManager>
     {
         base.OnJoinedRoom();
 
-        if (GetCurrentRoomType() != PhotonRoomTypes.PARTY) return;
+        if (GetCurrentRoomType() != PhotonRoomTypes.Party) return;
 
         PartyCode = PhotonNetwork.CurrentRoom.Name;
 
         if (PhotonNetwork.IsMasterClient)
         {
-            SetReady(true);
+            SetReady(false);
             Debug.Log($"[PhotonPartyManager] 파티 생성 완료. (Code: {PartyCode})");
             OnPartyCreated?.Invoke(PartyCode);
         }
@@ -192,8 +188,8 @@ public class PhotonPartyManager : SingletonPunCallbacks<PhotonPartyManager>
                 var roomOptions = new RoomOptions
                 {
                     MaxPlayers = 8,
-                    CustomRoomProperties = new Hashtable { { PhotonRoomTypes.KEY, PhotonRoomTypes.RANDOM } },
-                    CustomRoomPropertiesForLobby = new[] { PhotonRoomTypes.KEY }
+                    CustomRoomProperties = new Hashtable { { PhotonRoomTypes.Key, PhotonRoomTypes.Random } },
+                    CustomRoomPropertiesForLobby = new[] { PhotonRoomTypes.Key }
                 };
                 PhotonNetwork.CreateRoom(room, roomOptions);
             }
@@ -216,9 +212,9 @@ public class PhotonPartyManager : SingletonPunCallbacks<PhotonPartyManager>
 
         if (!IsInParty) return;
 
-        if (changedProps.ContainsKey(READY_KEY))
+        if (changedProps.ContainsKey(ReadyKey))
         {
-            bool ready = (bool)changedProps[READY_KEY];
+            bool ready = (bool)changedProps[ReadyKey];
             Debug.Log($"[PhotonPartyManager] {targetPlayer.NickName} 준비 상태: {ready}");
             OnPlayerReadyChanged?.Invoke(targetPlayer, ready);
         }
@@ -230,9 +226,9 @@ public class PhotonPartyManager : SingletonPunCallbacks<PhotonPartyManager>
 
         if (!IsInParty) return;
 
-        if (propertiesThatChanged.ContainsKey(TARGET_ROOM_KEY))
+        if (propertiesThatChanged.ContainsKey(TargetRoomKey))
         {
-            string targetRoom = (string)propertiesThatChanged[TARGET_ROOM_KEY];
+            string targetRoom = (string)propertiesThatChanged[TargetRoomKey];
             Debug.Log($"[PhotonPartyManager] 매칭 방 확인: {targetRoom}. 파티 방을 퇴장합니다.");
 
             _targetRoom = targetRoom;
@@ -267,7 +263,7 @@ public class PhotonPartyManager : SingletonPunCallbacks<PhotonPartyManager>
         if (!PhotonNetwork.InRoom) return string.Empty;
 
         var props = PhotonNetwork.CurrentRoom.CustomProperties;
-        if (props.TryGetValue(PhotonRoomTypes.KEY, out object roomType))
+        if (props.TryGetValue(PhotonRoomTypes.Key, out object roomType))
             return (string)roomType;
 
         return string.Empty;
@@ -281,17 +277,13 @@ public class PhotonPartyManager : SingletonPunCallbacks<PhotonPartyManager>
         {
             code[i] = chars[UnityEngine.Random.Range(0, chars.Length)];
         }
-        return PARTY_CODE_PREFIX + new string(code);
+        return PartyCodePrefix + new string(code);
     }
 
-    /// <summary>
-    /// 파티 ID를 Player CustomProperties에 설정합니다.
-    /// 랜덤 매칭 방에서 같은 파티원을 같은 팀으로 묶기 위해 사용합니다.
-    /// </summary>
     private void SetPartyId(string partyId)
     {
         PhotonNetwork.LocalPlayer.SetCustomProperties(
-            new Hashtable { { PhotonTeamManager.PARTY_ID_KEY, partyId } }
+            new Hashtable { { PhotonTeamManager.PartyIdKey, partyId } }
         );
     }
 
