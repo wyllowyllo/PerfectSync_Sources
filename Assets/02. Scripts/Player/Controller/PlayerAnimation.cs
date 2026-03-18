@@ -7,12 +7,12 @@ namespace Player.Controller
     {
         private Animator _animator;
 
-        private static readonly int SSpeedHash = Animator.StringToHash("Speed");
-        private static readonly int SIsGroundedHash = Animator.StringToHash("IsGrounded");
-        private static readonly int SJumpHash = Animator.StringToHash("Jump");
-        private static readonly int SDiveHash = Animator.StringToHash("Dive");
-        private static readonly int SGetUpFromBackHash = Animator.StringToHash("GetUpFromBack");
-        private static readonly int SGetUpFromBellyHash = Animator.StringToHash("GetUpFromBelly");
+        private static readonly int s_speedHash = Animator.StringToHash("Speed");
+        private static readonly int s_isGroundedHash = Animator.StringToHash("IsGrounded");
+        private static readonly int s_jumpHash = Animator.StringToHash("Jump");
+        private static readonly int s_diveHash = Animator.StringToHash("Dive");
+        private static readonly int s_getUpFromBackHash = Animator.StringToHash("GetUpFromBack");
+        private static readonly int s_getUpFromBellyHash = Animator.StringToHash("GetUpFromBelly");
 
         private void Awake()
         {
@@ -21,44 +21,44 @@ namespace Player.Controller
 
         public void UpdateLocomotion(bool isGrounded, float speed)
         {
-            _animator.SetFloat(SSpeedHash, speed);
-            _animator.SetBool(SIsGroundedHash, isGrounded);
+            _animator.SetFloat(s_speedHash, speed);
+            _animator.SetBool(s_isGroundedHash, isGrounded);
         }
 
         public void TriggerJump()
         {
-            _animator.SetTrigger(SJumpHash);
+            _animator.SetTrigger(s_jumpHash);
         }
 
         public void TriggerDive()
         {
-            _animator.SetTrigger(SDiveHash);
+            _animator.SetTrigger(s_diveHash);
         }
 
         public void PlayGetUp(bool isFaceUp)
         {
-            _animator.ResetTrigger(SJumpHash);
-            _animator.ResetTrigger(SDiveHash);
-            _animator.SetFloat(SSpeedHash, 0f);
-            _animator.SetBool(SIsGroundedHash, true);
+            _animator.ResetTrigger(s_jumpHash);
+            _animator.ResetTrigger(s_diveHash);
+            _animator.SetFloat(s_speedHash, 0f);
+            _animator.SetBool(s_isGroundedHash, true);
 
-            _animator.SetBool(SGetUpFromBackHash, isFaceUp);
-            _animator.SetBool(SGetUpFromBellyHash, !isFaceUp);
+            _animator.SetBool(s_getUpFromBackHash, isFaceUp);
+            _animator.SetBool(s_getUpFromBellyHash, !isFaceUp);
         }
 
         public void ClearGetUpState()
         {
-            _animator.SetBool(SGetUpFromBackHash, false);
-            _animator.SetBool(SGetUpFromBellyHash, false);
+            _animator.SetBool(s_getUpFromBackHash, false);
+            _animator.SetBool(s_getUpFromBellyHash, false);
         }
 
         public void ResetToLocomotion()
         {
-            _animator.ResetTrigger(SJumpHash);
-            _animator.ResetTrigger(SDiveHash);
+            _animator.ResetTrigger(s_jumpHash);
+            _animator.ResetTrigger(s_diveHash);
             _animator.Play("Locomotion", 0, 0f);
-            _animator.SetFloat(SSpeedHash, 0f);
-            _animator.SetBool(SIsGroundedHash, true);
+            _animator.SetFloat(s_speedHash, 0f);
+            _animator.SetBool(s_isGroundedHash, true);
         }
     }
 }

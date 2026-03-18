@@ -24,7 +24,7 @@ namespace Player.Controller
         private Rigidbody _capsuleRb;
         private IRagdoll _ragdoll;
         private PlayerJump _playerJump;
-        private PlayerAnimation anim;
+        private PlayerAnimation _anim;
         private Vector3 _currentVelocity;
         private ERagdollState _previousRagdollState;
         private float _lastGroundedTime;
@@ -92,7 +92,7 @@ namespace Player.Controller
             float speed = _playerJump.IsDiving
                 ? new Vector3(_capsuleRb.linearVelocity.x, 0f, _capsuleRb.linearVelocity.z).magnitude
                 : _currentVelocity.magnitude;
-            anim.UpdateLocomotion(_isGrounded, speed);
+            _anim.UpdateLocomotion(_isGrounded, speed);
 
             if (_jumpRequested)
             {
@@ -137,7 +137,10 @@ namespace Player.Controller
                 : _decelerationTime;
 
             if (smoothTime > 0f)
-                _currentVelocity = Vector3.Lerp(_currentVelocity, targetVelocity, Time.deltaTime / smoothTime);
+            {
+                float t = 1f - Mathf.Exp(-Time.deltaTime / smoothTime);
+                _currentVelocity = Vector3.Lerp(_currentVelocity, targetVelocity, t);
+            }
             else
                 _currentVelocity = targetVelocity;
         }
@@ -163,7 +166,7 @@ namespace Player.Controller
                 _capsuleRb = GetComponent<Rigidbody>();
                 _ragdoll = GetComponent<IRagdoll>();
                 _playerJump = GetComponent<PlayerJump>();
-                anim = GetComponent<PlayerAnimation>();
+                _anim = GetComponent<PlayerAnimation>();
                 _initialized = true;
             }
 

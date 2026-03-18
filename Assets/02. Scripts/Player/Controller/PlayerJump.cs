@@ -11,7 +11,7 @@ namespace Player.Controller
         [SerializeField] private float _diveForce = 8f;
         [SerializeField] private float _diveCooldown = 0.5f;
 
-        private PlayerAnimation anim;
+        private PlayerAnimation _anim;
         private Rigidbody _rb;
         private float _lastDiveTime = -Mathf.Infinity;
         private bool _isDiving;
@@ -25,7 +25,7 @@ namespace Player.Controller
 
         private void Awake()
         {
-            anim = GetComponent<PlayerAnimation>();
+            _anim = GetComponent<PlayerAnimation>();
             _rb = GetComponent<Rigidbody>();
         }
 
@@ -37,7 +37,7 @@ namespace Player.Controller
             _rb.linearVelocity = velocity;
 
             _rb.AddForce(Vector3.up * _jumpForce, ForceMode.Impulse);
-            anim.TriggerJump();
+            _anim.TriggerJump();
         }
 
         public bool TryDive()
@@ -49,14 +49,14 @@ namespace Player.Controller
             _rb.AddForce(diveDirection.normalized * _diveForce, ForceMode.Impulse);
             _lastDiveTime = Time.time;
             _isDiving = true;
-            anim.TriggerDive();
+            _anim.TriggerDive();
 
             return true;
         }
 
         public void ResetState()
         {
-            anim.ResetToLocomotion();
+            _anim.ResetToLocomotion();
             _isDiving = false;
         }
     }

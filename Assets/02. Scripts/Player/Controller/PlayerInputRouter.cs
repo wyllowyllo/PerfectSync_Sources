@@ -16,14 +16,14 @@ namespace Player.Controller
 
         private IPlayerInput _playerInputA;
         private IPlayerInput _playerInputB;
-        private PlayerFormController playerFormController;
+        private PlayerFormController _playerFormController;
         private Transform _cameraTransformA;
         private Transform _cameraTransformB;
 
         private void Start()
         {
             _playerInputA = GetComponent<LocalPlayerInput>();
-            playerFormController = GetComponent<PlayerFormController>();
+            _playerFormController = GetComponent<PlayerFormController>();
 
             if (_cameraControllerA == null)
                 _cameraControllerA = FindAnyObjectByType<TpsCameraController>();
@@ -36,36 +36,45 @@ namespace Player.Controller
                 ? _cameraControllerB.transform
                 : null;
 
-            playerFormController.OnModeChanged += HandleModeChanged;
-            playerFormController.Initialize(_startMode);
+            _playerFormController.OnModeChanged += HandleModeChanged;
+            _playerFormController.Initialize(_startMode);
 
             if (_cameraControllerA != null)
-                _cameraControllerA.SetTarget(playerFormController.PrimaryBodyTransform);
+                _cameraControllerA.SetTarget(_playerFormController.PrimaryBodyTransform);
 
             if (_cameraControllerB != null)
-                _cameraControllerB.SetTarget(playerFormController.SecondaryBodyTransform);
+                _cameraControllerB.SetTarget(_playerFormController.SecondaryBodyTransform);
 
             TeamModeManager.Instance.OnSwitchRequested += HandleSwitchRequested;
         }
 
+        private void OnDestroy()
+        {
+            if (_playerFormController != null)
+                _playerFormController.OnModeChanged -= HandleModeChanged;
+
+            if (TeamModeManager.Instance != null)
+                TeamModeManager.Instance.OnSwitchRequested -= HandleSwitchRequested;
+        }
+
         private void Update()
         {
-            playerFormController.Tick();
+            _playerFormController.Tick();
             RouteInput();
         }
 
         private void HandleSwitchRequested()
         {
-            playerFormController.ToggleMode();
+            _playerFormController.ToggleMode();
         }
 
         private void HandleModeChanged(ETeamMode newMode)
         {
             if (_cameraControllerA != null)
-                _cameraControllerA.SetTarget(playerFormController.PrimaryBodyTransform);
+                _cameraControllerA.SetTarget(_playerFormController.PrimaryBodyTransform);
 
             if (_cameraControllerB != null)
-                _cameraControllerB.SetTarget(playerFormController.SecondaryBodyTransform);
+                _cameraControllerB.SetTarget(_playerFormController.SecondaryBodyTransform);
         }
 
         private void RouteInput()
@@ -73,16 +82,16 @@ namespace Player.Controller
             if (_playerInputA != null && !_playerInputA.IsOwner)
                 return;
 
-            Vector2 inputA = _playerInputA != null ? _playerInputA.MoveInput : Vector2.zero; ;
+            Vector2 inputA = _playerInputA != null ? _playerInputA.MoveInput : Vector2.zero;
             bool jumpA = _playerInputA != null && _playerInputA.JumpPressed;
 
-            Vector2 inputB = _playerInputB != null ? _playerInputB.MoveInput : Vector2.zero;;
+            Vector2 inputB = _playerInputB != null ? _playerInputB.MoveInput : Vector2.zero;
             bool jumpB = _playerInputB != null && _playerInputB.JumpPressed;
 
             Vector3 worldDirA = CameraRelativeConverter.Convert(inputA, _cameraTransformA);
             Vector3 worldDirB = CameraRelativeConverter.Convert(inputB, _cameraTransformB);
 
-            playerFormController.ApplyInput(worldDirA, worldDirB, jumpA, jumpB);
+            _playerFormController.ApplyInput(worldDirA, worldDirB, jumpA, jumpB);
         }
     }
 }
