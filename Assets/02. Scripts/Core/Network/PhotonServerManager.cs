@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 using Photon.Pun;
 using Photon.Realtime;
@@ -6,8 +7,10 @@ public class PhotonServerManager : SingletonPunCallbacks<PhotonServerManager>
 {
     [Header("Connection Settings")]
     [SerializeField] private string _gameVersion = "0.0.1";
-    [SerializeField] private string _nickName = "Player";
+    [SerializeField] private string _nickName = "";
     [SerializeField] private bool _autoConnect = true;
+
+    public event Action<string> OnNicknameSet;
 
     private void Start()
     {
@@ -19,6 +22,10 @@ public class PhotonServerManager : SingletonPunCallbacks<PhotonServerManager>
 
     public void Connect()
     {
+        if (string.IsNullOrEmpty(_nickName))
+            _nickName = $"Player_{UnityEngine.Random.Range(1000, 9999)}";
+
+        OnNicknameSet?.Invoke(_nickName);
         Connect(_nickName);
     }
 
