@@ -1,57 +1,65 @@
 using Player.Ragdoll;
 using UnityEngine;
-using UnityEngine.Serialization;
 
 namespace Player.Test
 {
     public class RagdollTestDriver : MonoBehaviour
     {
-        [FormerlySerializedAs("ragdoll")]
-        [FormerlySerializedAs("ragdollController")]
-        [SerializeField] private RagdollController _ragdollController;
-        [SerializeField] private float testImpulseForce = 15f;
-        [FormerlySerializedAs("testStumbleForce")] [SerializeField] private float testLightHitForce = 5f;
+        [SerializeField] private float _testImpulseForce = 15f;
+        [SerializeField] private float _testLightHitForce = 5f;
 
-        private IRagdoll _ragdollInput;
+        private IRagdoll[] _ragdolls;
 
         private void Awake()
         {
-            _ragdollInput = _ragdollController;
+            _ragdolls = GetComponentsInChildren<RagdollController>(true);
         }
 
         private void Update()
         {
             if (Input.GetKeyDown(KeyCode.T))
-            {
-                Vector3 randomDir = Random.insideUnitSphere.normalized;
-                randomDir.y = Mathf.Abs(randomDir.y);
-                Vector3 impulse = randomDir * testLightHitForce;
-                Vector3 hitPoint = _ragdollController.transform.position + Vector3.up * 0.5f;
-                _ragdollInput.OnHitImpact(impulse, hitPoint);
-            }
+                ApplyImpulseToActive(_testLightHitForce);
 
             if (Input.GetKeyDown(KeyCode.R))
+                ApplyImpulseToActive(_testImpulseForce);
+        }
+
+        private void ApplyImpulseToActive(float force)
+        {
+            foreach (var ragdoll in _ragdolls)
             {
+                var mb = (MonoBehaviour)ragdoll;
+                if (!mb.gameObject.activeInHierarchy) continue;
+
                 Vector3 randomDir = Random.insideUnitSphere.normalized;
                 randomDir.y = Mathf.Abs(randomDir.y);
-                Vector3 impulse = randomDir * testImpulseForce;
-                Vector3 hitPoint = _ragdollController.transform.position + Vector3.up * 0.5f;
-                _ragdollInput.OnHitImpact(impulse, hitPoint);
+                Vector3 impulse = randomDir * force;
+                Vector3 hitPoint = mb.transform.position + Vector3.up * 0.5f;
+                ragdoll.OnHitImpact(impulse, hitPoint);
             }
-
         }
 
         private void OnGUI()
         {
-            GUIStyle style = new GUIStyle(GUI.skin.label)
+            var style = new GUIStyle(GUI.skin.label)
             {
                 fontSize = 24,
                 fontStyle = FontStyle.Bold
             };
             GUI.color = Color.white;
-            GUI.Label(new Rect(10, 10, 400, 40),
-                $"State: {_ragdollInput.CurrentState}", style);
-            GUI.Label(new Rect(10, 50, 400, 30),
+
+            int y = 10;
+            foreach (var ragdoll in _ragdolls)
+            {
+                var mb = (MonoBehaviour)ragdoll;
+                if (!mb.gameObject.activeInHierarchy) continue;
+
+                GUI.Label(new Rect(10, y, 500, 40),
+                    $"{mb.gameObject.name}: {ragdoll.CurrentState}", style);
+                y += 40;
+            }
+
+            GUI.Label(new Rect(10, y, 400, 30),
                 "[T] Light Hit  [R] Ragdoll", GUI.skin.label);
         }
     }
