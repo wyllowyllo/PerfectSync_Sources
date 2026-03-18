@@ -79,20 +79,31 @@ namespace Player.Controller
                 return;
             }
 
-            float speedMultiplier = _isGrounded ? 1f : _airControlFactor;
-            Accelerate(_inputDirection * _moveSpeed * speedMultiplier);
-            RotateToVelocity();
+            // 다이브 중에는 입력 가속을 적용하지 않음.
+            if (!_jumpAbility.IsDiving)
+            {
+                float speedMultiplier = _isGrounded ? 1f : _airControlFactor;
+                Accelerate(_inputDirection * _moveSpeed * speedMultiplier);
+                RotateToVelocity();
+            }
 
             // 애니메이션 파라미터 갱신.
-            _jumpAbility.Execute(_isGrounded, _lastGroundedTime, _currentVelocity.magnitude);
+            float speed = _jumpAbility.IsDiving
+                ? new Vector3(_capsuleRb.linearVelocity.x, 0f, _capsuleRb.linearVelocity.z).magnitude
+                : _currentVelocity.magnitude;
+            _jumpAbility.Execute(_isGrounded, _lastGroundedTime, speed);
 
             if (_jumpRequested)
             {
                 bool grounded = Time.time - _lastGroundedTime <= CoyoteTime;
                 if (grounded)
+                {
                     _jumpAbility.TryJump(_lastGroundedTime);
-                else
-                    _jumpAbility.TryDive();
+                }
+                else if (_jumpAbility.TryDive())
+                {
+                    _currentVelocity = Vector3.zero;
+                }
                 _jumpRequested = false;
             }
         }
@@ -100,6 +111,10 @@ namespace Player.Controller
         private void FixedUpdate()
         {
             if (_ragdoll.CurrentState != ERagdollState.Animated)
+                return;
+
+            // 다이브 중에는 물리 임펄스가 수평 속도를 제어하도록 덮어쓰지 않음.
+            if (_jumpAbility.IsDiving)
                 return;
 
             Vector3 velocity = _capsuleRb.linearVelocity;

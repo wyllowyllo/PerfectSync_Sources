@@ -13,6 +13,7 @@ namespace Player.Ragdoll
         [SerializeField] private float _minRagdollDuration = 0.5f;
         [SerializeField] private float _maxRagdollDuration = 2.0f;
         [SerializeField] private float _durationPerImpulse = 0.1f;
+        [SerializeField] private float _diveRagdollDuration = 0.15f;
 
         private RagdollPhysicsToggle _physicsToggle;
         private RagdollRecovery _recovery;
@@ -51,10 +52,10 @@ namespace Player.Ragdoll
         {
             var impulse = _physicsToggle.CapsuleRigidbody.linearVelocity.normalized * _ragdollThreshold;
             var impact = new ImpactData(impulse, _physicsToggle.CapsuleRigidbody.position);
-            EnterRagdoll(impact);
+            EnterRagdoll(impact, _diveRagdollDuration);
         }
 
-        private void EnterRagdoll(ImpactData impact)
+        private void EnterRagdoll(ImpactData impact, float? overrideDuration = null)
         {
             StopActiveCoroutine();
 
@@ -64,7 +65,7 @@ namespace Player.Ragdoll
             _physicsToggle.Activate();
             _impactTransfer.TransferImpact(impact, inheritedVelocity);
 
-            float duration = Mathf.Clamp(impact.Magnitude * _durationPerImpulse, _minRagdollDuration, _maxRagdollDuration);
+            float duration = overrideDuration ?? Mathf.Clamp(impact.Magnitude * _durationPerImpulse, _minRagdollDuration, _maxRagdollDuration);
             _activeCoroutine = StartCoroutine(RecoveryCoroutine(duration));
         }
 
