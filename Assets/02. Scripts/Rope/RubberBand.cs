@@ -46,6 +46,10 @@ public class RubberBand : MonoBehaviour
     [Tooltip("장애물로 인식할 레이어")]
     [SerializeField] private LayerMask _obstacleLayer;
     
+    [Space]
+    [Tooltip("레이어별 마찰력 설정")]
+    [SerializeField] private SerializableDictionary<LayerMask, float> _layerFrictionSettings;
+    
     private IRopePhysics _simulator;
     private IRopeRenderer _renderer;
     
@@ -63,7 +67,8 @@ public class RubberBand : MonoBehaviour
             _baseLength, 
             _constraintIterations, 
             _targetA.position,
-            _obstacleLayer
+            _obstacleLayer,
+            _layerFrictionSettings
         );
     }
 

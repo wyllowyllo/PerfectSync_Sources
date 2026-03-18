@@ -10,6 +10,7 @@ public class VerletSimulator : IRopePhysics
     private readonly float _nodeDistance;
     private readonly int _constraintIterations;
     private readonly LayerMask _obstacleLayer;
+    private readonly SerializableDictionary<LayerMask, float> _frictionMap;
     
     private readonly Collider[] _overlapBuffer = new Collider[8];
     private static readonly Vector3 Gravity = new Vector3(0, -9.81f, 0);
@@ -23,7 +24,7 @@ public class VerletSimulator : IRopePhysics
     /// <param name="startPosition">생성 시 시작 좌표 (이후 일직선으로 배치됨)</param>
     /// <param name="obstacleLayer">충돌을 감지할 장애물의 레이어 마스크</param>
     /// <exception cref="ArgumentOutOfRangeException">노드 개수나 길이가 유효하지 않을 때 발생</exception>
-    public VerletSimulator(int nodeCount, float totalLength, int constraintIterations, Vector3 startPosition, LayerMask obstacleLayer)
+    public VerletSimulator(int nodeCount, float totalLength, int constraintIterations, Vector3 startPosition, LayerMask obstacleLayer, SerializableDictionary<LayerMask, float> frictionMap)
     {
         if (nodeCount < 2)
             throw new ArgumentOutOfRangeException(nameof(nodeCount), "로프를 구성하기 위해 노드는 최소 2개 이상 필요합니다.");
@@ -36,6 +37,7 @@ public class VerletSimulator : IRopePhysics
         _nodeDistance = totalLength / (nodeCount - 1);
         _constraintIterations = constraintIterations;
         _obstacleLayer = obstacleLayer;
+        _frictionMap = frictionMap;
         
         for (int i = 0; i < nodeCount; i++)
         {
@@ -110,7 +112,6 @@ public class VerletSimulator : IRopePhysics
     private void ApplyCollisionConstraints()
     {
         const float NodeRadius = 0.15f; // 고무줄 두께에 맞춰 조절
-        const float Friction = -0.25f; // 마찰력을 장애물에게서 받아와야할듯?
         
         for (int i = 0; i < _nodes.Length; i++)
         {
@@ -132,6 +133,8 @@ public class VerletSimulator : IRopePhysics
     
                 if (Physics.SphereCast(safePrevPos, NodeRadius, direction, out RaycastHit hit, safeDistance, _obstacleLayer))
                 {
+                    float friction = GetFrictionForLayer(hit.collider.gameObject.layer);
+                    
                     // 장애물 표면으로 밀어냄
                     _nodes[i].CurrentPosition = hit.point + hit.normal * (NodeRadius + 0.005f);
         
@@ -139,7 +142,7 @@ public class VerletSimulator : IRopePhysics
                     Vector3 currentVelocity = _nodes[i].CurrentPosition - prevPos;
                     Vector3 slideVelocity = Vector3.ProjectOnPlane(currentVelocity, hit.normal);
         
-                    _nodes[i].PreviousPosition = _nodes[i].CurrentPosition - (slideVelocity * Friction);
+                    _nodes[i].PreviousPosition = _nodes[i].CurrentPosition - (slideVelocity * friction);
         
                     _nodes[i].IsTouchingObstacle = true;
                     continue; 
@@ -152,6 +155,8 @@ public class VerletSimulator : IRopePhysics
             for (int j = 0; j < count; j++)
             {
                 Collider obstacle = _overlapBuffer[j];
+                float friction = GetFrictionForLayer(obstacle.gameObject.layer);
+                
                 Vector3 closestPoint = obstacle.ClosestPoint(_nodes[i].CurrentPosition);
                 float penetrationDistance = Vector3.Distance(_nodes[i].CurrentPosition, closestPoint);
             
@@ -162,7 +167,7 @@ public class VerletSimulator : IRopePhysics
                 
                     _nodes[i].CurrentPosition = closestPoint + (pushDirection * NodeRadius);
                     
-                    _nodes[i].PreviousPosition = Vector3.Lerp(_nodes[i].PreviousPosition, _nodes[i].CurrentPosition, Friction);
+                    _nodes[i].PreviousPosition = Vector3.Lerp(_nodes[i].PreviousPosition, _nodes[i].CurrentPosition, friction);
                     
                     _nodes[i].IsTouchingObstacle = true;
                 }
@@ -219,5 +224,20 @@ public class VerletSimulator : IRopePhysics
         // 부딪힌 장애물이 없을 때 처리
         int oppositeEndIndex = isStartAnchor ? _nodes.Length - 1 : 0;
         return (_nodes[oppositeEndIndex].CurrentPosition - targetPosition).normalized;
+    }
+    
+    /// <summary>
+    /// 레이어 정수값을 통해 딕셔너리에 설정된 LayerMask 마찰력을 찾아 반환합니다.
+    /// </summary>
+    private float GetFrictionForLayer(int layer)
+    {
+        const float defaultFriction = 0f;
+        
+        foreach (var pair in _frictionMap)
+        {
+            if ((pair.Key.value & (1 << layer)) == 0) continue;
+            return pair.Value;
+        }
+        return defaultFriction;
     }
 }

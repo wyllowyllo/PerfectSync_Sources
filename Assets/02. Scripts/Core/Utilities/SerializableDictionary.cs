@@ -8,11 +8,6 @@ public class SerializableDictionary<TKey, TValue> : Dictionary<TKey, TValue>, IS
 
     public void OnBeforeSerialize()
     {
-        /*_pairs.Clear();
-        foreach (var pair in this)
-        {
-            _pairs.Add(new SerializablePair<TKey, TValue>(pair.Key, pair.Value));
-        }*/
     }
 
     public void OnAfterDeserialize()
