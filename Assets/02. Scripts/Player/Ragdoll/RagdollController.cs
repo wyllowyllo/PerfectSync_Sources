@@ -65,10 +65,10 @@ namespace Player.Ragdoll
             _impactTransfer.TransferImpact(impact, inheritedVelocity);
 
             float duration = Mathf.Clamp(impact.Magnitude * _durationPerImpulse, _minRagdollDuration, _maxRagdollDuration);
-            _activeCoroutine = StartCoroutine(WaitThenRecover(duration));
+            _activeCoroutine = StartCoroutine(RecoveryCoroutine(duration));
         }
 
-        private IEnumerator WaitThenRecover(float duration)
+        private IEnumerator RecoveryCoroutine(float duration)
         {
             yield return new WaitForSeconds(duration);
 
@@ -76,6 +76,7 @@ namespace Player.Ragdoll
             {
                 _currentState = ERagdollState.BlendToAnim;
                 _physicsToggle.Deactivate();
+                _jumpAbility.ResetState();
 
                 // BlendToAnim 동안 UpperBodyPhysics 비활성화.
                 if (_upperBodyPhysics != null)

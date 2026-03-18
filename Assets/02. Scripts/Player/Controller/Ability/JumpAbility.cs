@@ -70,6 +70,8 @@ namespace Player.Controller.Ability
 
         public void ResetState()
         {
+            _animator.ResetTrigger(SJumpHash);
+            _animator.ResetTrigger(SDiveHash);
             _animator.Play("Locomotion", 0, 0f);
             _animator.SetFloat(SSpeedHash, 0f);
             _animator.SetBool(SIsGroundedHash, true);
