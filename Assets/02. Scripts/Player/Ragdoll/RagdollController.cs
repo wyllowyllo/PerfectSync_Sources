@@ -90,6 +90,18 @@ namespace Player.Ragdoll
             _activeCoroutine = null;
         }
 
+        public void EnterDead()
+        {
+            StopActiveCoroutine();
+            _currentState = ERagdollState.Dead;
+            _recovery.StartRagdollOverride(_physicsToggle.Bones);
+            Vector3 inheritedVelocity = _physicsToggle.CapsuleRigidbody.linearVelocity;
+            _physicsToggle.Activate();
+            _impactTransfer.TransferImpact(new ImpactData(Vector3.zero, transform.position), inheritedVelocity);
+            SetUpperBodyActive(false);
+            // RecoveryCoroutine 시작 안 함 — Dead는 영구 유지.
+        }
+
         private void OnRecoveryComplete()
         {
             _currentState = ERagdollState.Animated;

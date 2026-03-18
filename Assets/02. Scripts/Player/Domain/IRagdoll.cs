@@ -2,7 +2,7 @@ using UnityEngine;
 
 namespace Player.Domain
 {
-    public enum ERagdollState { Animated, Ragdoll, BlendToAnim }
+    public enum ERagdollState { Animated, Ragdoll, BlendToAnim, Dead }
 
     public interface IRagdoll
     {
