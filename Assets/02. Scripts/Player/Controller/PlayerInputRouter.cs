@@ -4,8 +4,8 @@ using UnityEngine;
 
 namespace Player.Controller
 {
-    [RequireComponent(typeof(LocalPlayerInput), typeof(AvatarController))]
-    public class TeamController : MonoBehaviour
+    [RequireComponent(typeof(LocalPlayerInput), typeof(PlayerFormController))]
+    public class PlayerInputRouter : MonoBehaviour
     {
         [Header("Settings")]
         [SerializeField] private ETeamMode _startMode = ETeamMode.Merged;
@@ -16,14 +16,14 @@ namespace Player.Controller
 
         private IPlayerInput _playerInputA;
         private IPlayerInput _playerInputB;
-        private AvatarController _avatarController;
+        private PlayerFormController playerFormController;
         private Transform _cameraTransformA;
         private Transform _cameraTransformB;
 
         private void Start()
         {
             _playerInputA = GetComponent<LocalPlayerInput>();
-            _avatarController = GetComponent<AvatarController>();
+            playerFormController = GetComponent<PlayerFormController>();
 
             if (_cameraControllerA == null)
                 _cameraControllerA = FindAnyObjectByType<TpsCameraController>();
@@ -36,36 +36,36 @@ namespace Player.Controller
                 ? _cameraControllerB.transform
                 : null;
 
-            _avatarController.OnModeChanged += HandleModeChanged;
-            _avatarController.Initialize(_startMode);
+            playerFormController.OnModeChanged += HandleModeChanged;
+            playerFormController.Initialize(_startMode);
 
             if (_cameraControllerA != null)
-                _cameraControllerA.SetTarget(_avatarController.PrimaryBodyTransform);
+                _cameraControllerA.SetTarget(playerFormController.PrimaryBodyTransform);
 
             if (_cameraControllerB != null)
-                _cameraControllerB.SetTarget(_avatarController.SecondaryBodyTransform);
+                _cameraControllerB.SetTarget(playerFormController.SecondaryBodyTransform);
 
             TeamModeManager.Instance.OnSwitchRequested += HandleSwitchRequested;
         }
 
         private void Update()
         {
-            _avatarController.Tick();
+            playerFormController.Tick();
             RouteInput();
         }
 
         private void HandleSwitchRequested()
         {
-            _avatarController.ToggleMode();
+            playerFormController.ToggleMode();
         }
 
         private void HandleModeChanged(ETeamMode newMode)
         {
             if (_cameraControllerA != null)
-                _cameraControllerA.SetTarget(_avatarController.PrimaryBodyTransform);
+                _cameraControllerA.SetTarget(playerFormController.PrimaryBodyTransform);
 
             if (_cameraControllerB != null)
-                _cameraControllerB.SetTarget(_avatarController.SecondaryBodyTransform);
+                _cameraControllerB.SetTarget(playerFormController.SecondaryBodyTransform);
         }
 
         private void RouteInput()
@@ -82,7 +82,7 @@ namespace Player.Controller
             Vector3 worldDirA = CameraRelativeConverter.Convert(inputA, _cameraTransformA);
             Vector3 worldDirB = CameraRelativeConverter.Convert(inputB, _cameraTransformB);
 
-            _avatarController.ApplyInput(worldDirA, worldDirB, jumpA, jumpB);
+            playerFormController.ApplyInput(worldDirA, worldDirB, jumpA, jumpB);
         }
     }
 }

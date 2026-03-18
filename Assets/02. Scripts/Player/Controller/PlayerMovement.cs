@@ -1,12 +1,11 @@
-using Player.Controller.Ability;
 using Player.Ragdoll;
 using UnityEngine;
 
 namespace Player.Controller
 {
     [RequireComponent(typeof(Animator), typeof(Rigidbody), typeof(RagdollController))]
-    [RequireComponent(typeof(JumpAbility))]
-    public class CharacterMoveController : MonoBehaviour, IControllableBody
+    [RequireComponent(typeof(PlayerJump), typeof(PlayerAnimation))]
+    public class PlayerMovement : MonoBehaviour, IControllableBody
     {
         [Header("Movement")]
         [SerializeField] private float _moveSpeed = 5f;
@@ -24,7 +23,8 @@ namespace Player.Controller
 
         private Rigidbody _capsuleRb;
         private IRagdoll _ragdoll;
-        private JumpAbility _jumpAbility;
+        private PlayerJump _playerJump;
+        private PlayerAnimation anim;
         private Vector3 _currentVelocity;
         private ERagdollState _previousRagdollState;
         private float _lastGroundedTime;
@@ -73,14 +73,15 @@ namespace Player.Controller
                 _lastGroundedTime = Time.time;
 
             // 다이브 중 착지 → 래그돌 진입.
-            if (_jumpAbility.IsDiving && _isGrounded)
+            if (_playerJump.IsDiving && _isGrounded)
             {
+                _playerJump.ClearDiving();
                 _ragdoll.ForceRagdoll();
                 return;
             }
 
             // 다이브 중에는 입력 가속을 적용하지 않음.
-            if (!_jumpAbility.IsDiving)
+            if (!_playerJump.IsDiving)
             {
                 float speedMultiplier = _isGrounded ? 1f : _airControlFactor;
                 Accelerate(_inputDirection * _moveSpeed * speedMultiplier);
@@ -88,19 +89,19 @@ namespace Player.Controller
             }
 
             // 애니메이션 파라미터 갱신.
-            float speed = _jumpAbility.IsDiving
+            float speed = _playerJump.IsDiving
                 ? new Vector3(_capsuleRb.linearVelocity.x, 0f, _capsuleRb.linearVelocity.z).magnitude
                 : _currentVelocity.magnitude;
-            _jumpAbility.Execute(_isGrounded, _lastGroundedTime, speed);
+            anim.UpdateLocomotion(_isGrounded, speed);
 
             if (_jumpRequested)
             {
-                bool grounded = Time.time - _lastGroundedTime <= CoyoteTime;
-                if (grounded)
+                bool canJump = Time.time - _lastGroundedTime <= CoyoteTime;
+                if (canJump)
                 {
-                    _jumpAbility.TryJump(_lastGroundedTime);
+                    _playerJump.Jump();
                 }
-                else if (_jumpAbility.TryDive())
+                else if (_playerJump.TryDive())
                 {
                     _currentVelocity = Vector3.zero;
                 }
@@ -114,7 +115,7 @@ namespace Player.Controller
                 return;
 
             // 다이브 중에는 물리 임펄스가 수평 속도를 제어하도록 덮어쓰지 않음.
-            if (_jumpAbility.IsDiving)
+            if (_playerJump.IsDiving)
                 return;
 
             Vector3 velocity = _capsuleRb.linearVelocity;
@@ -161,7 +162,8 @@ namespace Player.Controller
             {
                 _capsuleRb = GetComponent<Rigidbody>();
                 _ragdoll = GetComponent<IRagdoll>();
-                _jumpAbility = GetComponent<JumpAbility>();
+                _playerJump = GetComponent<PlayerJump>();
+                anim = GetComponent<PlayerAnimation>();
                 _initialized = true;
             }
 

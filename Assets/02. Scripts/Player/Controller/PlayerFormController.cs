@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace Player.Controller
 {
-    public class AvatarController : MonoBehaviour
+    public class PlayerFormController : MonoBehaviour
     {
         [Header("Bodies")]
         [SerializeField] private GameObject _mergedBody;

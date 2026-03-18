@@ -1,6 +1,5 @@
 using System.Collections;
 using Player.Controller;
-using Player.Controller.Ability;
 using UnityEngine;
 
 namespace Player.Ragdoll
@@ -18,7 +17,7 @@ namespace Player.Ragdoll
         private RagdollPhysicsToggle _physicsToggle;
         private RagdollRecovery _recovery;
         private UpperBodyPhysics _upperBodyPhysics;
-        private JumpAbility _jumpAbility;
+        private PlayerAnimation anim;
         private ERagdollState _currentState = ERagdollState.Animated;
         private RagdollImpactTransfer _impactTransfer;
         private Coroutine _activeCoroutine;
@@ -30,7 +29,7 @@ namespace Player.Ragdoll
             _physicsToggle = GetComponent<RagdollPhysicsToggle>();
             _recovery = GetComponent<RagdollRecovery>();
             _upperBodyPhysics = GetComponent<UpperBodyPhysics>();
-            _jumpAbility = GetComponent<JumpAbility>();
+            anim = GetComponent<PlayerAnimation>();
             _impactTransfer = new RagdollImpactTransfer(_physicsToggle.RagdollRigidbodies);
         }
 
@@ -91,7 +90,7 @@ namespace Player.Ragdoll
                 capsuleRb.linearVelocity = Vector3.zero;
                 capsuleRb.angularVelocity = Vector3.zero;
 
-                _jumpAbility.PlayGetUp(isFaceUp);
+                anim.PlayGetUp(isFaceUp);
                 _recovery.StartBlending(OnRecoveryComplete);
             }
 
@@ -101,7 +100,7 @@ namespace Player.Ragdoll
         private void OnRecoveryComplete()
         {
             _currentState = ERagdollState.Animated;
-            _jumpAbility.ClearGetUpState();
+            anim.ClearGetUpState();
 
             if (_upperBodyPhysics != null)
                 _upperBodyPhysics.SetActive(true);
