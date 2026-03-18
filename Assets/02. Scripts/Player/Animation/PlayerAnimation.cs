@@ -13,6 +13,7 @@ namespace Player.Animation
         private static readonly int s_diveHash = Animator.StringToHash("Dive");
         private static readonly int s_getUpFromBackHash = Animator.StringToHash("GetUpFromBack");
         private static readonly int s_getUpFromBellyHash = Animator.StringToHash("GetUpFromBelly");
+        private static readonly int s_diveLandHash = Animator.StringToHash("DiveLand");
 
         private void Awake()
         {
@@ -35,10 +36,16 @@ namespace Player.Animation
             _animator.SetTrigger(s_diveHash);
         }
 
+        public void SetDiveLand(bool active)
+        {
+            _animator.SetBool(s_diveLandHash, active);
+        }
+
         public void PlayGetUp(bool isFaceUp)
         {
             _animator.ResetTrigger(s_jumpHash);
             _animator.ResetTrigger(s_diveHash);
+            _animator.SetBool(s_diveLandHash, false);
             _animator.SetFloat(s_speedHash, 0f);
             _animator.SetBool(s_isGroundedHash, true);
 
@@ -52,13 +59,5 @@ namespace Player.Animation
             _animator.SetBool(s_getUpFromBellyHash, false);
         }
 
-        public void ResetToLocomotion()
-        {
-            _animator.ResetTrigger(s_jumpHash);
-            _animator.ResetTrigger(s_diveHash);
-            _animator.Play("Locomotion", 0, 0f);
-            _animator.SetFloat(s_speedHash, 0f);
-            _animator.SetBool(s_isGroundedHash, true);
-        }
     }
 }

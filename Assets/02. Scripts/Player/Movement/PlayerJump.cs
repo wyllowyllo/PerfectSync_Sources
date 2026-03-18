@@ -61,10 +61,5 @@ namespace Player.Movement
             return true;
         }
 
-        public void ResetState()
-        {
-            _anim.ResetToLocomotion();
-            _isDiving = false;
-        }
     }
 }

@@ -77,11 +77,12 @@ namespace Player.Movement
             if (_isGrounded)
                 _lastGroundedTime = Time.time;
 
-            // 다이브 중 착지 → 래그돌 진입.
+            // 다이브 중 착지 → 애니메이션 전환.
             if (_playerJump.IsDiving && _isGrounded)
             {
                 _playerJump.ClearDiving();
-                _ragdoll.ForceRagdoll();
+                _anim.SetDiveLand(true);
+                _currentVelocity = Vector3.zero;
                 return;
             }
 
