@@ -77,13 +77,12 @@ namespace Player.Movement
             if (_isGrounded)
                 _lastGroundedTime = Time.time;
 
-            // 다이브 중 착지 → 애니메이션 전환.
+            // 다이브 중 착지 → 애니메이션 전환 후 즉시 이동 허용.
             if (_playerJump.IsDiving && _isGrounded)
             {
                 _playerJump.ClearDiving();
                 _anim.SetDiveLand(true);
                 _currentVelocity = Vector3.zero;
-                return;
             }
 
             // 다이브 중에는 입력 가속을 적용하지 않음.
