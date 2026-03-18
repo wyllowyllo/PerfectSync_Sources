@@ -19,6 +19,8 @@ namespace Player.Ragdoll
 
         private Vector3[] _bonePositionSnapshot;
         private Quaternion[] _boneRotationSnapshot;
+        private Quaternion _rootStartRotation;
+        private Quaternion _rootTargetRotation;
         private float _blendTimer;
         private bool _isBlending;
         private bool _isOverridingRagdoll;
@@ -40,7 +42,8 @@ namespace Player.Ragdoll
             CaptureSnapshot();
             AlignRootToPose();
 
-            _isOverridingRagdoll = false;
+            // _isOverridingRagdoll은 StartBlending()에서 해제.
+            // 갭 프레임 동안 RB→본 복사를 유지하여 Animator 스냅 방지.
 
             // 스냅샷 rotation에서 faceUp 판별.
             bool isFaceUp = (_boneRotationSnapshot[0] * Vector3.forward).y > 0f;
@@ -50,6 +53,7 @@ namespace Player.Ragdoll
         // Deactivate() + PlayGetUp() 이후 호출. 블렌드 시작.
         public void StartBlending(Action onComplete)
         {
+            _isOverridingRagdoll = false;
             _onComplete = onComplete;
             _blendTimer = 0f;
             _isBlending = true;
@@ -74,12 +78,17 @@ namespace Player.Ragdoll
             float groundY = GetGroundY(hipsPos);
             transform.position = new Vector3(hipsPos.x, groundY, hipsPos.z);
 
-            // 루트 회전을 힙 스냅샷 기준으로 즉시 적용.
+            // 현재 회전 저장 (보간 시작값).
+            _rootStartRotation = transform.rotation;
+
+            // 목표 회전 계산 (보간 목표값).
             Vector3 hipsForward = _boneRotationSnapshot[0] * Vector3.forward;
             hipsForward.y = 0f;
 
             if (hipsForward.sqrMagnitude > MinDirectionSqrMagnitude)
-                transform.rotation = Quaternion.LookRotation(hipsForward);
+                _rootTargetRotation = Quaternion.LookRotation(hipsForward);
+            else
+                _rootTargetRotation = transform.rotation;
         }
 
         private void LateUpdate()
@@ -104,6 +113,9 @@ namespace Player.Ragdoll
 
             if (t < 1f)
             {
+                // 캡슐 루트 회전 보간.
+                transform.rotation = Quaternion.Slerp(_rootStartRotation, _rootTargetRotation, t);
+
                 for (int i = 0; i < _boneRbPairs.Count; i++)
                 {
                     Transform bone = _boneRbPairs[i].Transform;
@@ -113,6 +125,8 @@ namespace Player.Ragdoll
 
                 return;
             }
+
+            transform.rotation = _rootTargetRotation;
             _isBlending = false;
             _onComplete?.Invoke();
         }
