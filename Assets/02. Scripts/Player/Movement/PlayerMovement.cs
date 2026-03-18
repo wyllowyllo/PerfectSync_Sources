@@ -106,7 +106,7 @@ namespace Player.Movement
                 {
                     _playerJump.Jump();
                 }
-                else if (_playerJump.TryDive())
+                else if (_playerJump.TryDive(_inputDirection))
                 {
                     _currentVelocity = Vector3.zero;
                 }

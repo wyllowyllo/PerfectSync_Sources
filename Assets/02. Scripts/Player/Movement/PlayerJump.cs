@@ -41,12 +41,18 @@ namespace Player.Movement
             _anim.TriggerJump();
         }
 
-        public bool TryDive()
+        public bool TryDive(Vector3 inputDirection)
         {
             if (Time.time - _lastDiveTime < _diveCooldown)
                 return false;
 
-            Vector3 diveDirection = transform.forward + Vector3.down * 0.2f;
+            Vector3 forward = inputDirection.sqrMagnitude > 0.01f
+                ? inputDirection.normalized
+                : transform.forward;
+
+            transform.rotation = Quaternion.LookRotation(forward);
+
+            Vector3 diveDirection = forward + Vector3.down * 0.2f;
             _rb.AddForce(diveDirection.normalized * _diveForce, ForceMode.Impulse);
             _lastDiveTime = Time.time;
             _isDiving = true;
