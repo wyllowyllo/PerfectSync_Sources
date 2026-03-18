@@ -31,7 +31,6 @@ namespace Player.Ragdoll
             _upperBodyPhysics = GetComponent<UpperBodyPhysics>();
             _jumpAbility = GetComponent<JumpAbility>();
             _impactTransfer = new RagdollImpactTransfer(_physicsToggle.RagdollRigidbodies);
-            _recovery.Initialize(_physicsToggle.RagdollRigidbodies);
         }
 
         public void OnHitImpact(Vector3 impulse, Vector3 hitPoint)
@@ -76,12 +75,13 @@ namespace Player.Ragdoll
             if (_currentState == ERagdollState.Ragdoll)
             {
                 _currentState = ERagdollState.BlendToAnim;
+                _physicsToggle.Deactivate();
 
-                // 물리 유지한 채 스프링 복귀 시작.
+                // BlendToAnim 동안 UpperBodyPhysics 비활성화.
                 if (_upperBodyPhysics != null)
                     _upperBodyPhysics.SetActive(false);
 
-                _recovery.StartRecovery(_physicsToggle.CapsuleRigidbody, OnRecoveryComplete);
+                _recovery.StartRecovery(_physicsToggle.RagdollBones, _physicsToggle.Animator, _physicsToggle.CapsuleRigidbody, OnRecoveryComplete);
             }
 
             _activeCoroutine = null;
@@ -89,8 +89,6 @@ namespace Player.Ragdoll
 
         private void OnRecoveryComplete()
         {
-            // 스프링 복귀 완료 → 래그돌 물리 비활성화.
-            _physicsToggle.Deactivate();
             _currentState = ERagdollState.Animated;
             _jumpAbility.ResetState();
 
