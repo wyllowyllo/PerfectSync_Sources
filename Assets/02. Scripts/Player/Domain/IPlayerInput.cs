@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace Player.UserInput
+namespace Player.Domain
 {
     public interface IPlayerInput
     {

@@ -1,5 +1,6 @@
 using System.Collections;
-using Player.Controller;
+using Player.Animation;
+using Player.Domain;
 using UnityEngine;
 
 namespace Player.Ragdoll

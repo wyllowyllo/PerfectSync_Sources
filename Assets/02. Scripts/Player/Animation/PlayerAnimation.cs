@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace Player.Controller
+namespace Player.Animation
 {
     [RequireComponent(typeof(Animator))]
     public class PlayerAnimation : MonoBehaviour

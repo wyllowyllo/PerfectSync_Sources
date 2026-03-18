@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace Player.Ragdoll
+namespace Player.Domain
 {
     public enum ERagdollState { Animated, Ragdoll, BlendToAnim }
 

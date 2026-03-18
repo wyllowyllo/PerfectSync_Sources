@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace Player.Test
+namespace Player.CameraSystem
 {
     public class TpsCameraController : MonoBehaviour
     {

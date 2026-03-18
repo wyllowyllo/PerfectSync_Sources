@@ -1,8 +1,11 @@
+using Player.CameraSystem;
+using Player.Domain;
+using Player.Form;
+using Player.Common;
 using Player.Test;
-using Player.UserInput;
 using UnityEngine;
 
-namespace Player.Controller
+namespace Player.PlayerInput
 {
     [RequireComponent(typeof(LocalPlayerInput), typeof(PlayerFormController))]
     public class PlayerInputRouter : MonoBehaviour
@@ -47,6 +50,7 @@ namespace Player.Controller
 
             TeamModeManager.Instance.OnSwitchRequested += HandleSwitchRequested;
         }
+        
 
         private void OnDestroy()
         {

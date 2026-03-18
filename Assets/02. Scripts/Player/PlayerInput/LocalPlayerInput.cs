@@ -1,6 +1,7 @@
+using Player.Domain;
 using UnityEngine;
 
-namespace Player.UserInput
+namespace Player.PlayerInput
 {
     public class LocalPlayerInput : MonoBehaviour, IPlayerInput
     {

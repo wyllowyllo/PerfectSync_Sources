@@ -1,3 +1,4 @@
+using Player.Domain;
 using System.Collections.Generic;
 using UnityEngine;
 

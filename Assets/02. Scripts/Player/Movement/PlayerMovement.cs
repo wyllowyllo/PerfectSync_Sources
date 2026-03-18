@@ -1,7 +1,9 @@
+using Player.Animation;
+using Player.Domain;
 using Player.Ragdoll;
 using UnityEngine;
 
-namespace Player.Controller
+namespace Player.Movement
 {
     [RequireComponent(typeof(Animator), typeof(Rigidbody), typeof(RagdollController))]
     [RequireComponent(typeof(PlayerJump), typeof(PlayerAnimation))]

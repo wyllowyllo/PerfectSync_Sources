@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace Player.Controller
+namespace Player.Domain
 {
     public interface IControllableBody
     {

@@ -1,7 +1,9 @@
 using System;
+using Player.Domain;
+using Player.Common;
 using UnityEngine;
 
-namespace Player.Controller
+namespace Player.Form
 {
     public class PlayerFormController : MonoBehaviour
     {
