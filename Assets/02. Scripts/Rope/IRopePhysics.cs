@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
@@ -37,7 +38,7 @@ public interface IRopePhysics
     void SetNodePosition(int index, Vector3 position);
     
     /// <summary>
-    /// 이번 스텝에서 움직이는 장애물과 충돌했는지 여부를 반환합니다.
+    /// 이번 스텝에서 충돌 처리한 움직이는 장애물의 HashSet을 반환합니다.
     /// </summary>
-    bool IsOverlappingDynamicObstacle { get; }
+    HashSet<Collider> OverlappingColliders { get; }
 }

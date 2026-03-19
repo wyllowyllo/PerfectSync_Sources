@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
@@ -12,13 +13,13 @@ public class VerletSimulator : IRopePhysics
     private readonly LayerMask _obstacleLayer;
     private readonly LayerMask _dynamicObstacleLayer;
     private readonly SerializableDictionary<LayerMask, float> _frictionMap;
-
-    private bool _isOverlappingDynamicObstacle;
-    public bool IsOverlappingDynamicObstacle => _isOverlappingDynamicObstacle;
-
+    
+    private readonly HashSet<Collider> _overlappingColliders = new();
+    public HashSet<Collider> OverlappingColliders => _overlappingColliders;
+    
     private readonly Collider[] _overlapBuffer = new Collider[8];
     private static readonly Vector3 Gravity = new Vector3(0, -9.81f, 0);
-
+    
     /// <summary>
     /// 물리 시뮬레이터를 초기화하고 노드 배열을 사전 할당합니다.
     /// </summary>
@@ -51,10 +52,10 @@ public class VerletSimulator : IRopePhysics
             _nodes[i] = new VerletNode(position);
         }
     }
-
+    
     public void Simulate(float deltaTime)
     {
-        _isOverlappingDynamicObstacle = false;
+        _overlappingColliders.Clear();
         
         for (int i = 0; i < _nodes.Length; i++)
         {
@@ -159,12 +160,11 @@ public class VerletSimulator : IRopePhysics
 
             // 다른 플레이어가 지나갈 때 충돌 처리
             int count = Physics.OverlapSphereNonAlloc(_nodes[i].CurrentPosition, NodeRadius + 0.05f, _overlapBuffer, _dynamicObstacleLayer);
-            if (count > 0) _isOverlappingDynamicObstacle = true;
             
             for (int j = 0; j < count; j++)
             {
                 Collider obstacle = _overlapBuffer[j];
-                float friction = GetFrictionForLayer(obstacle.gameObject.layer);
+                _overlappingColliders.Add(obstacle);
                 
                 Vector3 closestPoint = obstacle.ClosestPoint(_nodes[i].CurrentPosition);
                 float penetrationDistance = Vector3.Distance(_nodes[i].CurrentPosition, closestPoint);
@@ -175,9 +175,6 @@ public class VerletSimulator : IRopePhysics
                     if (pushDirection == Vector3.zero) pushDirection = Vector3.up; 
                 
                     _nodes[i].CurrentPosition = closestPoint + (pushDirection * NodeRadius);
-                    
-                    _nodes[i].PreviousPosition = Vector3.Lerp(_nodes[i].PreviousPosition, _nodes[i].CurrentPosition, friction);
-                    
                     _nodes[i].IsTouchingObstacle = true;
                 }
             }

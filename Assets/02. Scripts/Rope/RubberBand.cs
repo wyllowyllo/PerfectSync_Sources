@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
@@ -64,7 +65,7 @@ public class RubberBand : MonoBehaviour
     private IRopeRenderer _renderer;
     
     private Vector3[] _nodeBuffer;
-    private float _currentTension = 1f;
+    private float _currentTension;
     private bool _isPlayerOverlapping;
 
     private void Awake()
@@ -92,7 +93,7 @@ public class RubberBand : MonoBehaviour
         _simulator.Simulate(Time.fixedDeltaTime);
         _currentTension = _simulator.GetCurrentTension();
         ApplyElasticForceToPlayers();
-        CheckOverlapSnapEvent();
+        CheckCrossingEvents();
     }
 
     private void LateUpdate()
@@ -151,13 +152,59 @@ public class RubberBand : MonoBehaviour
         _rigidbodyB.AddForce(pullDirectionB * finalForce, ForceMode.Force);
     }
     
-    private void CheckOverlapSnapEvent()
+    //Todo: 콜라이더 Enter, Exit 판정의 책임을 Simulator에게...
+    private readonly HashSet<Collider> _previousColliders = new();
+    private readonly Dictionary<Collider, int> _enterSides = new();
+    
+    /// <summary>
+    /// 제 3의 타겟이 고무줄을 통과했는 지를 체크합니다.
+    /// 추후 bool 타입을 반환하도록 수정하거나 이벤트를 발행하도록 수정하여 사용해주세요.
+    /// </summary>
+    private void CheckCrossingEvents()
     {
-        var previous = _isPlayerOverlapping;
-        _isPlayerOverlapping = _simulator.IsOverlappingDynamicObstacle;
-        
-        if (!previous || _isPlayerOverlapping) return;
-        
-        Debug.Log("<color=orange>[고무줄 스냅 감지]</color> 플레이어 기절!");
+        // 시뮬레이터가 이번 프레임에 수집한 해시셋
+        var currentColliders = _simulator.OverlappingColliders; 
+
+        // OnColliderEnter
+        foreach (var coll in currentColliders)
+        {
+            if (_previousColliders.Contains(coll)) continue;
+            
+            // 처음 닿은 순간의 방향을 기록
+            _enterSides[coll] = CCW_XZ(_targetA.position, _targetB.position, coll.transform.position);
+        }
+
+        // OnColliderExit
+        foreach (var coll in _previousColliders)
+        {
+            if (currentColliders.Contains(coll)) continue;
+
+            if (!_enterSides.TryGetValue(coll, out var enterSide)) continue;
+                
+            // 떨어진 순간의 방향 계산
+            var exitSide = CCW_XZ(_targetA.position, _targetB.position, coll.transform.position);
+            
+            // 진입 방향과 탈출 방향이 다르면 통과 판정
+            if (enterSide != exitSide) 
+            { 
+                Debug.Log($"<color=orange>[스냅 감지]</color> {coll.name}에 의해 기절!");
+            }
+                    
+            // 검사 끝났으니 기록 삭제
+            _enterSides.Remove(coll);
+        }
+
+        // 다음 프레임 비교를 위해 덮어쓰기
+        _previousColliders.Clear();
+        _previousColliders.UnionWith(currentColliders);
+    }
+
+    /// <summary>
+    /// 선분 AB를 기준으로 점 C가 서있는 방향을 계산합니다.
+    /// </summary>
+    private static int CCW_XZ(Vector3 a, Vector3 b, Vector3 c)
+    {
+        var crossProduct = (b.x - a.x) * (c.z - a.z) - (b.z - a.z) * (c.x - a.x);
+        return crossProduct > 0 ? 1 : -1;
     }
 }

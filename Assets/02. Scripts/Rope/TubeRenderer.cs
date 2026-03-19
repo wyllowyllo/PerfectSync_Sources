@@ -156,9 +156,7 @@ public class TubeRenderer : IRopeRenderer
     public void RenderRope(Vector3[] nodePositions, float thickness)
     {
         if (nodePositions == null || nodePositions.Length != _nodeCount) throw new ArgumentException("렌더링을 위한 노드가 부족합니다.");
-
-        int nodeCount = nodePositions.Length;
-
+        
         // 튜브의 꼬임을 막기 위해 첫 번째 노드의 기준 상단(Up) 벡터를 임의로 잡습니다.
         Vector3 currentUp = Vector3.up; 
         float radius = thickness * 0.5f;
