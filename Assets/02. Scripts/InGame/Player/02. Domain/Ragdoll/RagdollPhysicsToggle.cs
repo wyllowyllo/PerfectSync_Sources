@@ -1,9 +1,7 @@
-using PlayerSystem.Domain;
 using System.Collections.Generic;
-using InGame.Player._02._Domain.Ragdoll;
 using UnityEngine;
 
-namespace PlayerSystem.Ragdoll
+namespace InGame.Player._02._Domain.Ragdoll
 {
     [RequireComponent(typeof(Rigidbody))]
     public class RagdollPhysicsToggle : MonoBehaviour

@@ -1,12 +1,10 @@
 using InGame.Camera.PlayerCamera;
-using InGame.UserInput;
-using PlayerSystem.Domain;
-using PlayerSystem.Form;
+using InGame.Player._03._Manager;
+using InGame.Team._02._Domain;
 using PlayerSystem.Common;
-using PlayerSystem.Test;
 using UnityEngine;
 
-namespace PlayerSystem.PlayerInput
+namespace InGame.UserInput
 {
     [RequireComponent(typeof(LocalPlayerInput), typeof(PlayerFormController))]
     public class PlayerInputRouter : MonoBehaviour
@@ -34,7 +32,7 @@ namespace PlayerSystem.PlayerInput
 
             _cameraTransformA = _cameraControllerA != null
                 ? _cameraControllerA.transform
-                : Camera.main.transform;
+                : UnityEngine.Camera.main.transform;
 
             _cameraTransformB = _cameraControllerB != null
                 ? _cameraControllerB.transform

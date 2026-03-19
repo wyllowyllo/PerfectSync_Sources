@@ -1,11 +1,10 @@
 using InGame.Camera.PlayerCamera;
 using InGame.Player._02._Domain.Animation;
-using InGame.Player._02._Domain.Movement;
-using PlayerSystem.Domain;
-using PlayerSystem.Ragdoll;
+using InGame.Player._02._Domain.Ragdoll;
+using InGame.Player._03._Manager;
 using UnityEngine;
 
-namespace PlayerSystem.Movement
+namespace InGame.Player._02._Domain.Movement
 {
     [RequireComponent(typeof(Animator), typeof(Rigidbody), typeof(RagdollController))]
     [RequireComponent(typeof(PlayerJump), typeof(PlayerAnimation), typeof(CameraTarget))]

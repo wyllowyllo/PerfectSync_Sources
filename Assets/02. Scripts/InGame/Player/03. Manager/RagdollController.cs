@@ -2,10 +2,9 @@ using System.Collections;
 using InGame.Player._02._Domain.Animation;
 using InGame.Player._02._Domain.Data;
 using InGame.Player._02._Domain.Ragdoll;
-using PlayerSystem.Domain;
 using UnityEngine;
 
-namespace PlayerSystem.Ragdoll
+namespace InGame.Player._03._Manager
 {
     [RequireComponent(typeof(RagdollPhysicsToggle), typeof(RagdollRecovery))]
     public class RagdollController : MonoBehaviour, IRagdoll

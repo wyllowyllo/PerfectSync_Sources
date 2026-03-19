@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace PlayerSystem.Ragdoll
+namespace InGame.Player._02._Domain.Ragdoll
 {
     public class UpperBodyPhysics : MonoBehaviour
     {

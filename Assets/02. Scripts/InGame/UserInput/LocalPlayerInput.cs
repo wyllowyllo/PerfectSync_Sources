@@ -1,9 +1,7 @@
 using System;
-using InGame.Input;
-using PlayerSystem.Domain;
 using UnityEngine;
 
-namespace PlayerSystem.PlayerInput
+namespace InGame.UserInput
 {
     public class LocalPlayerInput : MonoBehaviour, IPlayerInput
     {

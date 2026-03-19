@@ -1,7 +1,7 @@
-using PlayerSystem.Ragdoll;
+using InGame.Player._02._Domain.Ragdoll;
 using UnityEngine;
 
-namespace PlayerSystem.CameraSystem
+namespace InGame.Camera.PlayerCamera
 {
     [RequireComponent(typeof(RagdollPhysicsToggle))]
     public class CameraTarget : MonoBehaviour
