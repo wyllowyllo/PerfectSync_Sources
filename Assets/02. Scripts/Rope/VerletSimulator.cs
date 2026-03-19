@@ -169,8 +169,7 @@ public class VerletSimulator : IRopePhysics
                 Vector3 closestPoint = obstacle.ClosestPoint(_nodes[i].CurrentPosition);
                 float penetrationDistance = Vector3.Distance(_nodes[i].CurrentPosition, closestPoint);
             
-                // 무시되는 현상 방지를 위해 조금 더 넓게 체크
-                if (penetrationDistance < NodeRadius + 0.05f)
+                if (penetrationDistance < NodeRadius)
                 {
                     Vector3 pushDirection = (_nodes[i].CurrentPosition - closestPoint).normalized;
                     if (pushDirection == Vector3.zero) pushDirection = Vector3.up; 
