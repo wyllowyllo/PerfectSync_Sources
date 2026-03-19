@@ -61,7 +61,7 @@ namespace InGame.Player.Network
         private void SetRemoteOnBody(GameObject body, bool isRemote)
         {
             if (body == null) return;
-            var controller = body.GetComponent<BodyPhysicsToggle>();
+            var controller = body.GetComponent<BodySimulationToggle>();
             if (controller != null)
                 controller.SetRemote(isRemote);
         }

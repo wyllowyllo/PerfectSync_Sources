@@ -84,11 +84,40 @@ namespace InGame.UserInput
 
         private void ReadLocalInput()
         {
-            Vector2 rawInput = new Vector2(
-                Input.GetAxisRaw("Horizontal"),
-                Input.GetAxisRaw("Vertical"));
+            Vector2 rawInput;
+            bool jump;
+
+#if UNITY_EDITOR
+            if (NativeKeyInput.IsActive)
+            {
+                NativeKeyInput.Update();
+
+                if (_isHost)
+                {
+                    rawInput = new Vector2(
+                        NativeKeyInput.GetAxis(NativeKeyInput.VK_D, NativeKeyInput.VK_A),
+                        NativeKeyInput.GetAxis(NativeKeyInput.VK_W, NativeKeyInput.VK_S));
+                    jump = NativeKeyInput.IsKeyDown(NativeKeyInput.VK_SPACE);
+                }
+                else
+                {
+                    rawInput = new Vector2(
+                        NativeKeyInput.GetAxis(NativeKeyInput.VK_RIGHT, NativeKeyInput.VK_LEFT),
+                        NativeKeyInput.GetAxis(NativeKeyInput.VK_UP, NativeKeyInput.VK_DOWN));
+                    jump = NativeKeyInput.IsKeyDown(NativeKeyInput.VK_RETURN);
+                }
+            }
+            else
+#endif
+            {
+                rawInput = new Vector2(
+                    Input.GetAxisRaw("Horizontal"),
+                    Input.GetAxisRaw("Vertical"));
+                jump = Input.GetButtonDown("Jump");
+            }
+
             _cachedLocalWorldDir = CameraRelativeConverter.Convert(rawInput, _cameraTransformA);
-            _cachedLocalJump = Input.GetButtonDown("Jump");
+            _cachedLocalJump = jump;
         }
 
         private void RouteInput()
@@ -194,7 +223,7 @@ namespace InGame.UserInput
         private void SetRemoteOnBody(GameObject body, bool isRemote)
         {
             if (body == null) return;
-            var controller = body.GetComponent<BodyPhysicsToggle>();
+            var controller = body.GetComponent<BodySimulationToggle>();
             if (controller != null)
                 controller.SetRemote(isRemote);
         }
