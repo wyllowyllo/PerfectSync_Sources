@@ -17,7 +17,6 @@ namespace InGame.UserInput
 
         [Header("Cameras")]
         [SerializeField] private TpsCameraController _cameraControllerA;
-        [SerializeField] private TpsCameraController _cameraControllerB;
 
         [Header("Bodies")]
         [SerializeField] private GameObject _mergedBody;
@@ -30,7 +29,6 @@ namespace InGame.UserInput
         private NetworkPlayerInput _networkPlayerInput;
         private RemotePlayerInput _remotePlayerInput;
         private Transform _cameraTransformA;
-        private Transform _cameraTransformB;
         private bool _isHost;
 
         // Guest RPC 쓰로틀링
@@ -42,8 +40,8 @@ namespace InGame.UserInput
         // 애니메이션 트리거 감지
         private PlayerJump _activeJumpA;
         private PlayerJump _activeJumpB;
-        private BodyPositionSync _activeSyncA;
-        private BodyPositionSync _activeSyncB;
+        private BodySyncBridge _activeSyncA;
+        private BodySyncBridge _activeSyncB;
         private bool _prevDivingA;
         private bool _prevDivingB;
         private bool _prevGroundedA;
@@ -124,7 +122,7 @@ namespace InGame.UserInput
             if (_mergedBody != null)
             {
                 _activeJumpA = _mergedBody.GetComponent<PlayerJump>();
-                _activeSyncA = _mergedBody.GetComponent<BodyPositionSync>();
+                _activeSyncA = _mergedBody.GetComponent<BodySyncBridge>();
             }
             if (_avatarA != null)
             {
@@ -163,10 +161,6 @@ namespace InGame.UserInput
             _cameraTransformA = _cameraControllerA != null
                 ? _cameraControllerA.transform
                 : UnityEngine.Camera.main.transform;
-
-            _cameraTransformB = _cameraControllerB != null
-                ? _cameraControllerB.transform
-                : null;
         }
 
         private void HandleSwitchRequested()
@@ -186,16 +180,16 @@ namespace InGame.UserInput
             {
                 case ETeamMode.Merged:
                     _activeJumpA = _mergedBody != null ? _mergedBody.GetComponent<PlayerJump>() : null;
-                    _activeSyncA = _mergedBody != null ? _mergedBody.GetComponent<BodyPositionSync>() : null;
+                    _activeSyncA = _mergedBody != null ? _mergedBody.GetComponent<BodySyncBridge>() : null;
                     _activeJumpB = null;
                     _activeSyncB = null;
                     break;
 
                 case ETeamMode.Separated:
                     _activeJumpA = _avatarA != null ? _avatarA.GetComponent<PlayerJump>() : null;
-                    _activeSyncA = _avatarA != null ? _avatarA.GetComponent<BodyPositionSync>() : null;
+                    _activeSyncA = _avatarA != null ? _avatarA.GetComponent<BodySyncBridge>() : null;
                     _activeJumpB = _avatarB != null ? _avatarB.GetComponent<PlayerJump>() : null;
-                    _activeSyncB = _avatarB != null ? _avatarB.GetComponent<BodyPositionSync>() : null;
+                    _activeSyncB = _avatarB != null ? _avatarB.GetComponent<BodySyncBridge>() : null;
                     break;
             }
 
@@ -217,7 +211,7 @@ namespace InGame.UserInput
         }
 
         /// <summary>
-        /// Guest가 로컬 입력을 읽어 Host에게 RPC로 전달한다 (쓰로틀링 적용).
+        /// Guest가 로컬 입력을 카메라 기준 월드 방향으로 변환하여 Host에게 RPC로 전달한다 (쓰로틀링 적용).
         /// </summary>
         private void SendLocalInputToHost()
         {
@@ -231,7 +225,9 @@ namespace InGame.UserInput
 
             if (inputChanged && intervalElapsed)
             {
-                photonView.RPC(nameof(RpcGuestInput), RpcTarget.MasterClient, moveInput, _pendingJump);
+                // Guest 카메라 기준으로 월드 방향 변환 후 전송
+                Vector3 worldDir = CameraRelativeConverter.Convert(moveInput, _cameraTransformA);
+                photonView.RPC(nameof(RpcGuestInput), RpcTarget.MasterClient, worldDir, _pendingJump);
                 _lastSentMove = moveInput;
                 _pendingJump = false;
                 _lastSendTime = Time.time;
@@ -239,12 +235,12 @@ namespace InGame.UserInput
         }
 
         /// <summary>
-        /// Host에서 수신: Guest의 입력을 RemotePlayerInput에 주입한다.
+        /// Host에서 수신: Guest가 카메라 기준으로 변환한 월드 방향을 RemotePlayerInput에 주입한다.
         /// </summary>
         [PunRPC]
-        private void RpcGuestInput(Vector2 moveInput, bool jump)
+        private void RpcGuestInput(Vector3 worldDir, bool jump)
         {
-            _remotePlayerInput.SetInput(moveInput, jump);
+            _remotePlayerInput.SetWorldDirection(worldDir, jump);
         }
 
         private void RouteInput()
@@ -256,7 +252,8 @@ namespace InGame.UserInput
             bool jumpB = _playerInputB != null && _playerInputB.JumpPressed;
 
             Vector3 worldDirA = CameraRelativeConverter.Convert(inputA, _cameraTransformA);
-            Vector3 worldDirB = CameraRelativeConverter.Convert(inputB, _cameraTransformB);
+            // Guest 입력은 이미 월드 방향이 (x,z)로 인코딩되어 있으므로 null 카메라로 그대로 복원
+            Vector3 worldDirB = CameraRelativeConverter.Convert(inputB, null);
 
             _playerFormController.ApplyInput(worldDirA, worldDirB, jumpA, jumpB);
         }
