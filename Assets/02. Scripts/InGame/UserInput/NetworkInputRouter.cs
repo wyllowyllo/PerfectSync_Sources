@@ -13,6 +13,8 @@ namespace InGame.UserInput
     [RequireComponent(typeof(NetworkPlayerInput), typeof(RemotePlayerInput), typeof(PlayerFormController))]
     public class NetworkInputRouter : MonoBehaviourPun
     {
+        // ── Fields / SerializeField ──────────────────────────────────
+
         [Header("Settings")]
         [SerializeField] private ETeamMode _startMode = ETeamMode.Merged;
 
@@ -41,6 +43,8 @@ namespace InGame.UserInput
         private Vector3 _cachedLocalWorldDir;
         private bool _cachedLocalJump;
 
+        // ── Lifecycle ────────────────────────────────────────────────
+
         private void Start()
         {
             _networkPlayerInput = GetComponent<NetworkPlayerInput>();
@@ -57,16 +61,11 @@ namespace InGame.UserInput
             _playerFormController.Initialize(_startMode);
 
             SetCameraTargetByRole();
+            RefreshBodyMode(_startMode);
 
-            // 초기 바디 시뮬레이션 설정 (OnEnable 자동 평가 대체)
-            RefreshBodySimulation(_startMode);
-            RefreshSyncBridgeMode(_startMode);
-
-            // 모드 전환 이벤트 구독
             if (_teamModeManager != null)
                 _teamModeManager.OnSwitchRequested += HandleSwitchRequested;
 
-            // Impact/Death 이벤트를 현재 활성 바디의 RagdollController에 연결
             _networkPlayerInput.OnImpactReceived += HandleImpact;
             _networkPlayerInput.OnDeathReceived += HandleDeath;
         }
@@ -86,6 +85,8 @@ namespace InGame.UserInput
             }
         }
 
+        // ── Update Loop ─────────────────────────────────────────────
+
         private void Update()
         {
             _playerFormController.Tick();
@@ -103,74 +104,53 @@ namespace InGame.UserInput
             _cachedLocalJump = Input.GetButtonDown("Jump");
         }
 
-        /// <summary>
-        /// 바디별 물리 시뮬레이션 활성화/비활성화를 모드에 따라 설정한다.
-        /// 합체 모드: 양쪽 모두 MergedBody 시뮬레이션 실행
-        /// 분리 모드: 양쪽 모두 AvatarA/B 시뮬레이션 실행 (고무줄/래그돌을 위해)
-        /// </summary>
-        private void RefreshBodySimulation(ETeamMode mode)
+        private void RouteInput()
         {
-            switch (mode)
+            Vector3 worldDirA, worldDirB;
+            bool jumpA, jumpB;
+
+            if (_isHost)
             {
-                case ETeamMode.Merged:
-                    // 양쪽 모두 MergedBody 물리 시뮬레이션 실행
-                    SetRemoteOnBody(_mergedBody, false);
-                    SetRemoteOnBody(_avatarA, true);
-                    SetRemoteOnBody(_avatarB, true);
-                    break;
-
-                case ETeamMode.Separated:
-                    SetRemoteOnBody(_mergedBody, true);
-                    SetRemoteOnBody(_avatarA, false);  // 양쪽 모두 로컬 시뮬
-                    SetRemoteOnBody(_avatarB, false);  // 양쪽 모두 로컬 시뮬
-                    break;
+                worldDirA = _cachedLocalWorldDir;
+                jumpA = _cachedLocalJump;
+                worldDirB = CameraRelativeConverter.Convert(_remotePlayerInput.MoveInput, null);
+                jumpB = _remotePlayerInput.JumpPressed;
             }
-        }
-
-        /// <summary>
-        /// BodySyncBridge의 IPunObservable 위치 보정을 모드에 따라 활성화/비활성화한다.
-        /// 합체 모드: MergedBody만 동기화
-        /// 분리 모드: AvatarA/B 각각 동기화 (소유자가 write, 비소유자가 lerp)
-        /// </summary>
-        private void RefreshSyncBridgeMode(ETeamMode mode)
-        {
-            var mergedBridge = _mergedBody != null ? _mergedBody.GetComponent<BodySyncBridge>() : null;
-            var bridgeA = _avatarA != null ? _avatarA.GetComponent<BodySyncBridge>() : null;
-            var bridgeB = _avatarB != null ? _avatarB.GetComponent<BodySyncBridge>() : null;
-
-            switch (mode)
+            else
             {
-                case ETeamMode.Merged:
-                    mergedBridge?.SetSyncEnabled(true);
-                    bridgeA?.SetSyncEnabled(false);
-                    bridgeB?.SetSyncEnabled(false);
-                    break;
-
-                case ETeamMode.Separated:
-                    mergedBridge?.SetSyncEnabled(false);
-                    bridgeA?.SetSyncEnabled(true);   // AvatarA: Host가 write, Guest가 lerp
-                    bridgeB?.SetSyncEnabled(true);   // AvatarB: Guest가 write, Host가 lerp
-                    break;
+                worldDirA = CameraRelativeConverter.Convert(_remotePlayerInput.MoveInput, null);
+                jumpA = _remotePlayerInput.JumpPressed;
+                worldDirB = _cachedLocalWorldDir;
+                jumpB = _cachedLocalJump;
             }
+
+            _playerFormController.ApplyInput(worldDirA, worldDirB, jumpA, jumpB);
         }
 
-        private void SetRemoteOnBody(GameObject body, bool isRemote)
+        // ── Input Send ──────────────────────────────────────────────
+
+        private void SendLocalInput()
         {
-            if (body == null) return;
-            var controller = body.GetComponent<NetworkBodyController>();
-            if (controller != null)
-                controller.SetRemote(isRemote);
+            _pendingJump |= _cachedLocalJump;
+
+            if (Time.time - _lastSendTime < MinSendInterval) return;
+
+            if (_isHost)
+                photonView.RPC(nameof(RpcRemoteInput), RpcTarget.Others, _cachedLocalWorldDir, _pendingJump);
+            else
+                photonView.RPC(nameof(RpcRemoteInput), photonView.Owner, _cachedLocalWorldDir, _pendingJump);
+
+            _pendingJump = false;
+            _lastSendTime = Time.time;
         }
 
-        private void SetupCameras()
+        [PunRPC]
+        private void RpcRemoteInput(Vector3 worldDir, bool jump)
         {
-            if (_cameraControllerA == null)
-                _cameraControllerA = FindAnyObjectByType<TpsCameraController>();
-
-            _cameraTransformA = _cameraControllerA != null
-                ? _cameraControllerA.transform
-                : UnityEngine.Camera.main.transform;
+            _remotePlayerInput.SetWorldDirection(worldDir, jump);
         }
+
+        // ── Mode ─────────────────────────────────────────────────────
 
         private void HandleSwitchRequested()
         {
@@ -181,8 +161,19 @@ namespace InGame.UserInput
         {
             _currentMode = newMode;
             SetCameraTargetByRole();
-            RefreshBodySimulation(newMode);
-            RefreshSyncBridgeMode(newMode);
+            RefreshBodyMode(newMode);
+        }
+
+        // ── Camera ───────────────────────────────────────────────────
+
+        private void SetupCameras()
+        {
+            if (_cameraControllerA == null)
+                _cameraControllerA = FindAnyObjectByType<TpsCameraController>();
+
+            _cameraTransformA = _cameraControllerA != null
+                ? _cameraControllerA.transform
+                : UnityEngine.Camera.main.transform;
         }
 
         private void SetCameraTargetByRole()
@@ -196,7 +187,32 @@ namespace InGame.UserInput
             _cameraControllerA.SetTarget(target);
         }
 
-        #region Impact / Death 이벤트 처리
+        // ── Body ─────────────────────────────────────────────────────
+
+        private void RefreshBodyMode(ETeamMode mode)
+        {
+            bool isMerged = mode == ETeamMode.Merged;
+
+            // 물리 시뮬레이션
+            SetRemoteOnBody(_mergedBody, !isMerged);
+            SetRemoteOnBody(_avatarA, isMerged);
+            SetRemoteOnBody(_avatarB, isMerged);
+
+            // 위치 보정 동기화
+            _mergedBody?.GetComponent<BodySyncBridge>()?.SetSyncEnabled(isMerged);
+            _avatarA?.GetComponent<BodySyncBridge>()?.SetSyncEnabled(!isMerged);
+            _avatarB?.GetComponent<BodySyncBridge>()?.SetSyncEnabled(!isMerged);
+        }
+
+        private void SetRemoteOnBody(GameObject body, bool isRemote)
+        {
+            if (body == null) return;
+            var controller = body.GetComponent<NetworkBodyController>();
+            if (controller != null)
+                controller.SetRemote(isRemote);
+        }
+
+        // ── Impact / Death ───────────────────────────────────────────
 
         private void HandleImpact(Vector3 impulse, Vector3 hitPoint)
         {
@@ -221,74 +237,6 @@ namespace InGame.UserInput
                 default:
                     return null;
             }
-        }
-
-        #endregion
-
-        #region 양방향 입력 전송
-
-        /// <summary>
-        /// 양쪽 모두 로컬 입력을 상대방에게 20Hz로 전송한다.
-        /// Host → Guest: RpcHostInput
-        /// Guest → Host: RpcGuestInput
-        /// inputChanged 가드 제거 — 항상 20Hz 전송으로 안정적 동기화.
-        /// </summary>
-        private void SendLocalInput()
-        {
-            _pendingJump |= _cachedLocalJump;
-
-            if (Time.time - _lastSendTime < MinSendInterval) return;
-
-            if (_isHost)
-                photonView.RPC(nameof(RpcHostInput), RpcTarget.Others, _cachedLocalWorldDir, _pendingJump);
-            else
-                photonView.RPC(nameof(RpcGuestInput), photonView.Owner, _cachedLocalWorldDir, _pendingJump);
-
-            _pendingJump = false;
-            _lastSendTime = Time.time;
-        }
-
-        /// <summary>
-        /// Host에서 수신: Guest가 카메라 기준으로 변환한 월드 방향을 RemotePlayerInput에 주입한다.
-        /// </summary>
-        [PunRPC]
-        private void RpcGuestInput(Vector3 worldDir, bool jump)
-        {
-            _remotePlayerInput.SetWorldDirection(worldDir, jump);
-        }
-
-        /// <summary>
-        /// Guest에서 수신: Host가 카메라 기준으로 변환한 월드 방향을 RemotePlayerInput에 주입한다.
-        /// </summary>
-        [PunRPC]
-        private void RpcHostInput(Vector3 worldDir, bool jump)
-        {
-            _remotePlayerInput.SetWorldDirection(worldDir, jump);
-        }
-
-        #endregion
-
-        private void RouteInput()
-        {
-            Vector3 worldDirA, worldDirB;
-            bool jumpA, jumpB;
-
-            if (_isHost)
-            {
-                worldDirA = _cachedLocalWorldDir;
-                jumpA = _cachedLocalJump;
-                worldDirB = CameraRelativeConverter.Convert(_remotePlayerInput.MoveInput, null);
-                jumpB = _remotePlayerInput.JumpPressed;
-            }
-            else
-            {
-                worldDirA = CameraRelativeConverter.Convert(_remotePlayerInput.MoveInput, null);
-                jumpA = _remotePlayerInput.JumpPressed;
-                worldDirB = _cachedLocalWorldDir;
-                jumpB = _cachedLocalJump;
-            }
-
-            _playerFormController.ApplyInput(worldDirA, worldDirB, jumpA, jumpB);
         }
     }
 }
