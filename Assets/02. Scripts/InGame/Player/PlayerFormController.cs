@@ -53,12 +53,15 @@ namespace InGame.Player
             _ => _mergedControllable.CameraFollowPoint
         };
 
-        public void Initialize(ETeamMode startMode)
+        private void Awake()
         {
             _mergedControllable = _mergedBody.GetComponent<IControllableBody>();
             _avatarAControllable = _avatarA.GetComponent<IControllableBody>();
             _avatarBControllable = _avatarB.GetComponent<IControllableBody>();
+        }
 
+        public void Initialize(ETeamMode startMode)
+        {
             _currentMode = startMode;
             ApplyMode(startMode);
         }

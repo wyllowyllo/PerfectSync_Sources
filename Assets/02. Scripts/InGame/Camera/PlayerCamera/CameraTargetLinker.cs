@@ -28,7 +28,6 @@ namespace InGame.Camera.PlayerCamera
                 : UnityEngine.Camera.main.transform;
 
             _playerFormController.OnModeChanged += HandleModeChanged;
-            SetCameraTargetByRole();
         }
 
         private void OnDestroy()

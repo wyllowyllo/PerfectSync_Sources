@@ -165,17 +165,19 @@ namespace InGame.Player.Movement
             return Physics.CheckSphere(origin, _groundCheckRadius, _groundLayer);
         }
 
+        private void Awake()
+        {
+            _capsuleRb = GetComponent<Rigidbody>();
+            _ragdoll = GetComponent<IRagdoll>();
+            _playerJump = GetComponent<PlayerJump>();
+            _anim = GetComponent<PlayerAnimation>();
+            _cameraTarget = GetComponent<CameraTarget>();
+            _initialized = true;
+        }
+
         private void OnEnable()
         {
-            if (!_initialized)
-            {
-                _capsuleRb = GetComponent<Rigidbody>();
-                _ragdoll = GetComponent<IRagdoll>();
-                _playerJump = GetComponent<PlayerJump>();
-                _anim = GetComponent<PlayerAnimation>();
-                _cameraTarget = GetComponent<CameraTarget>();
-                _initialized = true;
-            }
+            if (!_initialized) return;
 
             _capsuleRb.isKinematic = false;
         }

@@ -50,13 +50,16 @@ namespace InGame.UserInput
 
         // ── Lifecycle ────────────────────────────────────────────────
 
-        private void Start()
+        private void Awake()
         {
             localPlayerInput = GetComponent<LocalPlayerInput>();
             _remotePlayerInput = GetComponent<RemotePlayerInput>();
             _playerFormController = GetComponent<PlayerFormController>();
             teamModeSynchronizer = GetComponent<TeamModeSynchronizer>();
+        }
 
+        private void Start()
+        {
             _isHost = photonView.IsMine;
             _currentMode = _startMode;
 
