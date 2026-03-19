@@ -1,6 +1,7 @@
 using Photon.Pun;
 using Photon.Realtime;
 using UnityEngine;
+using Hashtable = ExitGames.Client.Photon.Hashtable;
 
 namespace InGame.Player.Network
 {
@@ -14,12 +15,11 @@ namespace InGame.Player.Network
         [Header("Spawn Settings")]
         [SerializeField] private string _prefabName = "TeamCharacter";
         [SerializeField] private Vector3 _spawnPosition = Vector3.zero;
+        [SerializeField] private float _teamSpawnSpacing = 5f;
 
         public static NetworkTestManager Instance { get; private set; }
 
-        public bool IsHost { get; private set; }
-        public int HostActorNumber { get; private set; }
-        public int GuestActorNumber { get; private set; }
+        private bool _hasSpawned;
 
         private void Awake()
         {
@@ -47,7 +47,7 @@ namespace InGame.Player.Network
 
             RoomOptions roomOptions = new RoomOptions
             {
-                MaxPlayers = 2,
+                MaxPlayers = 8,
                 IsVisible = true,
                 IsOpen = true
             };
@@ -60,20 +60,23 @@ namespace InGame.Player.Network
             Debug.Log($"[NetworkTestManager] Joined room: {PhotonNetwork.CurrentRoom.Name} " +
                       $"(Players: {PhotonNetwork.CurrentRoom.PlayerCount})");
 
-            DetermineRoles();
-
-            // Host Authority: Host만 TeamCharacter를 스폰한다.
-            // PUN2가 자동으로 모든 클라이언트에 인스턴스를 생성한다.
-            if (IsHost)
+            // 테스트용: 팀 미배정 시 자동으로 팀 1에 배정
+            // SetCustomProperties는 비동기 — OnPlayerPropertiesUpdate 콜백에서 TrySpawnTeamCharacter 재호출됨
+            if (PhotonTeamManager.Instance != null)
             {
-                SpawnTeamCharacter();
+                int myTeam = PhotonTeamManager.Instance.GetPlayerTeam(PhotonNetwork.LocalPlayer);
+                if (myTeam == PhotonTeamManager.TeamNone)
+                {
+                    PhotonTeamManager.Instance.SetTeam(1);
+                }
             }
+
+            TrySpawnTeamCharacter();
         }
 
         public override void OnPlayerEnteredRoom(Photon.Realtime.Player newPlayer)
         {
             Debug.Log($"[NetworkTestManager] Player entered: {newPlayer.NickName} (Actor: {newPlayer.ActorNumber})");
-            DetermineRoles();
         }
 
         public override void OnPlayerLeftRoom(Photon.Realtime.Player otherPlayer)
@@ -81,42 +84,99 @@ namespace InGame.Player.Network
             Debug.Log($"[NetworkTestManager] Player left: {otherPlayer.NickName}");
         }
 
-        private void DetermineRoles()
+        public override void OnPlayerPropertiesUpdate(Photon.Realtime.Player targetPlayer, Hashtable changedProps)
         {
-            var players = PhotonNetwork.PlayerList;
-
-            if (players.Length < 2)
+            if (changedProps.ContainsKey(PhotonTeamManager.TeamKey))
             {
-                IsHost = PhotonNetwork.IsMasterClient;
-                HostActorNumber = PhotonNetwork.LocalPlayer.ActorNumber;
-                GuestActorNumber = -1;
+                TrySpawnTeamCharacter();
             }
-            else
-            {
-                int minActor = int.MaxValue;
-                int maxActor = int.MinValue;
-
-                foreach (var player in players)
-                {
-                    if (player.ActorNumber < minActor) minActor = player.ActorNumber;
-                    if (player.ActorNumber > maxActor) maxActor = player.ActorNumber;
-                }
-
-                HostActorNumber = minActor;
-                GuestActorNumber = maxActor;
-                IsHost = PhotonNetwork.LocalPlayer.ActorNumber == minActor;
-            }
-
-            Debug.Log($"[NetworkTestManager] Role: {(IsHost ? "HOST" : "GUEST")} " +
-                      $"(Local Actor: {PhotonNetwork.LocalPlayer.ActorNumber})");
         }
 
-        private void SpawnTeamCharacter()
+        /// <summary>
+        /// 로컬 플레이어가 팀에 배정되어 있고, 팀 내 Host(가장 작은 ActorNumber)인 경우
+        /// TeamCharacter를 스폰한다.
+        /// </summary>
+        private void TrySpawnTeamCharacter()
         {
-            Vector3 spawnPos = _spawnPosition;
+            if (_hasSpawned) return;
+            if (PhotonTeamManager.Instance == null) return;
+
+            int myTeam = PhotonTeamManager.Instance.GetPlayerTeam(PhotonNetwork.LocalPlayer);
+            if (myTeam == PhotonTeamManager.TeamNone) return;
+
+            if (!IsHostOfTeam(myTeam)) return;
+
+            _hasSpawned = true;
+            SpawnTeamCharacter(myTeam);
+        }
+
+        /// <summary>
+        /// 현재 로컬 플레이어가 자신의 팀 내에서 Host(가장 작은 ActorNumber)인지 반환한다.
+        /// </summary>
+        public bool IsHostOfMyTeam()
+        {
+            if (PhotonTeamManager.Instance == null) return PhotonNetwork.IsMasterClient;
+
+            int myTeam = PhotonTeamManager.Instance.GetPlayerTeam(PhotonNetwork.LocalPlayer);
+            if (myTeam == PhotonTeamManager.TeamNone) return false;
+
+            return IsHostOfTeam(myTeam);
+        }
+
+        /// <summary>
+        /// 지정된 팀 번호에서 로컬 플레이어가 Host인지 반환한다.
+        /// 팀 내 가장 작은 ActorNumber를 가진 플레이어가 Host이다.
+        /// </summary>
+        public bool IsHostOfTeam(int teamNumber)
+        {
+            if (PhotonTeamManager.Instance == null) return false;
+
+            var members = PhotonTeamManager.Instance.GetTeamMembers(teamNumber);
+            if (members.Count == 0) return false;
+
+            int minActor = int.MaxValue;
+            foreach (var member in members)
+            {
+                if (member.ActorNumber < minActor)
+                    minActor = member.ActorNumber;
+            }
+
+            return PhotonNetwork.LocalPlayer.ActorNumber == minActor;
+        }
+
+        /// <summary>
+        /// 지정된 팀의 Guest(팀원 중 Host가 아닌 플레이어)의 ActorNumber를 반환한다.
+        /// 없으면 -1.
+        /// </summary>
+        public int GetGuestActorNumber(int teamNumber)
+        {
+            if (PhotonTeamManager.Instance == null) return -1;
+
+            var members = PhotonTeamManager.Instance.GetTeamMembers(teamNumber);
+            if (members.Count < 2) return -1;
+
+            int minActor = int.MaxValue;
+            foreach (var member in members)
+            {
+                if (member.ActorNumber < minActor)
+                    minActor = member.ActorNumber;
+            }
+
+            foreach (var member in members)
+            {
+                if (member.ActorNumber != minActor)
+                    return member.ActorNumber;
+            }
+
+            return -1;
+        }
+
+        private void SpawnTeamCharacter(int teamNumber)
+        {
+            Vector3 spawnPos = _spawnPosition + Vector3.right * (teamNumber - 1) * _teamSpawnSpacing;
             PhotonNetwork.Instantiate(_prefabName, spawnPos, Quaternion.identity);
 
-            Debug.Log($"[NetworkTestManager] Spawned {_prefabName} at {spawnPos}");
+            Debug.Log($"[NetworkTestManager] Spawned {_prefabName} for team {teamNumber} at {spawnPos}");
         }
     }
 }

@@ -9,19 +9,21 @@ namespace InGame.UserInput
         public bool IsOwner => false;
 
         public Vector2 MoveInput => _moveInput;
-        public bool JumpPressed => _jumpPressed;
+        public bool JumpPressed
+        {
+            get
+            {
+                bool val = _jumpPressed;
+                _jumpPressed = false;
+                return val;
+            }
+        }
 
         public event Action<Vector3, Vector3> OnImpactReceived;
         public event Action OnDeathReceived;
 
         private Vector2 _moveInput;
         private bool _jumpPressed;
-
-        public void SetInput(Vector2 moveInput, bool jumpPressed)
-        {
-            _moveInput = moveInput;
-            _jumpPressed = jumpPressed;
-        }
 
         /// <summary>
         /// Guest가 카메라 기준으로 변환한 월드 방향을 수신하여 저장한다.

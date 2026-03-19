@@ -6,43 +6,24 @@ namespace InGame.Player.Network
 {
     public class NetworkTeamModeManager : MonoBehaviourPun
     {
-        private static NetworkTeamModeManager s_instance;
-
-        public static NetworkTeamModeManager Instance => s_instance;
-
         public event Action OnSwitchRequested;
 
         private PlayerFormController _playerFormController;
-
-        private void Awake()
-        {
-            if (s_instance != null && s_instance != this)
-            {
-                Destroy(this);
-                return;
-            }
-
-            s_instance = this;
-        }
 
         private void Start()
         {
             _playerFormController = GetComponent<PlayerFormController>();
         }
 
-        private void Update()
+        /// <summary>
+        /// 외부에서 호출하여 모드 전환을 요청한다.
+        /// PhotonView 소유자(팀 Host)만 RPC를 전송할 수 있다.
+        /// 자동 타이머 시스템 등에서 이 메서드를 호출한다.
+        /// </summary>
+        public void RequestSwitch()
         {
-            if (!photonView.IsMine)
-                return;
-
-            // Host만 모드 전환 트리거 가능
-            if (!NetworkTestManager.Instance.IsHost)
-                return;
-
-            if (Input.GetKeyDown(KeyCode.M))
-            {
-                photonView.RPC(nameof(RpcRequestSwitch), RpcTarget.All);
-            }
+            if (!photonView.IsMine) return;
+            photonView.RPC(nameof(RpcRequestSwitch), RpcTarget.All);
         }
 
         [PunRPC]
@@ -51,7 +32,7 @@ namespace InGame.Player.Network
             Debug.Log("[NetworkTeamModeManager] Mode switch requested via RPC");
             OnSwitchRequested?.Invoke();
 
-            // 전환 후 DividedPlayer_B 소유권을 Guest에게 이전
+            // 전환 후 DividedPlayer_B 소유권을 Guest(팀원)에게 이전
             TransferDividedPlayerBOwnership();
         }
 
@@ -60,11 +41,11 @@ namespace InGame.Player.Network
             if (_playerFormController == null)
                 return;
 
-            int guestActorNumber = NetworkTestManager.Instance.GuestActorNumber;
-            if (guestActorNumber < 0)
+            // 팀원(Guest) 찾기 — PhotonTeamManager를 통해 같은 팀의 다른 플레이어를 조회
+            var guestPlayer = GetTeammate();
+            if (guestPlayer == null)
                 return;
 
-            // DividedPlayer_B의 PhotonView 소유권을 Guest에게 이전
             Transform avatarB = _playerFormController.SecondaryBodyTransform;
             if (avatarB == null)
                 return;
@@ -72,22 +53,26 @@ namespace InGame.Player.Network
             PhotonView bView = avatarB.GetComponent<PhotonView>();
             if (bView != null && photonView.IsMine)
             {
-                Photon.Realtime.Player guestPlayer = null;
-                foreach (var player in PhotonNetwork.PlayerList)
-                {
-                    if (player.ActorNumber == guestActorNumber)
-                    {
-                        guestPlayer = player;
-                        break;
-                    }
-                }
-
-                if (guestPlayer != null)
-                {
-                    bView.TransferOwnership(guestPlayer);
-                    Debug.Log($"[NetworkTeamModeManager] Transferred DividedPlayer_B ownership to Guest (Actor: {guestActorNumber})");
-                }
+                bView.TransferOwnership(guestPlayer);
+                Debug.Log($"[NetworkTeamModeManager] Transferred DividedPlayer_B ownership to {guestPlayer.NickName} (Actor: {guestPlayer.ActorNumber})");
             }
+        }
+
+        private Photon.Realtime.Player GetTeammate()
+        {
+            if (PhotonTeamManager.Instance == null) return null;
+
+            int myTeam = PhotonTeamManager.Instance.GetPlayerTeam(PhotonNetwork.LocalPlayer);
+            if (myTeam == PhotonTeamManager.TeamNone) return null;
+
+            var members = PhotonTeamManager.Instance.GetTeamMembers(myTeam);
+            foreach (var member in members)
+            {
+                if (member.ActorNumber != PhotonNetwork.LocalPlayer.ActorNumber)
+                    return member;
+            }
+
+            return null;
         }
     }
 }

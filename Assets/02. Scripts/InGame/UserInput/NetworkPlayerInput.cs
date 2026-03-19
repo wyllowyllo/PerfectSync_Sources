@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace InGame.UserInput
 {
-    public class NetworkPlayerInput : MonoBehaviourPun, IPlayerInput, IPunObservable
+    public class NetworkPlayerInput : MonoBehaviourPun, IPlayerInput
     {
         public bool IsOwner => photonView.IsMine;
 
@@ -19,9 +19,6 @@ namespace InGame.UserInput
 
         private void Update()
         {
-            if (!photonView.IsMine)
-                return;
-
             _moveInput = new Vector2(
                 Input.GetAxisRaw("Horizontal"),
                 Input.GetAxisRaw("Vertical"));
@@ -52,20 +49,6 @@ namespace InGame.UserInput
         private void RpcReceiveDeath()
         {
             OnDeathReceived?.Invoke();
-        }
-
-        public void OnPhotonSerializeView(PhotonStream stream, PhotonMessageInfo info)
-        {
-            if (stream.IsWriting)
-            {
-                stream.SendNext(_moveInput);
-                stream.SendNext(_jumpPressed);
-            }
-            else
-            {
-                _moveInput = (Vector2)stream.ReceiveNext();
-                _jumpPressed = (bool)stream.ReceiveNext();
-            }
         }
     }
 }

@@ -3,6 +3,7 @@ using InGame.Camera.PlayerCamera;
 using InGame.Player;
 using InGame.Player.Movement;
 using InGame.Player.Network;
+using InGame.Player.Ragdoll;
 using InGame.Team._02._Domain;
 using Photon.Pun;
 using UnityEngine;
@@ -28,16 +29,17 @@ namespace InGame.UserInput
         private PlayerFormController _playerFormController;
         private NetworkPlayerInput _networkPlayerInput;
         private RemotePlayerInput _remotePlayerInput;
+        private NetworkTeamModeManager _teamModeManager;
         private Transform _cameraTransformA;
         private bool _isHost;
+        private ETeamMode _currentMode;
 
-        // Guest RPC 쓰로틀링
-        private Vector2 _lastSentMove;
+        // 입력 RPC 쓰로틀링
         private bool _pendingJump;
         private float _lastSendTime;
         private const float MinSendInterval = 0.05f; // 최대 20Hz
 
-        // 애니메이션 트리거 감지
+        // 애니메이션 트리거 감지 (분리 모드 전용)
         private PlayerJump _activeJumpA;
         private PlayerJump _activeJumpB;
         private BodySyncBridge _activeSyncA;
@@ -52,12 +54,13 @@ namespace InGame.UserInput
             _networkPlayerInput = GetComponent<NetworkPlayerInput>();
             _remotePlayerInput = GetComponent<RemotePlayerInput>();
             _playerFormController = GetComponent<PlayerFormController>();
+            _teamModeManager = GetComponent<NetworkTeamModeManager>();
 
-            _isHost = NetworkTestManager.Instance != null && NetworkTestManager.Instance.IsHost;
+            _isHost = photonView.IsMine;
+            _currentMode = _startMode;
 
             AssignInputsByRole();
             SetupCameras();
-            InitializeNetworkBodyControllers();
 
             _playerFormController.OnModeChanged += HandleModeChanged;
             _playerFormController.Initialize(_startMode);
@@ -65,8 +68,17 @@ namespace InGame.UserInput
             SetCameraTargetByRole();
             CacheActiveBodyComponents();
 
-            if (NetworkTeamModeManager.Instance != null)
-                NetworkTeamModeManager.Instance.OnSwitchRequested += HandleSwitchRequested;
+            // 초기 바디 시뮬레이션 설정 (OnEnable 자동 평가 대체)
+            RefreshBodySimulation(_startMode);
+            RefreshSyncBridgeMode(_startMode);
+
+            // 모드 전환 이벤트 구독
+            if (_teamModeManager != null)
+                _teamModeManager.OnSwitchRequested += HandleSwitchRequested;
+
+            // Impact/Death 이벤트를 현재 활성 바디의 RagdollController에 연결
+            _networkPlayerInput.OnImpactReceived += HandleImpact;
+            _networkPlayerInput.OnDeathReceived += HandleDeath;
         }
 
         private void OnDestroy()
@@ -74,39 +86,88 @@ namespace InGame.UserInput
             if (_playerFormController != null)
                 _playerFormController.OnModeChanged -= HandleModeChanged;
 
-            if (NetworkTeamModeManager.Instance != null)
-                NetworkTeamModeManager.Instance.OnSwitchRequested -= HandleSwitchRequested;
+            if (_teamModeManager != null)
+                _teamModeManager.OnSwitchRequested -= HandleSwitchRequested;
+
+            if (_networkPlayerInput != null)
+            {
+                _networkPlayerInput.OnImpactReceived -= HandleImpact;
+                _networkPlayerInput.OnDeathReceived -= HandleDeath;
+            }
         }
 
+        /// <summary>
+        /// 공유 시뮬레이션: Host/Guest 모두 물리 시뮬레이션 실행.
+        /// 양쪽 모두 Tick → RouteInput → SendLocalInput 순서로 실행한다.
+        /// </summary>
         private void Update()
         {
-            if (_isHost)
-            {
-                // Host: 게임 로직 실행 (물리 시뮬레이션의 권한자)
-                _playerFormController.Tick();
+            _playerFormController.Tick();
 
-                // 트리거 상태 캡처 (RouteInput 전)
-                bool wasDivingA = _activeJumpA != null && _activeJumpA.IsDiving;
-                bool wasDivingB = _activeJumpB != null && _activeJumpB.IsDiving;
+            // 트리거 상태 캡처 (RouteInput 전)
+            bool wasDivingA = _activeJumpA != null && _activeJumpA.IsDiving;
+            bool wasDivingB = _activeJumpB != null && _activeJumpB.IsDiving;
 
-                RouteInput();
+            RouteInput();
+            SendLocalInput();
 
-                // 트리거 감지 및 전송 (RouteInput 후)
+            // 분리 모드에서만 비소유 아바타의 트리거 감지/전송
+            if (_currentMode == ETeamMode.Separated)
                 DetectAndSendTriggers(wasDivingA, wasDivingB);
-            }
-            else
+        }
+
+        /// <summary>
+        /// 바디별 물리 시뮬레이션 활성화/비활성화를 모드에 따라 설정한다.
+        /// 합체 모드: 양쪽 모두 MergedBody 시뮬레이션 실행
+        /// 분리 모드: 각자 소유 아바타만 시뮬레이션
+        /// </summary>
+        private void RefreshBodySimulation(ETeamMode mode)
+        {
+            switch (mode)
             {
-                // Guest: 로컬 입력을 읽어 Host에게 RPC 전달
-                SendLocalInputToHost();
+                case ETeamMode.Merged:
+                    // 양쪽 모두 MergedBody 물리 시뮬레이션 실행
+                    SetRemoteOnBody(_mergedBody, false);
+                    SetRemoteOnBody(_avatarA, true);
+                    SetRemoteOnBody(_avatarB, true);
+                    break;
+
+                case ETeamMode.Separated:
+                    SetRemoteOnBody(_mergedBody, true);
+                    if (_isHost)
+                    {
+                        // Host: AvatarA=로컬 시뮬레이션, AvatarB=원격
+                        SetRemoteOnBody(_avatarA, false);
+                        SetRemoteOnBody(_avatarB, true);
+                    }
+                    else
+                    {
+                        // Guest: AvatarA=원격, AvatarB=로컬 시뮬레이션
+                        SetRemoteOnBody(_avatarA, true);
+                        SetRemoteOnBody(_avatarB, false);
+                    }
+                    break;
             }
         }
 
-        private void InitializeNetworkBodyControllers()
+        /// <summary>
+        /// 합체 모드에서 BodySyncBridge의 IPunObservable 위치 보정을 활성화/비활성화한다.
+        /// </summary>
+        private void RefreshSyncBridgeMode(ETeamMode mode)
         {
-            bool isRemote = !_isHost;
-            SetRemoteOnBody(_mergedBody, isRemote);
-            SetRemoteOnBody(_avatarA, isRemote);
-            SetRemoteOnBody(_avatarB, isRemote);
+            bool isMerged = mode == ETeamMode.Merged;
+
+            var mergedBridge = _mergedBody != null ? _mergedBody.GetComponent<BodySyncBridge>() : null;
+            if (mergedBridge != null)
+                mergedBridge.SetMergedMode(isMerged);
+
+            var bridgeA = _avatarA != null ? _avatarA.GetComponent<BodySyncBridge>() : null;
+            if (bridgeA != null)
+                bridgeA.SetMergedMode(false);
+
+            var bridgeB = _avatarB != null ? _avatarB.GetComponent<BodySyncBridge>() : null;
+            if (bridgeB != null)
+                bridgeB.SetMergedMode(false);
         }
 
         private void SetRemoteOnBody(GameObject body, bool isRemote)
@@ -123,14 +184,6 @@ namespace InGame.UserInput
             {
                 _activeJumpA = _mergedBody.GetComponent<PlayerJump>();
                 _activeSyncA = _mergedBody.GetComponent<BodySyncBridge>();
-            }
-            if (_avatarA != null)
-            {
-                // Separated 모드에서 사용
-            }
-            if (_avatarB != null)
-            {
-                // Separated 모드에서 사용
             }
         }
 
@@ -170,8 +223,11 @@ namespace InGame.UserInput
 
         private void HandleModeChanged(ETeamMode newMode)
         {
+            _currentMode = newMode;
             SetCameraTargetByRole();
             UpdateActiveBodyReferences(newMode);
+            RefreshBodySimulation(newMode);
+            RefreshSyncBridgeMode(newMode);
         }
 
         private void UpdateActiveBodyReferences(ETeamMode mode)
@@ -210,28 +266,68 @@ namespace InGame.UserInput
             _cameraControllerA.SetTarget(target);
         }
 
+        #region Impact / Death 이벤트 처리
+
+        private void HandleImpact(Vector3 impulse, Vector3 hitPoint)
+        {
+            var ragdoll = GetActiveRagdollController();
+            ragdoll?.OnHitImpact(impulse, hitPoint);
+        }
+
+        private void HandleDeath()
+        {
+            var ragdoll = GetActiveRagdollController();
+            ragdoll?.EnterDead();
+        }
+
+        private RagdollController GetActiveRagdollController()
+        {
+            switch (_currentMode)
+            {
+                case ETeamMode.Merged:
+                    return _mergedBody != null ? _mergedBody.GetComponent<RagdollController>() : null;
+                case ETeamMode.Separated:
+                    return _avatarA != null ? _avatarA.GetComponent<RagdollController>() : null;
+                default:
+                    return null;
+            }
+        }
+
+        #endregion
+
+        #region 양방향 입력 전송
+
         /// <summary>
-        /// Guest가 로컬 입력을 카메라 기준 월드 방향으로 변환하여 Host에게 RPC로 전달한다 (쓰로틀링 적용).
+        /// 양쪽 모두 로컬 입력을 상대방에게 20Hz로 전송한다.
+        /// Host → Guest: RpcHostInput
+        /// Guest → Host: RpcGuestInput
+        /// inputChanged 가드 제거 — 항상 20Hz 전송으로 안정적 동기화.
         /// </summary>
-        private void SendLocalInputToHost()
+        private void SendLocalInput()
         {
             Vector2 moveInput = new Vector2(
                 Input.GetAxisRaw("Horizontal"),
                 Input.GetAxisRaw("Vertical"));
             _pendingJump |= Input.GetButtonDown("Jump");
 
-            bool inputChanged = moveInput != _lastSentMove || _pendingJump;
             bool intervalElapsed = Time.time - _lastSendTime >= MinSendInterval;
+            if (!intervalElapsed) return;
 
-            if (inputChanged && intervalElapsed)
+            Vector3 worldDir = CameraRelativeConverter.Convert(moveInput, _cameraTransformA);
+
+            if (_isHost)
             {
-                // Guest 카메라 기준으로 월드 방향 변환 후 전송
-                Vector3 worldDir = CameraRelativeConverter.Convert(moveInput, _cameraTransformA);
-                photonView.RPC(nameof(RpcGuestInput), RpcTarget.MasterClient, worldDir, _pendingJump);
-                _lastSentMove = moveInput;
-                _pendingJump = false;
-                _lastSendTime = Time.time;
+                // Host → Guest(들)에게 입력 전송
+                photonView.RPC(nameof(RpcHostInput), RpcTarget.Others, worldDir, _pendingJump);
             }
+            else
+            {
+                // Guest → 팀 Host(PhotonView 소유자)에게 입력 전송
+                photonView.RPC(nameof(RpcGuestInput), photonView.Owner, worldDir, _pendingJump);
+            }
+
+            _pendingJump = false;
+            _lastSendTime = Time.time;
         }
 
         /// <summary>
@@ -243,6 +339,17 @@ namespace InGame.UserInput
             _remotePlayerInput.SetWorldDirection(worldDir, jump);
         }
 
+        /// <summary>
+        /// Guest에서 수신: Host가 카메라 기준으로 변환한 월드 방향을 RemotePlayerInput에 주입한다.
+        /// </summary>
+        [PunRPC]
+        private void RpcHostInput(Vector3 worldDir, bool jump)
+        {
+            _remotePlayerInput.SetWorldDirection(worldDir, jump);
+        }
+
+        #endregion
+
         private void RouteInput()
         {
             Vector2 inputA = _playerInputA != null ? _playerInputA.MoveInput : Vector2.zero;
@@ -251,9 +358,13 @@ namespace InGame.UserInput
             Vector2 inputB = _playerInputB != null ? _playerInputB.MoveInput : Vector2.zero;
             bool jumpB = _playerInputB != null && _playerInputB.JumpPressed;
 
-            Vector3 worldDirA = CameraRelativeConverter.Convert(inputA, _cameraTransformA);
-            // Guest 입력은 이미 월드 방향이 (x,z)로 인코딩되어 있으므로 null 카메라로 그대로 복원
-            Vector3 worldDirB = CameraRelativeConverter.Convert(inputB, null);
+            // Host: A=로컬(카메라 변환 필요), B=원격(이미 월드 방향)
+            // Guest: A=원격(이미 월드 방향), B=로컬(카메라 변환 필요)
+            Transform cameraA = _isHost ? _cameraTransformA : null;
+            Transform cameraB = _isHost ? null : _cameraTransformA;
+
+            Vector3 worldDirA = CameraRelativeConverter.Convert(inputA, cameraA);
+            Vector3 worldDirB = CameraRelativeConverter.Convert(inputB, cameraB);
 
             _playerFormController.ApplyInput(worldDirA, worldDirB, jumpA, jumpB);
         }
@@ -265,16 +376,12 @@ namespace InGame.UserInput
             {
                 bool isDivingA = _activeJumpA.IsDiving;
 
-                // Dive 시작 감지
                 if (!wasDivingA && isDivingA)
                     _activeSyncA.SendAnimTrigger(1); // Dive
 
-                // DiveLand 감지 (Diving → Not Diving while grounded)
                 if (wasDivingA && !isDivingA)
                     _activeSyncA.SendAnimTrigger(2); // DiveLand
 
-                // Jump 감지: 점프는 PlayerJump.Jump()에서 발생하므로
-                // isDiving이 아닌 상태에서 y속도 변화로 감지
                 var movementA = _activeJumpA.GetComponent<PlayerMovement>();
                 if (movementA != null)
                 {

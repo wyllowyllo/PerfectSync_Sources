@@ -1,4 +1,5 @@
 using InGame.Player.Movement;
+using Photon.Pun;
 using UnityEngine;
 
 namespace InGame.Player.Network
@@ -7,6 +8,7 @@ namespace InGame.Player.Network
     /// Guest 클라이언트에서 물리 시뮬레이션 컴포넌트를 비활성화하고
     /// Rigidbody를 kinematic으로 전환하여 네트워크 보간이 정상 동작하도록 한다.
     /// 각 바디(MergedBody, AvatarA, AvatarB)에 부착.
+    /// PhotonView 소유권 변경 시 remote 상태를 자동으로 재평가한다.
     /// </summary>
     [DefaultExecutionOrder(10)]
     public class NetworkBodyController : MonoBehaviour
@@ -15,36 +17,29 @@ namespace InGame.Player.Network
         private PlayerMovement _playerMovement;
         private PlayerJump _playerJump;
         private Rigidbody _rigidbody;
-        private bool _initialized;
+        private PhotonView _photonView;
 
         private void Awake()
         {
             _playerMovement = GetComponent<PlayerMovement>();
             _playerJump = GetComponent<PlayerJump>();
             _rigidbody = GetComponent<Rigidbody>();
-            _initialized = true;
+            _photonView = GetComponent<PhotonView>();
         }
 
         public void SetRemote(bool isRemote)
         {
             _isRemoteBody = isRemote;
 
-            if (!_initialized)
-            {
-                _playerMovement = GetComponent<PlayerMovement>();
-                _playerJump = GetComponent<PlayerJump>();
-                _rigidbody = GetComponent<Rigidbody>();
-                _initialized = true;
-            }
-
-            ApplyRemoteState();
-        }
-
-        private void OnEnable()
-        {
-            if (_isRemoteBody)
+            if (isRemote)
                 ApplyRemoteState();
+            else
+                ApplyLocalState();
         }
+
+        // OnEnable 자동 평가 제거 — 외부(NetworkInputRouter)에서만 SetRemote를 호출한다.
+        // 합체 모드에서는 Guest도 물리 시뮬레이션을 실행해야 하므로
+        // 소유권 기반 자동 판단이 올바르지 않다.
 
         private void LateUpdate()
         {
@@ -58,7 +53,7 @@ namespace InGame.Player.Network
 
         private void ApplyRemoteState()
         {
-            if (!_isRemoteBody) return;
+            _isRemoteBody = true;
 
             if (_playerMovement != null)
                 _playerMovement.enabled = false;
@@ -68,6 +63,20 @@ namespace InGame.Player.Network
 
             if (_rigidbody != null)
                 _rigidbody.isKinematic = true;
+        }
+
+        private void ApplyLocalState()
+        {
+            _isRemoteBody = false;
+
+            if (_playerMovement != null)
+                _playerMovement.enabled = true;
+
+            if (_playerJump != null)
+                _playerJump.enabled = true;
+
+            if (_rigidbody != null)
+                _rigidbody.isKinematic = false;
         }
     }
 }
