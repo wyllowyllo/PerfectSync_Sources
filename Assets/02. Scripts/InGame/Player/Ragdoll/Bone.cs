@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace InGame.Player._02._Domain.Ragdoll
+namespace InGame.Player.Ragdoll
 {
     public readonly struct Bone
     {

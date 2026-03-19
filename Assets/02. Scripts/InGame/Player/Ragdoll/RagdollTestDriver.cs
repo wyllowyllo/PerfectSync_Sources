@@ -1,7 +1,6 @@
-using InGame.Player._03._Manager;
 using UnityEngine;
 
-namespace InGame.Player._02._Domain.Ragdoll
+namespace InGame.Player.Ragdoll
 {
     public class RagdollTestDriver : MonoBehaviour
     {

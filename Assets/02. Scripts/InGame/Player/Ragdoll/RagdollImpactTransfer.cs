@@ -1,9 +1,9 @@
 using System.Collections.Generic;
-using InGame.Player._02._Domain.Data;
+using InGame.Player.Data;
 using UnityEngine;
 using Random = UnityEngine.Random;
 
-namespace InGame.Player._02._Domain.Ragdoll
+namespace InGame.Player.Ragdoll
 {
     public class RagdollImpactTransfer
     {

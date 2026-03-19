@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace PlayerSystem.Common
+namespace Core.Utilities
 {
     public static class CameraRelativeConverter
     {

@@ -1,4 +1,4 @@
-using InGame.Player._02._Domain.Ragdoll;
+using InGame.Player.Ragdoll;
 using UnityEngine;
 
 namespace InGame.Camera.PlayerCamera

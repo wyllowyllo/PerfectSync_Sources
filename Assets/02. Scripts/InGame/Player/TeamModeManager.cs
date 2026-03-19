@@ -1,7 +1,7 @@
 using System;
 using UnityEngine;
 
-namespace InGame.Player._03._Manager
+namespace InGame.Player
 {
     public class TeamModeManager : MonoBehaviour
     {

@@ -1,7 +1,7 @@
-using InGame.Player._02._Domain.Animation;
+using InGame.Player.Animation;
 using UnityEngine;
 
-namespace InGame.Player._02._Domain.Movement
+namespace InGame.Player.Movement
 {
     public class PlayerJump : MonoBehaviour
     {

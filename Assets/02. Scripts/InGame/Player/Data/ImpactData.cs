@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace InGame.Player._02._Domain.Data
+namespace InGame.Player.Data
 {
     public readonly struct ImpactData
     {

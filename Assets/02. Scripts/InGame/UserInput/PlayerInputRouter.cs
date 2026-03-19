@@ -1,7 +1,7 @@
+using Core.Utilities;
 using InGame.Camera.PlayerCamera;
-using InGame.Player._03._Manager;
+using InGame.Player;
 using InGame.Team._02._Domain;
-using PlayerSystem.Common;
 using UnityEngine;
 
 namespace InGame.UserInput

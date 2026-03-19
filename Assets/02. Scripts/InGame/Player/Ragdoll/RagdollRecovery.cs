@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace InGame.Player._02._Domain.Ragdoll
+namespace InGame.Player.Ragdoll
 {
     public class RagdollRecovery : MonoBehaviour
     {

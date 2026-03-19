@@ -1,10 +1,10 @@
 using System;
-using InGame.Player._02._Domain.Movement;
+using Core.Utilities;
+using InGame.Player.Movement;
 using InGame.Team._02._Domain;
-using PlayerSystem.Common;
 using UnityEngine;
 
-namespace InGame.Player._03._Manager
+namespace InGame.Player
 {
     public class PlayerFormController : MonoBehaviour
     {

@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace InGame.Player._02._Domain.Movement
+namespace InGame.Player.Movement
 {
     public interface IControllableBody
     {
