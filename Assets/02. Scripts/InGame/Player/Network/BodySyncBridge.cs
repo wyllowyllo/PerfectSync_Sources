@@ -1,3 +1,4 @@
+using InGame.Player.Movement;
 using InGame.Player.Ragdoll;
 using Photon.Pun;
 using UnityEngine;
@@ -16,6 +17,7 @@ namespace InGame.Player.Network
     {
         private PhotonTransformView _transformView;
         private IRagdoll _ragdoll;
+        private PlayerMovement _movement;
         private bool _wasRagdollActive;
 
         // 위치 보정
@@ -32,6 +34,7 @@ namespace InGame.Player.Network
         {
             _transformView = GetComponent<PhotonTransformView>();
             _ragdoll = GetComponent<IRagdoll>();
+            _movement = GetComponent<PlayerMovement>();
             _rb = GetComponent<Rigidbody>();
         }
 
@@ -83,7 +86,18 @@ namespace InGame.Player.Network
                 else if (dist > 0.01f)
                 {
                     // 작은 차이: 부드럽게 위치 보정 (속도 건드리지 않음)
-                    _rb.position = Vector3.Lerp(_rb.position, _correctionTarget, CorrectionFactor);
+                    bool airborne = _movement != null && !_movement.Grounded;
+                    if (airborne)
+                    {
+                        // 공중에서는 XZ만 보정, Y축은 로컬 물리 유지
+                        Vector3 corrected = Vector3.Lerp(_rb.position, _correctionTarget, CorrectionFactor);
+                        corrected.y = _rb.position.y;
+                        _rb.position = corrected;
+                    }
+                    else
+                    {
+                        _rb.position = Vector3.Lerp(_rb.position, _correctionTarget, CorrectionFactor);
+                    }
                     _rb.rotation = Quaternion.Slerp(_rb.rotation, _correctionRotation, CorrectionFactor);
                 }
             }

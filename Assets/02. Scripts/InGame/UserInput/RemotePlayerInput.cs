@@ -32,7 +32,7 @@ namespace InGame.UserInput
         public void SetWorldDirection(Vector3 worldDir, bool jumpPressed)
         {
             _moveInput = new Vector2(worldDir.x, worldDir.z);
-            _jumpPressed = jumpPressed;
+            _jumpPressed |= jumpPressed;
         }
 
         public void SendImpact(Vector3 impulse, Vector3 hitPoint)
