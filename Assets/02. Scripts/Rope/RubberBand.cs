@@ -53,6 +53,9 @@ public class RubberBand : MonoBehaviour
     [Tooltip("장애물로 인식할 레이어")]
     [SerializeField] private LayerMask _obstacleLayer;
     
+    [Tooltip("플레이어 레이어")]
+    [SerializeField] private LayerMask _playerLayer;
+    
     [Space]
     [Tooltip("레이어별 마찰력 설정")]
     [SerializeField] private SerializableDictionary<LayerMask, float> _layerFrictionSettings;
@@ -61,7 +64,8 @@ public class RubberBand : MonoBehaviour
     private IRopeRenderer _renderer;
     
     private Vector3[] _nodeBuffer;
-    private float _currentTension;
+    private float _currentTension = 1f;
+    private bool _isPlayerOverlapping;
 
     private void Awake()
     {
@@ -77,16 +81,18 @@ public class RubberBand : MonoBehaviour
             _constraintIterations, 
             _targetA.position,
             _obstacleLayer,
+            _playerLayer,
             _layerFrictionSettings
         );
     }
-
+    
     private void FixedUpdate()
     {
         SyncAnchorPositions();
         _simulator.Simulate(Time.fixedDeltaTime);
         _currentTension = _simulator.GetCurrentTension();
         ApplyElasticForceToPlayers();
+        CheckOverlapSnapEvent();
     }
 
     private void LateUpdate()
@@ -143,5 +149,15 @@ public class RubberBand : MonoBehaviour
         // 작용-반작용의 법칙
         _rigidbodyA.AddForce(pullDirectionA * finalForce, ForceMode.Force);
         _rigidbodyB.AddForce(pullDirectionB * finalForce, ForceMode.Force);
+    }
+    
+    private void CheckOverlapSnapEvent()
+    {
+        var previous = _isPlayerOverlapping;
+        _isPlayerOverlapping = _simulator.IsOverlappingDynamicObstacle;
+        
+        if (!previous || _isPlayerOverlapping) return;
+        
+        Debug.Log("<color=orange>[고무줄 스냅 감지]</color> 플레이어 기절!");
     }
 }

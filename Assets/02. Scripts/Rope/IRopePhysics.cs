@@ -35,4 +35,9 @@ public interface IRopePhysics
     /// 특정 인덱스의 노드를 강제로 고정하고 위치를 지정합니다.
     /// </summary>
     void SetNodePosition(int index, Vector3 position);
+    
+    /// <summary>
+    /// 이번 스텝에서 움직이는 장애물과 충돌했는지 여부를 반환합니다.
+    /// </summary>
+    bool IsOverlappingDynamicObstacle { get; }
 }

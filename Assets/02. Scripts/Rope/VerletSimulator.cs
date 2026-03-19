@@ -10,8 +10,12 @@ public class VerletSimulator : IRopePhysics
     private readonly float _nodeDistance;
     private readonly int _constraintIterations;
     private readonly LayerMask _obstacleLayer;
+    private readonly LayerMask _dynamicObstacleLayer;
     private readonly SerializableDictionary<LayerMask, float> _frictionMap;
-    
+
+    private bool _isOverlappingDynamicObstacle;
+    public bool IsOverlappingDynamicObstacle => _isOverlappingDynamicObstacle;
+
     private readonly Collider[] _overlapBuffer = new Collider[8];
     private static readonly Vector3 Gravity = new Vector3(0, -9.81f, 0);
 
@@ -23,8 +27,9 @@ public class VerletSimulator : IRopePhysics
     /// <param name="constraintIterations">물리 제약 조건 반복 횟수</param>
     /// <param name="startPosition">생성 시 시작 좌표 (이후 일직선으로 배치됨)</param>
     /// <param name="obstacleLayer">충돌을 감지할 장애물의 레이어 마스크</param>
+    /// <param name="dynamicObstacleLayer">충돌을 감지할 움직이는 장애물의 레이어 마스크</param>
     /// <exception cref="ArgumentOutOfRangeException">노드 개수나 길이가 유효하지 않을 때 발생</exception>
-    public VerletSimulator(int nodeCount, float totalLength, int constraintIterations, Vector3 startPosition, LayerMask obstacleLayer, SerializableDictionary<LayerMask, float> frictionMap)
+    public VerletSimulator(int nodeCount, float totalLength, int constraintIterations, Vector3 startPosition, LayerMask obstacleLayer, LayerMask dynamicObstacleLayer, SerializableDictionary<LayerMask, float> frictionMap)
     {
         if (nodeCount < 2)
             throw new ArgumentOutOfRangeException(nameof(nodeCount), "로프를 구성하기 위해 노드는 최소 2개 이상 필요합니다.");
@@ -37,6 +42,7 @@ public class VerletSimulator : IRopePhysics
         _nodeDistance = totalLength / (nodeCount - 1);
         _constraintIterations = constraintIterations;
         _obstacleLayer = obstacleLayer;
+        _dynamicObstacleLayer = dynamicObstacleLayer;
         _frictionMap = frictionMap;
         
         for (int i = 0; i < nodeCount; i++)
@@ -48,6 +54,8 @@ public class VerletSimulator : IRopePhysics
 
     public void Simulate(float deltaTime)
     {
+        _isOverlappingDynamicObstacle = false;
+        
         for (int i = 0; i < _nodes.Length; i++)
         {
             _nodes[i].IsTouchingObstacle = false;
@@ -105,7 +113,7 @@ public class VerletSimulator : IRopePhysics
             if (!nodeB.IsPinned) _nodes[i + 1].CurrentPosition += correction * 0.5f;
         }
     }
-
+    
     /// <summary>
     /// 장애물 충돌을 계산하여 밀어내기
     /// </summary>
@@ -150,7 +158,8 @@ public class VerletSimulator : IRopePhysics
             }
 
             // 다른 플레이어가 지나갈 때 충돌 처리
-            int count = Physics.OverlapSphereNonAlloc(_nodes[i].CurrentPosition, NodeRadius, _overlapBuffer, _obstacleLayer);
+            int count = Physics.OverlapSphereNonAlloc(_nodes[i].CurrentPosition, NodeRadius + 0.05f, _overlapBuffer, _dynamicObstacleLayer);
+            if (count > 0) _isOverlappingDynamicObstacle = true;
             
             for (int j = 0; j < count; j++)
             {
@@ -160,7 +169,8 @@ public class VerletSimulator : IRopePhysics
                 Vector3 closestPoint = obstacle.ClosestPoint(_nodes[i].CurrentPosition);
                 float penetrationDistance = Vector3.Distance(_nodes[i].CurrentPosition, closestPoint);
             
-                if (penetrationDistance < NodeRadius)
+                // 무시되는 현상 방지를 위해 조금 더 넓게 체크
+                if (penetrationDistance < NodeRadius + 0.05f)
                 {
                     Vector3 pushDirection = (_nodes[i].CurrentPosition - closestPoint).normalized;
                     if (pushDirection == Vector3.zero) pushDirection = Vector3.up; 
