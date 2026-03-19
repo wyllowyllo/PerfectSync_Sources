@@ -51,6 +51,8 @@ namespace InGame.Player.Movement
         public Transform BodyTransform => transform;
         public Transform CameraFollowPoint => _cameraTarget.FollowPoint;
         public bool IsRagdollActive => _ragdoll.IsRagdollActive;
+        public bool Grounded => _isGrounded;
+        public float CurrentSpeed => _currentVelocity.magnitude;
 
         private void Start()
         {
