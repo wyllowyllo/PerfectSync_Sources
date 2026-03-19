@@ -1,3 +1,4 @@
+using Core;
 using InGame.Player.Ragdoll;
 using InGame.Team._02._Domain;
 using InGame.UserInput;
@@ -5,7 +6,7 @@ using UnityEngine;
 
 namespace InGame.Player.Network
 {
-    [DefaultExecutionOrder(-10)]
+    [DefaultExecutionOrder(ExecutionOrderConstants.BodyStateCoordinator)]
     public class BodyStateCoordinator : MonoBehaviour
     {
         [Header("Bodies")]

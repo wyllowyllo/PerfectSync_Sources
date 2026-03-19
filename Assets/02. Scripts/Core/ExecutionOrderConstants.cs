@@ -1,0 +1,19 @@
+namespace Core
+{
+    public static class ExecutionOrderConstants
+    {
+        // ── 초기화 (-10) ──
+        public const int CameraTargetLinker = -10;
+        public const int BodyStateCoordinator = -10;
+
+        // ── 입력 (-5) ──
+        public const int LocalPlayerInput = -5;
+
+        // ── 물리 (0, 암묵) ──
+        // InputRouter, PlayerMovement 등은 기본값(0) 사용.
+
+        // ── 후처리 (10+) ──
+        public const int BodySimulationToggle = 10;
+        public const int BodyPositionSynchronizer = 100;
+    }
+}

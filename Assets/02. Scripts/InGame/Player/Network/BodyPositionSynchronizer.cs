@@ -1,3 +1,4 @@
+using Core;
 using InGame.Player.Movement;
 using InGame.Player.Ragdoll;
 using Photon.Pun;
@@ -12,7 +13,7 @@ namespace InGame.Player.Network
     /// PhotonTransformView는 syncEnabled 시 비활성화됨.
     /// 래그돌 활성 중에는 보정을 중단한다.
     /// </summary>
-    [DefaultExecutionOrder(100)] // PlayerMovement(0) 이후 실행
+    [DefaultExecutionOrder(ExecutionOrderConstants.BodyPositionSynchronizer)]
     public class BodyPositionSynchronizer : MonoBehaviourPun, IPunObservable
     {
         private PhotonTransformView _transformView;

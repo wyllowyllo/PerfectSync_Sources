@@ -1,3 +1,4 @@
+using Core;
 using InGame.Player;
 using InGame.Team._02._Domain;
 using Photon.Pun;
@@ -5,7 +6,7 @@ using UnityEngine;
 
 namespace InGame.Camera.PlayerCamera
 {
-    [DefaultExecutionOrder(-10)]
+    [DefaultExecutionOrder(ExecutionOrderConstants.CameraTargetLinker)]
     public class CameraTargetLinker : MonoBehaviourPun
     {
         [SerializeField] private TpsCameraController _cameraControllerA;

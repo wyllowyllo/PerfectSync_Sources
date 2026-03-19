@@ -1,9 +1,11 @@
 using System;
+using Core;
 using Photon.Pun;
 using UnityEngine;
 
 namespace InGame.UserInput
 {
+    [DefaultExecutionOrder(ExecutionOrderConstants.LocalPlayerInput)]
     public class LocalPlayerInput : MonoBehaviourPun, IPlayerInput
     {
         public bool IsOwner => photonView.IsMine;

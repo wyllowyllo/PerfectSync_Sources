@@ -1,3 +1,4 @@
+using Core;
 using InGame.Player.Movement;
 using Photon.Pun;
 using UnityEngine;
@@ -11,7 +12,7 @@ namespace InGame.Player.Network
     /// 분리 모드에서는 양쪽 클라이언트 모두 AvatarA/B를 로컬 시뮬레이션하므로
     /// 현재 모드에서 비활성인 바디(예: 분리 모드의 MergedBody)에만 remote 적용.
     /// </summary>
-    [DefaultExecutionOrder(10)]
+    [DefaultExecutionOrder(ExecutionOrderConstants.BodySimulationToggle)]
     public class BodySimulationToggle : MonoBehaviour
     {
         private bool _isRemoteBody;
