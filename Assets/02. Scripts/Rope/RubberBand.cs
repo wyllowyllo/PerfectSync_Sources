@@ -4,7 +4,7 @@ using UnityEngine;
 /// 두 플레이어 사이에 연결되는 물리 기반 고무줄을 제어하는 메인 컴포넌트입니다.
 /// 시뮬레이션(FixedUpdate)과 렌더링(LateUpdate)의 생명주기를 관리합니다.
 /// </summary>
-[RequireComponent(typeof(TubeRenderer))]
+[RequireComponent(typeof(MeshFilter), typeof(MeshRenderer))]
 public class RubberBand : MonoBehaviour
 {
     [Header("Targets")]
@@ -21,6 +21,13 @@ public class RubberBand : MonoBehaviour
     
     [Tooltip("물리 제약 조건 반복 횟수 (높을수록 뻣뻣해지지만 연산량 증가)")]
     [SerializeField, Range(1, 10)] private int _constraintIterations = 5;
+    
+    [Header("Tube Settings")]
+    [Tooltip("원통 단면의 각 수 (8=팔각형)")]
+    [SerializeField, Range(3, 32)] private int _sides = 8; 
+
+    [Tooltip("렌더링 색상")]
+    [SerializeField] private Gradient _color;
     
     [Header("Physics Interaction")]
     [Tooltip("플레이어 A의 Rigidbody")]
@@ -58,7 +65,9 @@ public class RubberBand : MonoBehaviour
 
     private void Awake()
     {
-        _renderer = GetComponent<IRopeRenderer>();
+        var meshFilter = GetComponent<MeshFilter>();
+        
+        _renderer = new TubeRenderer(meshFilter, _sides, _color, _nodeCount);
         
         _nodeBuffer = new Vector3[_nodeCount];
         

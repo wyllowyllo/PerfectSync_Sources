@@ -1,51 +1,53 @@
+using System;
 using UnityEngine;
+using UnityEngine.Rendering;
 
-//Todo: 최적화
 /// <summary>
 /// 물리 엔진의 노드 데이터를 기반으로 Tube 3D 메쉬를 실시간으로 생성하는 렌더러입니다.
 /// </summary>
-[RequireComponent(typeof(MeshFilter), typeof(MeshRenderer))]
-public class TubeRenderer : MonoBehaviour, IRopeRenderer
+public class TubeRenderer : IRopeRenderer
 {
-    [Header("Tube Settings")]
-    [Tooltip("원통 단면의 각 수 (8=팔각형)")]
-    [SerializeField, Range(3, 32)] private int _sides = 8; 
-
-    [Tooltip("렌더링 색상")]
-    [SerializeField] private Gradient _color;
+    private readonly int _sides; 
+    private readonly Gradient _color;
     
     private Mesh _mesh;
-    private MeshFilter _meshFilter;
+    private readonly MeshFilter _meshFilter;
 
     private Vector3[] _vertices;
     private Vector2[] _uvs;
     private Color[] _colors;
     private int[] _triangles;
-    
-    private int _lastNodeCount = -1;
 
-    private void Awake()
+    private int _nodeCount;
+    private float[] _cos;
+    private float[] _sin;
+
+    public TubeRenderer(MeshFilter meshFilter, int sides, Gradient color, int nodeCount)
     {
-        _meshFilter = GetComponent<MeshFilter>();
+        _meshFilter = meshFilter;
+        _sides = sides;
+        _color = color;
+        _nodeCount = nodeCount;
         
-        // 실시간 갱신용 메쉬 생성
+        Initialize(nodeCount);
+    }
+    
+    /// <summary>
+    /// 노드 개수에 맞춰 정점과 폴리곤 배열의 크기를 할당합니다.
+    /// </summary>
+    public void Initialize(int nodeCount)
+    {
+        if (nodeCount < 2) throw new ArgumentOutOfRangeException(nameof(nodeCount), "로프를 구성하기 위해 노드는 최소 2개 이상 필요합니다.");
+        
         _mesh = new Mesh { name = "DynamicTubeMesh" };
         
         // 엔진 내부적으로 잦은 갱신에 최적화된 메모리 배치를 사용하도록 지시
         _mesh.MarkDynamic(); 
         
         _meshFilter.mesh = _mesh;
-    }
-
-    /// <summary>
-    /// 노드 개수에 맞춰 정점과 폴리곤 배열의 크기를 할당합니다.
-    /// 개수가 변하지 않았다면 할당을 건너뜁니다.
-    /// </summary>
-    private void EnsureBufferCapacity(int nodeCount)
-    {
-        // 노드 개수가 동일하고, 단면의 각 수(_sides)도 그대로라면 재할당 방지
-        if (nodeCount == _lastNodeCount && _vertices != null) return;
-
+        
+        _nodeCount = nodeCount;
+        
         // 원통 메쉬에 필요한 총 정점 수: (노드 개수) * (단면의 점 개수)
         int vertexCount = nodeCount * _sides;
         
@@ -59,12 +61,58 @@ public class TubeRenderer : MonoBehaviour, IRopeRenderer
         _colors = new Color[vertexCount];
         _triangles = new int[triangleIndexCount];
 
-        // 삼각형 연결 구조는 노드 개수가 변하지 않는 한 영원히 동일하므로 여기서 1회만 계산
+        // 삼각함수 계산
+        GenerateSinCos();
+        
+        // uv와 색상 세팅
+        GenerateStaticData();
+        
+        // 삼각형 연결 구조 계산
         GenerateTriangles(nodeCount);
 
-        _lastNodeCount = nodeCount;
+        _mesh.SetVertices(_vertices);
+        _mesh.SetUVs(0, _uvs);
+        _mesh.SetColors(_colors);
+        _mesh.SetTriangles(_triangles, 0);
     }
 
+    /// <summary>
+    /// 삼각함수 배열을 생성합니다.
+    /// </summary>
+    private void GenerateSinCos()
+    {
+        _cos = new float[_sides];
+        _sin = new float[_sides];
+        float angleStep = (Mathf.PI * 2f) / _sides;
+
+        for (int s = 0; s < _sides; s++)
+        {
+            float angle = s * angleStep;
+            _cos[s] = Mathf.Cos(angle);
+            _sin[s] = Mathf.Sin(angle);
+        }
+    }
+
+    /// <summary>
+    /// 정적 데이터를 세팅합니다.
+    /// </summary>
+    private void GenerateStaticData()
+    {
+        for (int i = 0; i < _nodeCount; i++)
+        {
+            int offset = i * _sides;
+            float uvV = (float)i / (_nodeCount - 1);
+            Color vertexColor = _color.Evaluate(uvV);
+
+            for (int s = 0; s < _sides; s++)
+            {
+                float uvU = (float)s / _sides;
+                _uvs[offset + s] = new Vector2(uvU, uvV);
+                _colors[offset + s] = vertexColor;
+            }
+        }
+    }
+    
     /// <summary>
     /// 정점들을 이어붙여 표면을 구성하는 삼각형 인덱스 배열을 생성합니다.
     /// </summary>
@@ -107,33 +155,46 @@ public class TubeRenderer : MonoBehaviour, IRopeRenderer
     /// </summary>
     public void RenderRope(Vector3[] nodePositions, float thickness)
     {
-        if (nodePositions == null || nodePositions.Length < 2) return;
+        if (nodePositions == null || nodePositions.Length != _nodeCount) throw new ArgumentException("렌더링을 위한 노드가 부족합니다.");
 
         int nodeCount = nodePositions.Length;
 
-        // 1. 메모리 확보 (노드 개수가 바뀌었을 때만 재할당)
-        EnsureBufferCapacity(nodeCount);
-
         // 튜브의 꼬임을 막기 위해 첫 번째 노드의 기준 상단(Up) 벡터를 임의로 잡습니다.
         Vector3 currentUp = Vector3.up; 
-
-        // 2. 각 노드를 순회하며 단면(Ring)의 정점들을 계산
-        for (int i = 0; i < nodeCount; i++)
+        float radius = thickness * 0.5f;
+        
+        // 튜브 정점 생성 로직 - 노드를 순회하며 Ring 형태를 만드는 정점 계산
+        for (int i = 0; i < _nodeCount; i++)
         {
-            CalculateSegmentOrientation(i, nodePositions, ref currentUp, out Vector3 forward, out Vector3 right);
-            BuildRingVertices(i, nodePositions[i], currentUp, right, thickness);
+            CalculateSegmentOrientation(i, nodePositions, ref currentUp, out var right);
+            
+            int offset = i * _sides;
+            Vector3 center = nodePositions[i];
+            
+            for (int s = 0; s < _sides; s++)
+            {
+                Vector3 localPosition = (right * _cos[s] + currentUp * _sin[s]) * radius;
+                _vertices[offset + s] = center + localPosition;
+            }
         }
+        
+        // 정점만 메쉬에 덮어씌움
+        _mesh.SetVertices(_vertices, 0, _vertices.Length, MeshUpdateFlags.DontRecalculateBounds);
+        
+        // 조명 연산 필요 시 _mesh.RecalculateNormals() 추가
 
-        // 3. 조립된 데이터를 실제 메쉬에 적용
-        ApplyMeshData();
+        // 카메라 컬링을 위한 바운딩 박스 갱신
+        _mesh.RecalculateBounds();
     }
     
     /// <summary>
     /// 현재 마디가 바라볼 방향(Forward)과 직교하는 Up, Right 벡터를 계산합니다.
     /// '메쉬 꼬임(Twist)'을 방지하기 위해 이전 마디의 Up 벡터(ref)를 참조하여 회전량을 누적합니다.
     /// </summary>
-    private void CalculateSegmentOrientation(int index, Vector3[] nodes, ref Vector3 up, out Vector3 forward, out Vector3 right)
+    private void CalculateSegmentOrientation(int index, Vector3[] nodes, ref Vector3 up, out Vector3 right)
     {
+        Vector3 forward;
+        
         // 1. Forward 방향 벡터 계산
         if (index < nodes.Length - 1)
         {
@@ -166,65 +227,5 @@ public class TubeRenderer : MonoBehaviour, IRopeRenderer
 
         // 3. 완벽하게 직교하는 Right 벡터 도출
         right = Vector3.Cross(up, forward).normalized;
-    }
-
-    /// <summary>
-    /// 계산된 방향 축을 바탕으로 원통의 단면(원형 테두리)을 이루는 정점 위치와 UV를 조립합니다.
-    /// </summary>
-    private void BuildRingVertices(int nodeIndex, Vector3 center, Vector3 up, Vector3 right, float thickness)
-    {
-        int offset = nodeIndex * _sides;
-        float angleStep = (Mathf.PI * 2f) / _sides;
-        
-        // V축(세로축) UV 좌표: 로프 길이에 따라 텍스처가 타일링되도록 진행률(0~1)로 설정
-        float uvV = (float)nodeIndex / (_lastNodeCount - 1);
-
-        // 정점 색상 계산
-        var vertexColor = _color.Evaluate(uvV);
-        
-        for (int s = 0; s < _sides; s++)
-        {
-            float angle = s * angleStep;
-
-            // 삼각함수를 이용해 원의 둘레를 따라 도는 로컬 오프셋 계산
-            // 반경은 두께의 절반(thickness * 0.5f)
-            float cos = Mathf.Cos(angle);
-            float sin = Mathf.Sin(angle);
-            Vector3 localPos = (right * cos + up * sin) * (thickness * 0.5f);
-
-            // 최종 정점 좌표 적용
-            _vertices[offset + s] = center + localPos;
-            _colors[offset + s] = vertexColor;
-            
-            // U축(가로축) UV 좌표: 원통 단면을 감싸는 비율(0~1)
-            float uvU = (float)s / _sides;
-            _uvs[offset + s] = new Vector2(uvU, uvV);
-        }
-    }
-    
-    /// <summary>
-    /// 조립이 완료된 정점(Vertices)과 UV 데이터를 실제 Mesh 객체에 덮어씌웁니다.
-    /// </summary>
-    private void ApplyMeshData()
-    {
-        // 1. GC 할당 없는 최신 API를 사용하여 데이터 주입
-        _mesh.SetVertices(_vertices);
-        _mesh.SetUVs(0, _uvs);
-        _mesh.SetColors(_colors);
-
-        // 삼각형 인덱스는 뼈대이므로, 정점 갱신 후 한 번 더 명시해주는 것이 안전합니다.
-        // (만약 노드 개수가 절대 변하지 않는 게임이라면 최초 1회만 세팅하도록 최적화 가능)
-        _mesh.SetTriangles(_triangles, 0);
-
-        // 2. 조명(Lighting) 연산을 위한 법선 벡터(Normals) 자동 계산
-        // 우리가 직접 법선을 수학적으로 계산해서 넣을 수도 있지만, 
-        // 튜브 형태는 Unity의 내장 RecalculateNormals()가 충분히 빠르고 부드럽게 처리해 줍니다.
-        _mesh.RecalculateNormals();
-
-        // 3. 바운딩 박스(Bounding Box) 갱신 (매우 중요!!!)
-        // 이걸 안 해주면 렌더러의 중심점(고무줄의 시작점)이 카메라 시야 밖으로 나갔을 때,
-        // 고무줄 끝부분이 아직 화면에 보이는데도 전체 메쉬가 렌더링에서 제외(Culling)되어 
-        // 고무줄이 픽셀 단위로 깜빡거리거나 갑자기 사라지는 치명적인 버그가 발생합니다.
-        _mesh.RecalculateBounds();
     }
 }

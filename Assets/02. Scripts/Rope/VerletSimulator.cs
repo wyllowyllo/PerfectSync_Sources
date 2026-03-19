@@ -151,7 +151,7 @@ public class VerletSimulator : IRopePhysics
 
             // 다른 플레이어가 지나갈 때 충돌 처리
             int count = Physics.OverlapSphereNonAlloc(_nodes[i].CurrentPosition, NodeRadius, _overlapBuffer, _obstacleLayer);
-        
+            
             for (int j = 0; j < count; j++)
             {
                 Collider obstacle = _overlapBuffer[j];
@@ -232,12 +232,8 @@ public class VerletSimulator : IRopePhysics
     private float GetFrictionForLayer(int layer)
     {
         const float defaultFriction = 0f;
-        
-        foreach (var pair in _frictionMap)
-        {
-            if ((pair.Key.value & (1 << layer)) == 0) continue;
-            return pair.Value;
-        }
-        return defaultFriction;
+
+        LayerMask mask = 1 << layer;
+        return _frictionMap.GetValueOrDefault(mask, defaultFriction);
     }
 }
