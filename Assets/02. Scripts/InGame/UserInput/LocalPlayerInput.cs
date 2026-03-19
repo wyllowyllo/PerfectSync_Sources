@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace InGame.UserInput
 {
-    public class NetworkPlayerInput : MonoBehaviourPun, IPlayerInput
+    public class LocalPlayerInput : MonoBehaviourPun, IPlayerInput
     {
         public bool IsOwner => photonView.IsMine;
 

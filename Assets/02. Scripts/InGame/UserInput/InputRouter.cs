@@ -10,8 +10,8 @@ using UnityEngine;
 
 namespace InGame.UserInput
 {
-    [RequireComponent(typeof(NetworkPlayerInput), typeof(RemotePlayerInput), typeof(PlayerFormController))]
-    public class NetworkInputRouter : MonoBehaviourPun
+    [RequireComponent(typeof(LocalPlayerInput), typeof(RemotePlayerInput), typeof(PlayerFormController))]
+    public class InputRouter : MonoBehaviourPun
     {
         // ── Fields / SerializeField ──────────────────────────────────
 
@@ -27,9 +27,9 @@ namespace InGame.UserInput
         [SerializeField] private GameObject _avatarB;
 
         private PlayerFormController _playerFormController;
-        private NetworkPlayerInput _networkPlayerInput;
+        private LocalPlayerInput localPlayerInput;
         private RemotePlayerInput _remotePlayerInput;
-        private NetworkTeamModeManager _teamModeManager;
+        private TeamModeSynchronizer teamModeSynchronizer;
         private Transform _cameraTransformA;
         private bool _isHost;
         private ETeamMode _currentMode;
@@ -47,10 +47,10 @@ namespace InGame.UserInput
 
         private void Start()
         {
-            _networkPlayerInput = GetComponent<NetworkPlayerInput>();
+            localPlayerInput = GetComponent<LocalPlayerInput>();
             _remotePlayerInput = GetComponent<RemotePlayerInput>();
             _playerFormController = GetComponent<PlayerFormController>();
-            _teamModeManager = GetComponent<NetworkTeamModeManager>();
+            teamModeSynchronizer = GetComponent<TeamModeSynchronizer>();
 
             _isHost = photonView.IsMine;
             _currentMode = _startMode;
@@ -63,27 +63,14 @@ namespace InGame.UserInput
             SetCameraTargetByRole();
             RefreshBodyMode(_startMode);
 
-            if (_teamModeManager != null)
-                _teamModeManager.OnSwitchRequested += HandleSwitchRequested;
+            if (teamModeSynchronizer != null)
+                teamModeSynchronizer.OnSwitchRequested += HandleSwitchRequested;
 
-            _networkPlayerInput.OnImpactReceived += HandleImpact;
-            _networkPlayerInput.OnDeathReceived += HandleDeath;
+            localPlayerInput.OnImpactReceived += HandleImpact;
+            localPlayerInput.OnDeathReceived += HandleDeath;
         }
 
-        private void OnDestroy()
-        {
-            if (_playerFormController != null)
-                _playerFormController.OnModeChanged -= HandleModeChanged;
-
-            if (_teamModeManager != null)
-                _teamModeManager.OnSwitchRequested -= HandleSwitchRequested;
-
-            if (_networkPlayerInput != null)
-            {
-                _networkPlayerInput.OnImpactReceived -= HandleImpact;
-                _networkPlayerInput.OnDeathReceived -= HandleDeath;
-            }
-        }
+       
 
         // ── Update Loop ─────────────────────────────────────────────
 
@@ -199,15 +186,15 @@ namespace InGame.UserInput
             SetRemoteOnBody(_avatarB, isMerged);
 
             // 위치 보정 동기화
-            _mergedBody?.GetComponent<BodySyncBridge>()?.SetSyncEnabled(isMerged);
-            _avatarA?.GetComponent<BodySyncBridge>()?.SetSyncEnabled(!isMerged);
-            _avatarB?.GetComponent<BodySyncBridge>()?.SetSyncEnabled(!isMerged);
+            _mergedBody?.GetComponent<BodyPositionSynchronizer>()?.SetSyncEnabled(isMerged);
+            _avatarA?.GetComponent<BodyPositionSynchronizer>()?.SetSyncEnabled(!isMerged);
+            _avatarB?.GetComponent<BodyPositionSynchronizer>()?.SetSyncEnabled(!isMerged);
         }
 
         private void SetRemoteOnBody(GameObject body, bool isRemote)
         {
             if (body == null) return;
-            var controller = body.GetComponent<NetworkBodyController>();
+            var controller = body.GetComponent<BodyPhysicsToggle>();
             if (controller != null)
                 controller.SetRemote(isRemote);
         }
@@ -236,6 +223,21 @@ namespace InGame.UserInput
                     return _avatarA != null ? _avatarA.GetComponent<RagdollController>() : null;
                 default:
                     return null;
+            }
+        }
+        
+        private void OnDestroy()
+        {
+            if (_playerFormController != null)
+                _playerFormController.OnModeChanged -= HandleModeChanged;
+
+            if (teamModeSynchronizer != null)
+                teamModeSynchronizer.OnSwitchRequested -= HandleSwitchRequested;
+
+            if (localPlayerInput != null)
+            {
+                localPlayerInput.OnImpactReceived -= HandleImpact;
+                localPlayerInput.OnDeathReceived -= HandleDeath;
             }
         }
     }

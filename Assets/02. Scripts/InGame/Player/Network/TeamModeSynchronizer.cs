@@ -4,7 +4,8 @@ using UnityEngine;
 
 namespace InGame.Player.Network
 {
-    public class NetworkTeamModeManager : MonoBehaviourPun
+    // 모드 전환 RPC 브로드캐스트 담당 클래스
+    public class TeamModeSynchronizer : MonoBehaviourPun
     {
         public event Action OnSwitchRequested;
 

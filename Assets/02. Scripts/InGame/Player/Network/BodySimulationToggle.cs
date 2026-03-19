@@ -12,7 +12,7 @@ namespace InGame.Player.Network
     /// 현재 모드에서 비활성인 바디(예: 분리 모드의 MergedBody)에만 remote 적용.
     /// </summary>
     [DefaultExecutionOrder(10)]
-    public class NetworkBodyController : MonoBehaviour
+    public class BodyPhysicsToggle : MonoBehaviour
     {
         private bool _isRemoteBody;
         private PlayerMovement _playerMovement;
