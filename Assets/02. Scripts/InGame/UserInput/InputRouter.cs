@@ -43,6 +43,11 @@ namespace InGame.UserInput
         private Vector3 _cachedLocalWorldDir;
         private bool _cachedLocalJump;
 
+        // [InputViz]
+        private Vector3 _cachedLocalCameraForwardXZ;
+        private CoopInputVisualizer _coopInputVisualizer;
+        // [/InputViz]
+
         // ── Lifecycle ────────────────────────────────────────────────
 
         private void Start()
@@ -56,6 +61,7 @@ namespace InGame.UserInput
             _currentMode = _startMode;
 
             SetupCameras();
+            _coopInputVisualizer = GetComponent<CoopInputVisualizer>(); // [InputViz]
 
             _playerFormController.OnModeChanged += HandleModeChanged;
             _playerFormController.Initialize(_startMode);
@@ -70,7 +76,7 @@ namespace InGame.UserInput
             localPlayerInput.OnDeathReceived += HandleDeath;
         }
 
-       
+
 
         // ── Update Loop ─────────────────────────────────────────────
 
@@ -118,6 +124,12 @@ namespace InGame.UserInput
 
             _cachedLocalWorldDir = CameraRelativeConverter.Convert(rawInput, _cameraTransformA);
             _cachedLocalJump = jump;
+
+            // [InputViz] 카메라 전방 XZ 캐싱
+            Vector3 camFwd = _cameraTransformA != null ? _cameraTransformA.forward : Vector3.forward;
+            camFwd.y = 0f;
+            _cachedLocalCameraForwardXZ = camFwd.sqrMagnitude > 0.001f ? camFwd.normalized : Vector3.forward;
+            // [/InputViz]
         }
 
         private void RouteInput()
@@ -140,6 +152,11 @@ namespace InGame.UserInput
                 jumpB = _cachedLocalJump;
             }
 
+            // [InputViz]
+            if (_coopInputVisualizer != null)
+                _coopInputVisualizer.UpdateInputState(worldDirA, worldDirB, jumpA, jumpB);
+            // [/InputViz]
+
             _playerFormController.ApplyInput(worldDirA, worldDirB, jumpA, jumpB);
         }
 
@@ -152,18 +169,18 @@ namespace InGame.UserInput
             if (Time.time - _lastSendTime < MinSendInterval) return;
 
             if (_isHost)
-                photonView.RPC(nameof(RpcRemoteInput), RpcTarget.Others, _cachedLocalWorldDir, _pendingJump);
+                photonView.RPC(nameof(RpcRemoteInput), RpcTarget.Others, _cachedLocalWorldDir, _pendingJump, _cachedLocalCameraForwardXZ); // [InputViz] cameraForwardXZ 추가
             else
-                photonView.RPC(nameof(RpcRemoteInput), photonView.Owner, _cachedLocalWorldDir, _pendingJump);
+                photonView.RPC(nameof(RpcRemoteInput), photonView.Owner, _cachedLocalWorldDir, _pendingJump, _cachedLocalCameraForwardXZ); // [InputViz] cameraForwardXZ 추가
 
             _pendingJump = false;
             _lastSendTime = Time.time;
         }
 
         [PunRPC]
-        private void RpcRemoteInput(Vector3 worldDir, bool jump)
+        private void RpcRemoteInput(Vector3 worldDir, bool jump, Vector3 cameraForwardXZ) // [InputViz] cameraForwardXZ 추가
         {
-            _remotePlayerInput.SetWorldDirection(worldDir, jump);
+            _remotePlayerInput.SetWorldDirection(worldDir, jump, cameraForwardXZ); // [InputViz] cameraForwardXZ 전달
         }
 
         // ── Mode ─────────────────────────────────────────────────────
@@ -179,6 +196,13 @@ namespace InGame.UserInput
             SetCameraTargetByRole();
             RefreshBodyMode(newMode);
         }
+
+        // [InputViz]
+        public Vector3 LocalCameraForwardXZ => _cachedLocalCameraForwardXZ;
+        public bool IsHost => _isHost;
+        public ETeamMode CurrentMode => _currentMode;
+        public GameObject MergedBody => _mergedBody;
+        // [/InputViz]
 
         // ── Camera ───────────────────────────────────────────────────
 
@@ -254,7 +278,7 @@ namespace InGame.UserInput
                     return null;
             }
         }
-        
+
         private void OnDestroy()
         {
             if (_playerFormController != null)
