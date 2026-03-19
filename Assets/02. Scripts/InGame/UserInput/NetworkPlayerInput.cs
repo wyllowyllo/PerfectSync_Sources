@@ -17,15 +17,6 @@ namespace InGame.UserInput
         private Vector2 _moveInput;
         private bool _jumpPressed;
 
-        private void Update()
-        {
-            _moveInput = new Vector2(
-                Input.GetAxisRaw("Horizontal"),
-                Input.GetAxisRaw("Vertical"));
-
-            _jumpPressed = Input.GetButtonDown("Jump");
-        }
-
         public void SendImpact(Vector3 impulse, Vector3 hitPoint)
         {
             OnImpactReceived?.Invoke(impulse, hitPoint);

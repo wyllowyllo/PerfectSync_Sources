@@ -24,8 +24,6 @@ namespace InGame.UserInput
         [SerializeField] private GameObject _avatarA;
         [SerializeField] private GameObject _avatarB;
 
-        private IPlayerInput _playerInputA;
-        private IPlayerInput _playerInputB;
         private PlayerFormController _playerFormController;
         private NetworkPlayerInput _networkPlayerInput;
         private RemotePlayerInput _remotePlayerInput;
@@ -39,6 +37,10 @@ namespace InGame.UserInput
         private float _lastSendTime;
         private const float MinSendInterval = 0.05f; // 최대 20Hz
 
+        // 프레임당 1회 읽기 캐시
+        private Vector3 _cachedLocalWorldDir;
+        private bool _cachedLocalJump;
+
         private void Start()
         {
             _networkPlayerInput = GetComponent<NetworkPlayerInput>();
@@ -49,7 +51,6 @@ namespace InGame.UserInput
             _isHost = photonView.IsMine;
             _currentMode = _startMode;
 
-            AssignInputsByRole();
             SetupCameras();
 
             _playerFormController.OnModeChanged += HandleModeChanged;
@@ -88,8 +89,18 @@ namespace InGame.UserInput
         private void Update()
         {
             _playerFormController.Tick();
+            ReadLocalInput();
             RouteInput();
             SendLocalInput();
+        }
+
+        private void ReadLocalInput()
+        {
+            Vector2 rawInput = new Vector2(
+                Input.GetAxisRaw("Horizontal"),
+                Input.GetAxisRaw("Vertical"));
+            _cachedLocalWorldDir = CameraRelativeConverter.Convert(rawInput, _cameraTransformA);
+            _cachedLocalJump = Input.GetButtonDown("Jump");
         }
 
         /// <summary>
@@ -149,25 +160,6 @@ namespace InGame.UserInput
             var controller = body.GetComponent<NetworkBodyController>();
             if (controller != null)
                 controller.SetRemote(isRemote);
-        }
-
-        private void AssignInputsByRole()
-        {
-            if (_isHost)
-            {
-                // Host: A = 로컬 입력(NetworkPlayerInput), B = Guest 입력(RemotePlayerInput)
-                _playerInputA = _networkPlayerInput;
-                _playerInputB = _remotePlayerInput;
-            }
-            else
-            {
-                // Guest: A = Host 입력(RemotePlayerInput), B = 로컬 입력(NetworkPlayerInput)
-                _playerInputA = _remotePlayerInput;
-                _playerInputB = _networkPlayerInput;
-            }
-
-            Debug.Log($"[NetworkInputRouter] Input assigned - IsHost: {_isHost}, " +
-                      $"InputA: {_playerInputA.GetType().Name}, InputB: {_playerInputB.GetType().Name}");
         }
 
         private void SetupCameras()
@@ -243,26 +235,14 @@ namespace InGame.UserInput
         /// </summary>
         private void SendLocalInput()
         {
-            Vector2 moveInput = new Vector2(
-                Input.GetAxisRaw("Horizontal"),
-                Input.GetAxisRaw("Vertical"));
-            _pendingJump |= Input.GetButtonDown("Jump");
+            _pendingJump |= _cachedLocalJump;
 
-            bool intervalElapsed = Time.time - _lastSendTime >= MinSendInterval;
-            if (!intervalElapsed) return;
-
-            Vector3 worldDir = CameraRelativeConverter.Convert(moveInput, _cameraTransformA);
+            if (Time.time - _lastSendTime < MinSendInterval) return;
 
             if (_isHost)
-            {
-                // Host → Guest(들)에게 입력 전송
-                photonView.RPC(nameof(RpcHostInput), RpcTarget.Others, worldDir, _pendingJump);
-            }
+                photonView.RPC(nameof(RpcHostInput), RpcTarget.Others, _cachedLocalWorldDir, _pendingJump);
             else
-            {
-                // Guest → 팀 Host(PhotonView 소유자)에게 입력 전송
-                photonView.RPC(nameof(RpcGuestInput), photonView.Owner, worldDir, _pendingJump);
-            }
+                photonView.RPC(nameof(RpcGuestInput), photonView.Owner, _cachedLocalWorldDir, _pendingJump);
 
             _pendingJump = false;
             _lastSendTime = Time.time;
@@ -290,19 +270,23 @@ namespace InGame.UserInput
 
         private void RouteInput()
         {
-            Vector2 inputA = _playerInputA != null ? _playerInputA.MoveInput : Vector2.zero;
-            bool jumpA = _playerInputA != null && _playerInputA.JumpPressed;
+            Vector3 worldDirA, worldDirB;
+            bool jumpA, jumpB;
 
-            Vector2 inputB = _playerInputB != null ? _playerInputB.MoveInput : Vector2.zero;
-            bool jumpB = _playerInputB != null && _playerInputB.JumpPressed;
-
-            // Host: A=로컬(카메라 변환 필요), B=원격(이미 월드 방향)
-            // Guest: A=원격(이미 월드 방향), B=로컬(카메라 변환 필요)
-            Transform cameraA = _isHost ? _cameraTransformA : null;
-            Transform cameraB = _isHost ? null : _cameraTransformA;
-
-            Vector3 worldDirA = CameraRelativeConverter.Convert(inputA, cameraA);
-            Vector3 worldDirB = CameraRelativeConverter.Convert(inputB, cameraB);
+            if (_isHost)
+            {
+                worldDirA = _cachedLocalWorldDir;
+                jumpA = _cachedLocalJump;
+                worldDirB = CameraRelativeConverter.Convert(_remotePlayerInput.MoveInput, null);
+                jumpB = _remotePlayerInput.JumpPressed;
+            }
+            else
+            {
+                worldDirA = CameraRelativeConverter.Convert(_remotePlayerInput.MoveInput, null);
+                jumpA = _remotePlayerInput.JumpPressed;
+                worldDirB = _cachedLocalWorldDir;
+                jumpB = _cachedLocalJump;
+            }
 
             _playerFormController.ApplyInput(worldDirA, worldDirB, jumpA, jumpB);
         }
