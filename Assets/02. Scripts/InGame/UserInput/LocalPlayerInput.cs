@@ -9,13 +9,27 @@ namespace InGame.UserInput
         public bool IsOwner => photonView.IsMine;
 
         public Vector2 MoveInput => _moveInput;
-        public bool JumpPressed => _jumpPressed;
+        public bool JumpPressed
+        {
+            get
+            {
+                bool val = _jumpPressed;
+                _jumpPressed = false;
+                return val;
+            }
+        }
 
         public event Action<Vector3, Vector3> OnImpactReceived;
         public event Action OnDeathReceived;
 
         private Vector2 _moveInput;
         private bool _jumpPressed;
+
+        private void Update()
+        {
+            _moveInput = new Vector2(Input.GetAxisRaw("Horizontal"), Input.GetAxisRaw("Vertical"));
+            _jumpPressed |= Input.GetButtonDown("Jump");
+        }
 
         public void SendImpact(Vector3 impulse, Vector3 hitPoint)
         {

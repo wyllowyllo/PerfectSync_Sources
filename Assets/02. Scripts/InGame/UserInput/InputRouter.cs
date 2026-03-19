@@ -1,9 +1,7 @@
 using Core.Utilities;
 using InGame.Camera.PlayerCamera;
 using InGame.Player;
-using InGame.Player.Movement;
 using InGame.Player.Network;
-using InGame.Player.Ragdoll;
 using InGame.Team._02._Domain;
 using Photon.Pun;
 using UnityEngine;
@@ -23,13 +21,11 @@ namespace InGame.UserInput
 
         [Header("Bodies")]
         [SerializeField] private GameObject _mergedBody;
-        [SerializeField] private GameObject _avatarA;
-        [SerializeField] private GameObject _avatarB;
 
+        private LocalPlayerInput _localPlayerInput;
         private PlayerFormController _playerFormController;
-        private LocalPlayerInput localPlayerInput;
         private RemotePlayerInput _remotePlayerInput;
-        private TeamModeSynchronizer teamModeSynchronizer;
+        private TeamModeSynchronizer _teamModeSynchronizer;
         private Transform _cameraTransformA;
         private bool _isHost;
         private ETeamMode _currentMode;
@@ -52,10 +48,10 @@ namespace InGame.UserInput
 
         private void Awake()
         {
-            localPlayerInput = GetComponent<LocalPlayerInput>();
+            _localPlayerInput = GetComponent<LocalPlayerInput>();
             _remotePlayerInput = GetComponent<RemotePlayerInput>();
             _playerFormController = GetComponent<PlayerFormController>();
-            teamModeSynchronizer = GetComponent<TeamModeSynchronizer>();
+            _teamModeSynchronizer = GetComponent<TeamModeSynchronizer>();
         }
 
         private void Start()
@@ -70,13 +66,9 @@ namespace InGame.UserInput
             _playerFormController.Initialize(_startMode);
 
             SetCameraTargetByRole();
-            RefreshBodyMode(_startMode);
 
-            if (teamModeSynchronizer != null)
-                teamModeSynchronizer.OnSwitchRequested += HandleSwitchRequested;
-
-            localPlayerInput.OnImpactReceived += HandleImpact;
-            localPlayerInput.OnDeathReceived += HandleDeath;
+            if (_teamModeSynchronizer != null)
+                _teamModeSynchronizer.OnSwitchRequested += HandleSwitchRequested;
         }
 
 
@@ -97,10 +89,8 @@ namespace InGame.UserInput
             bool jump;
 
 
-            rawInput = new Vector2(
-                Input.GetAxisRaw("Horizontal"),
-                Input.GetAxisRaw("Vertical"));
-            jump = Input.GetButtonDown("Jump");
+            rawInput = _localPlayerInput.MoveInput;
+            jump = _localPlayerInput.JumpPressed;
             
 
             _cachedLocalWorldDir = CameraRelativeConverter.Convert(rawInput, _cameraTransformA);
@@ -175,7 +165,6 @@ namespace InGame.UserInput
         {
             _currentMode = newMode;
             SetCameraTargetByRole();
-            RefreshBodyMode(newMode);
         }
 
         // [InputViz]
@@ -208,71 +197,14 @@ namespace InGame.UserInput
             _cameraControllerA.SetTarget(target);
         }
 
-        // ── Body ─────────────────────────────────────────────────────
-
-        private void RefreshBodyMode(ETeamMode mode)
-        {
-            bool isMerged = mode == ETeamMode.Merged;
-
-            // 물리 시뮬레이션
-            SetRemoteOnBody(_mergedBody, !isMerged);
-            SetRemoteOnBody(_avatarA, isMerged);
-            SetRemoteOnBody(_avatarB, isMerged);
-
-            // 위치 보정 동기화
-            _mergedBody?.GetComponent<BodyPositionSynchronizer>()?.SetSyncEnabled(isMerged);
-            _avatarA?.GetComponent<BodyPositionSynchronizer>()?.SetSyncEnabled(!isMerged);
-            _avatarB?.GetComponent<BodyPositionSynchronizer>()?.SetSyncEnabled(!isMerged);
-        }
-
-        private void SetRemoteOnBody(GameObject body, bool isRemote)
-        {
-            if (body == null) return;
-            var controller = body.GetComponent<BodySimulationToggle>();
-            if (controller != null)
-                controller.SetRemote(isRemote);
-        }
-
-        // ── Impact / Death ───────────────────────────────────────────
-
-        private void HandleImpact(Vector3 impulse, Vector3 hitPoint)
-        {
-            var ragdoll = GetActiveRagdollController();
-            ragdoll?.OnHitImpact(impulse, hitPoint);
-        }
-
-        private void HandleDeath()
-        {
-            var ragdoll = GetActiveRagdollController();
-            ragdoll?.EnterDead();
-        }
-
-        private RagdollController GetActiveRagdollController()
-        {
-            switch (_currentMode)
-            {
-                case ETeamMode.Merged:
-                    return _mergedBody != null ? _mergedBody.GetComponent<RagdollController>() : null;
-                case ETeamMode.Separated:
-                    return _avatarA != null ? _avatarA.GetComponent<RagdollController>() : null;
-                default:
-                    return null;
-            }
-        }
-
         private void OnDestroy()
         {
             if (_playerFormController != null)
                 _playerFormController.OnModeChanged -= HandleModeChanged;
 
-            if (teamModeSynchronizer != null)
-                teamModeSynchronizer.OnSwitchRequested -= HandleSwitchRequested;
+            if (_teamModeSynchronizer != null)
+                _teamModeSynchronizer.OnSwitchRequested -= HandleSwitchRequested;
 
-            if (localPlayerInput != null)
-            {
-                localPlayerInput.OnImpactReceived -= HandleImpact;
-                localPlayerInput.OnDeathReceived -= HandleDeath;
-            }
         }
     }
 }
