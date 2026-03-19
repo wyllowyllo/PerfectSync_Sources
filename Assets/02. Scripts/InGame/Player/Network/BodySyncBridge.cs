@@ -1,4 +1,3 @@
-using InGame.Player.Animation;
 using InGame.Player.Ragdoll;
 using Photon.Pun;
 using UnityEngine;
@@ -7,22 +6,20 @@ namespace InGame.Player.Network
 {
     /// <summary>
     /// 바디 동기화 브릿지.
-    /// - 합체 모드: IPunObservable로 Host 위치를 권위적으로 보정.
-    ///   양쪽 모두 물리 시뮬레이션을 실행하되 Guest가 Host 위치로 부드럽게 보정된다.
-    ///   PhotonTransformView는 비활성화됨.
-    /// - 분리 모드: PhotonTransformView 기반 위치/회전 동기화 + 트리거 RPC 릴레이.
-    ///   래그돌 활성 시 transform 동기화를 중단하고, 종료 시 위치 보정 RPC를 전송한다.
+    /// IPunObservable로 소유자 위치를 권위적으로 보정.
+    /// 양쪽 모두 물리 시뮬레이션을 실행하되, 비소유자가 소유자 위치로 부드럽게 보정된다.
+    /// PhotonTransformView는 syncEnabled 시 비활성화됨.
+    /// 래그돌 활성 중에는 보정을 중단한다.
     /// </summary>
     [DefaultExecutionOrder(100)] // PlayerMovement(0) 이후 실행
     public class BodySyncBridge : MonoBehaviourPun, IPunObservable
     {
         private PhotonTransformView _transformView;
         private IRagdoll _ragdoll;
-        private PlayerAnimation _playerAnimation;
         private bool _wasRagdollActive;
 
-        // 합체 모드 위치 보정
-        private bool _isMergedMode;
+        // 위치 보정
+        private bool _syncEnabled;
         private Vector3 _correctionTarget;
         private Quaternion _correctionRotation;
         private bool _hasCorrection;
@@ -35,19 +32,18 @@ namespace InGame.Player.Network
         {
             _transformView = GetComponent<PhotonTransformView>();
             _ragdoll = GetComponent<IRagdoll>();
-            _playerAnimation = GetComponent<PlayerAnimation>();
             _rb = GetComponent<Rigidbody>();
         }
 
         /// <summary>
-        /// 합체 모드 설정. true이면 PhotonTransformView를 비활성화하고
+        /// 동기화 활성화 설정. true이면 PhotonTransformView를 비활성화하고
         /// IPunObservable을 통한 위치 보정으로 전환한다.
         /// </summary>
-        public void SetMergedMode(bool merged)
+        public void SetSyncEnabled(bool enabled)
         {
-            _isMergedMode = merged;
+            _syncEnabled = enabled;
             if (_transformView != null)
-                _transformView.enabled = !merged;
+                _transformView.enabled = !enabled;
             _hasCorrection = false;
         }
 
@@ -60,7 +56,7 @@ namespace InGame.Player.Network
             // PhotonTransformView가 있을 때만 활성/비활성 제어
             // (MergedPlayer에는 없으므로 null 체크 필요)
             if (_transformView != null)
-                _transformView.enabled = !_isMergedMode && !isActive;
+                _transformView.enabled = !_syncEnabled && !isActive;
 
             // 래그돌 종료 순간 감지 → 위치 강제 동기화
             if (_wasRagdollActive && !isActive && photonView.IsMine)
@@ -73,7 +69,9 @@ namespace InGame.Player.Network
 
         private void FixedUpdate()
         {
-            if (!photonView.IsMine && _isMergedMode && _hasCorrection)
+            if (_ragdoll != null && _ragdoll.IsRagdollActive) return;
+
+            if (!photonView.IsMine && _syncEnabled && _hasCorrection)
             {
                 float dist = Vector3.Distance(_rb.position, _correctionTarget);
                 if (dist > SnapThreshold)
@@ -93,17 +91,20 @@ namespace InGame.Player.Network
 
         public void OnPhotonSerializeView(PhotonStream stream, PhotonMessageInfo info)
         {
-            if (!_isMergedMode) return;
+            if (!_syncEnabled) return;
 
-            if (stream.IsWriting) // Host
+            if (stream.IsWriting)
             {
                 stream.SendNext(transform.position);
                 stream.SendNext(transform.rotation);
             }
-            else // Guest
+            else
             {
-                _correctionTarget = (Vector3)stream.ReceiveNext();
-                _correctionRotation = (Quaternion)stream.ReceiveNext();
+                Vector3 pos = (Vector3)stream.ReceiveNext();
+                Quaternion rot = (Quaternion)stream.ReceiveNext();
+                if (_ragdoll != null && _ragdoll.IsRagdollActive) return;
+                _correctionTarget = pos;
+                _correctionRotation = rot;
                 _hasCorrection = true;
             }
         }
@@ -113,27 +114,6 @@ namespace InGame.Player.Network
         {
             transform.position = pos;
             transform.rotation = rot;
-        }
-
-        /// <summary>
-        /// Host sends trigger animation to guests via RPC.
-        /// </summary>
-        public void SendAnimTrigger(byte triggerId)
-        {
-            photonView.RPC(nameof(RpcAnimTrigger), RpcTarget.Others, triggerId);
-        }
-
-        [PunRPC]
-        private void RpcAnimTrigger(byte triggerId)
-        {
-            if (_playerAnimation == null) return;
-
-            switch (triggerId)
-            {
-                case 0: _playerAnimation.Jump(); break;
-                case 1: _playerAnimation.Dive(); break;
-                case 2: _playerAnimation.Land(true); break;
-            }
         }
     }
 }

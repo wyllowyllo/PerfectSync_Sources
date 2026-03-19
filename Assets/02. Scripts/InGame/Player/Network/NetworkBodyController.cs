@@ -5,10 +5,11 @@ using UnityEngine;
 namespace InGame.Player.Network
 {
     /// <summary>
-    /// Guest 클라이언트에서 물리 시뮬레이션 컴포넌트를 비활성화하고
-    /// Rigidbody를 kinematic으로 전환하여 네트워크 보간이 정상 동작하도록 한다.
+    /// 바디의 물리 시뮬레이션 활성/비활성을 제어한다.
+    /// 비활성(remote) 바디는 컴포넌트를 끄고 kinematic으로 전환한다.
     /// 각 바디(MergedBody, AvatarA, AvatarB)에 부착.
-    /// PhotonView 소유권 변경 시 remote 상태를 자동으로 재평가한다.
+    /// 분리 모드에서는 양쪽 클라이언트 모두 AvatarA/B를 로컬 시뮬레이션하므로
+    /// 현재 모드에서 비활성인 바디(예: 분리 모드의 MergedBody)에만 remote 적용.
     /// </summary>
     [DefaultExecutionOrder(10)]
     public class NetworkBodyController : MonoBehaviour
@@ -44,7 +45,7 @@ namespace InGame.Player.Network
         private void LateUpdate()
         {
             // RagdollPhysicsToggle.Deactivate()가 isKinematic=false로 복원하므로
-            // Guest에서 래그돌 복귀 후 다시 kinematic으로 강제
+            // 비활성 바디(예: 분리 모드의 MergedBody)에서 래그돌 복귀 후 다시 kinematic으로 강제
             if (_isRemoteBody && _rigidbody != null && !_rigidbody.isKinematic)
             {
                 _rigidbody.isKinematic = true;
