@@ -121,10 +121,8 @@ public class LobbyManager : MonoBehaviourPunCallbacks
         if (PhotonRoomManager.Instance.GetCurrentRoomType() == PhotonRoomTypes.Random && _isGameStarting)
         {
             CancelCountdown();
-            _matchingScreenUI.SetStatus("플레이어가 나갔습니다. 매칭이 취소됩니다.");
-            _matchingScreenUI.SetLeaveButtonInteractable(false);
-            StartCoroutine(DelayedLeaveRoom());
-            return;
+            _matchingScreenUI.SetStatus("플레이어가 나갔습니다. 다시 대기 중...");
+            _matchingScreenUI.SetLeaveButtonInteractable(true);
         }
 
         UpdateMatchingUI();
@@ -187,13 +185,6 @@ public class LobbyManager : MonoBehaviourPunCallbacks
         var room = PhotonNetwork.CurrentRoom;
         _matchingScreenUI.SetPlayerCount(room.PlayerCount, room.MaxPlayers);
         _matchingScreenUI.SetStatus("매칭을 찾고 있습니다...");
-    }
-
-    private IEnumerator DelayedLeaveRoom()
-    {
-        yield return new WaitForSeconds(1.5f);
-        if (PhotonNetwork.InRoom)
-            PhotonRoomManager.Instance.LeaveRoom();
     }
 
     private void ShowMainScreen()

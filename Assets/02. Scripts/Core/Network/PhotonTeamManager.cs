@@ -99,42 +99,43 @@ public class PhotonTeamManager : SingletonPunCallbacks<PhotonTeamManager>
 
     private void AssignToTeams(List<List<Player>> partyGroups, List<Player> soloPlayers)
     {
-        int teamNumber = 1;
-        int assigned = 0;
+        var teams = new List<Player>[MaxTeams];
+        for (int i = 0; i < MaxTeams; i++)
+            teams[i] = new List<Player>();
 
         foreach (var party in partyGroups)
         {
-            int remaining = PlayersPerTeam - assigned;
-            if (party.Count > remaining && assigned > 0)
-            {
-                teamNumber++;
-                assigned = 0;
-            }
+            int targetTeam = FindTeamWithSpace(teams, party.Count);
+            if (targetTeam < 0) continue;
 
             foreach (var player in party)
-            {
-                player.SetCustomProperties(new Hashtable { { TeamKey, teamNumber } });
-                assigned++;
-
-                if (assigned >= PlayersPerTeam)
-                {
-                    teamNumber++;
-                    assigned = 0;
-                }
-            }
+                teams[targetTeam].Add(player);
         }
 
         foreach (var player in soloPlayers)
         {
-            player.SetCustomProperties(new Hashtable { { TeamKey, teamNumber } });
-            assigned++;
+            int targetTeam = FindTeamWithSpace(teams, 1);
+            if (targetTeam < 0) continue;
 
-            if (assigned >= PlayersPerTeam)
-            {
-                teamNumber++;
-                assigned = 0;
-            }
+            teams[targetTeam].Add(player);
         }
+
+        for (int t = 0; t < MaxTeams; t++)
+        {
+            int teamNumber = t + 1;
+            foreach (var player in teams[t])
+                player.SetCustomProperties(new Hashtable { { TeamKey, teamNumber } });
+        }
+    }
+
+    private int FindTeamWithSpace(List<Player>[] teams, int requiredSlots)
+    {
+        for (int i = 0; i < teams.Length; i++)
+        {
+            if (teams[i].Count + requiredSlots <= PlayersPerTeam)
+                return i;
+        }
+        return -1;
     }
 
     private string GetPartyId(Player player)
