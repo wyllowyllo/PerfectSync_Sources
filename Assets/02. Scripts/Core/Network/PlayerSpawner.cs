@@ -52,6 +52,10 @@ public class PlayerSpawner : MonoBehaviour
         if (rotateAbility != null)
             rotateAbility.SetFollowCamera(_followCamera);
 
+        var tracker = player.GetComponent<RaceProgressTracker>();
+        if (tracker != null)
+            tracker.SetTeam(team);
+
         return player;
     }
 
