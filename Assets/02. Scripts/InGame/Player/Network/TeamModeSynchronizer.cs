@@ -18,10 +18,18 @@ namespace InGame.Player.Network
 
         /// <summary>
         /// 외부에서 호출하여 모드 전환을 요청한다.
-        /// PhotonView 소유자(팀 Host)만 RPC를 전송할 수 있다.
-        /// 자동 타이머 시스템 등에서 이 메서드를 호출한다.
+        /// Host → 바로 All 브로드캐스트, Guest → Host에게 릴레이 후 All 브로드캐스트.
         /// </summary>
         public void RequestSwitch()
+        {
+            if (photonView.IsMine)
+                photonView.RPC(nameof(RpcRequestSwitch), RpcTarget.All);
+            else
+                photonView.RPC(nameof(RpcRelaySwitch), photonView.Owner);
+        }
+
+        [PunRPC]
+        private void RpcRelaySwitch()
         {
             if (!photonView.IsMine) return;
             photonView.RPC(nameof(RpcRequestSwitch), RpcTarget.All);
