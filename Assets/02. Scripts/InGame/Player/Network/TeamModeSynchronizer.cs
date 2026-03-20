@@ -22,6 +22,8 @@ namespace InGame.Player.Network
         /// </summary>
         public void RequestSwitch()
         {
+            if (_playerFormController != null && !_playerFormController.CanChangeForm()) return;
+
             if (photonView.IsMine)
                 photonView.RPC(nameof(RpcRequestSwitch), RpcTarget.All);
             else
@@ -32,56 +34,14 @@ namespace InGame.Player.Network
         private void RpcRelaySwitch()
         {
             if (!photonView.IsMine) return;
+            if (_playerFormController != null && !_playerFormController.CanChangeForm()) return;
             photonView.RPC(nameof(RpcRequestSwitch), RpcTarget.All);
         }
 
         [PunRPC]
         private void RpcRequestSwitch()
         {
-            Debug.Log("[NetworkTeamModeManager] Mode switch requested via RPC");
             OnSwitchRequested?.Invoke();
-
-            // 전환 후 DividedPlayer_B 소유권을 Guest(팀원)에게 이전
-            TransferDividedPlayerBOwnership();
-        }
-
-        private void TransferDividedPlayerBOwnership()
-        {
-            if (_playerFormController == null)
-                return;
-
-            // 팀원(Guest) 찾기 — PhotonTeamManager를 통해 같은 팀의 다른 플레이어를 조회
-            var guestPlayer = GetTeammate();
-            if (guestPlayer == null)
-                return;
-
-            Transform avatarB = _playerFormController.SecondaryBodyTransform;
-            if (avatarB == null)
-                return;
-
-            PhotonView bView = avatarB.GetComponent<PhotonView>();
-            if (bView != null && photonView.IsMine)
-            {
-                bView.TransferOwnership(guestPlayer);
-                Debug.Log($"[NetworkTeamModeManager] Transferred DividedPlayer_B ownership to {guestPlayer.NickName} (Actor: {guestPlayer.ActorNumber})");
-            }
-        }
-
-        private Photon.Realtime.Player GetTeammate()
-        {
-            if (PhotonTeamManager.Instance == null) return null;
-
-            int myTeam = PhotonTeamManager.Instance.GetPlayerTeam(PhotonNetwork.LocalPlayer);
-            if (myTeam == PhotonTeamManager.TeamNone) return null;
-
-            var members = PhotonTeamManager.Instance.GetTeamMembers(myTeam);
-            foreach (var member in members)
-            {
-                if (member.ActorNumber != PhotonNetwork.LocalPlayer.ActorNumber)
-                    return member;
-            }
-
-            return null;
         }
     }
 }

@@ -2,6 +2,7 @@ using Core;
 using InGame.Player.Ragdoll;
 using InGame.Team._02._Domain;
 using InGame.UserInput;
+using Photon.Pun;
 using UnityEngine;
 
 namespace InGame.Player.Network
@@ -67,29 +68,40 @@ namespace InGame.Player.Network
                 controller.SetRemote(isRemote);
         }
 
-        private void HandleImpact(Vector3 impulse, Vector3 hitPoint)
+        private void HandleImpact(Vector3 impulse, Vector3 hitPoint, int hitViewID)
         {
-            var ragdoll = GetActiveRagdollController();
-            ragdoll?.OnHitImpact(impulse, hitPoint);
+            var hitBody = ResolveBodyByViewID(hitViewID);
+            if (hitBody == null) return;
+            hitBody.GetComponent<RagdollController>()?.OnHitImpact(impulse, hitPoint);
         }
 
         private void HandleDeath()
         {
-            var ragdoll = GetActiveRagdollController();
-            ragdoll?.EnterDead();
-        }
-
-        private RagdollController GetActiveRagdollController()
-        {
             switch (_currentMode)
             {
                 case ETeamMode.Merged:
-                    return _mergedBody != null ? _mergedBody.GetComponent<RagdollController>() : null;
+                    _mergedBody?.GetComponent<RagdollController>()?.EnterDead();
+                    break;
                 case ETeamMode.Separated:
-                    return _avatarA != null ? _avatarA.GetComponent<RagdollController>() : null;
-                default:
-                    return null;
+                    _avatarA?.GetComponent<RagdollController>()?.EnterDead();
+                    _avatarB?.GetComponent<RagdollController>()?.EnterDead();
+                    break;
             }
+        }
+
+        private GameObject ResolveBodyByViewID(int viewID)
+        {
+            if (MatchesViewID(_mergedBody, viewID)) return _mergedBody;
+            if (MatchesViewID(_avatarA, viewID)) return _avatarA;
+            if (MatchesViewID(_avatarB, viewID)) return _avatarB;
+            return null;
+        }
+
+        private static bool MatchesViewID(GameObject body, int viewID)
+        {
+            if (body == null) return false;
+            var pv = body.GetComponent<PhotonView>();
+            return pv != null && pv.ViewID == viewID;
         }
     }
 }

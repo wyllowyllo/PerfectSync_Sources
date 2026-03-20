@@ -1,6 +1,7 @@
 using System;
 using Core.Utilities;
 using InGame.Player.Movement;
+using InGame.Player.Ragdoll;
 using InGame.Team._02._Domain;
 using UnityEngine;
 
@@ -20,8 +21,6 @@ namespace InGame.Player
         private IControllableBody _avatarAControllable;
         private IControllableBody _avatarBControllable;
         private ETeamMode _currentMode;
-        private bool _pendingSwitch;
-        private ETeamMode _pendingSwitchTarget;
 
         // 이벤트
         public event Action<ETeamMode> OnModeChanged;
@@ -66,25 +65,23 @@ namespace InGame.Player
             ApplyMode(startMode);
         }
 
-        public void SwitchMode(ETeamMode targetMode)
-        {
-            if (_currentMode == targetMode)
-                return;
+        public ETeamMode CurrentMode => _currentMode;
 
-            if (IsAnyRagdollActive())
-            {
-                _pendingSwitch = true;
-                _pendingSwitchTarget = targetMode;
-                return;
-            }
+        /// 래그돌 활성 중에는 폼 전환 불가 (요청 단계 가드용)
+        public bool CanChangeForm() => !IsAnyRagdollActive();
 
-            ExecuteSwitch(targetMode);
-        }
-
-        public void ToggleMode()
+        /// 네트워크 확정 폼 전환 — 래그돌 활성 시 강제 회복 후 전환 실행
+        public void ExecuteFormToggle()
         {
             ETeamMode target = _currentMode == ETeamMode.Merged ? ETeamMode.Separated : ETeamMode.Merged;
-            SwitchMode(target);
+            ExecuteFormChange(target);
+        }
+
+        public void ExecuteFormChange(ETeamMode targetMode)
+        {
+            if (_currentMode == targetMode) return;
+            if (IsAnyRagdollActive()) ForceRecoverActiveBodies();
+            ExecuteSwitch(targetMode);
         }
 
         public void ApplyInput(Vector3 worldDirA, Vector3 worldDirB, bool jumpA, bool jumpB)
@@ -105,11 +102,6 @@ namespace InGame.Player
 
         public void Tick()
         {
-            if (_pendingSwitch && !IsAnyRagdollActive())
-            {
-                _pendingSwitch = false;
-                ExecuteSwitch(_pendingSwitchTarget);
-            }
         }
 
         private void ExecuteSwitch(ETeamMode targetMode)
@@ -179,6 +171,21 @@ namespace InGame.Player
             }
 
             OnModeChanged?.Invoke(mode);
+        }
+
+        private void ForceRecoverActiveBodies()
+        {
+            ForceRecoverBody(_mergedBody);
+            ForceRecoverBody(_avatarA);
+            ForceRecoverBody(_avatarB);
+        }
+
+        private void ForceRecoverBody(GameObject body)
+        {
+            if (body == null) return;
+            var ragdoll = body.GetComponent<RagdollController>();
+            if (ragdoll != null && ragdoll.IsRagdollActive)
+                ragdoll.ForceRecover();
         }
 
         private bool IsAnyRagdollActive()

@@ -115,6 +115,22 @@ namespace InGame.Player.Ragdoll
                 _upperBodyPhysics.SetActive(active);
         }
 
+        /// 래그돌을 즉시 종료하고 Animated 상태로 강제 회복한다.
+        /// 자연 회복(RecoveryCoroutine)과 달리 블렌딩/기상 애니메이션을 건너뛴다.
+        /// Dead 상태는 영구 상태이므로 회복하지 않는다.
+        public void ForceRecover()
+        {
+            if (_currentState == ERagdollState.Dead) return;
+            StopActiveCoroutine();
+            _currentState = ERagdollState.Animated;
+            _physicsToggle.Deactivate();
+            var capsuleRb = _physicsToggle.CapsuleRigidbody;
+            capsuleRb.linearVelocity = Vector3.zero;
+            capsuleRb.angularVelocity = Vector3.zero;
+            _animation.ClearGetUpState();
+            SetUpperBodyActive(true);
+        }
+
         private void StopActiveCoroutine()
         {
             if (_activeCoroutine != null)

@@ -158,7 +158,7 @@ namespace InGame.UserInput
 
         private void HandleSwitchRequested()
         {
-            _playerFormController.ToggleMode();
+            _playerFormController.ExecuteFormToggle();
         }
 
         private void HandleModeChanged(ETeamMode newMode)
