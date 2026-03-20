@@ -16,6 +16,8 @@ namespace InGame.Player.Network
     public class BodySimulationToggle : MonoBehaviour
     {
         private bool _isRemoteBody;
+        public bool IsRemote => _isRemoteBody;
+
         private PlayerMovement _playerMovement;
         private PlayerJump _playerJump;
         private Rigidbody _rigidbody;
