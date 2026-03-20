@@ -1,7 +1,8 @@
+using InGame.Player.Network;
 using Photon.Pun;
 using UnityEngine;
 
-namespace InGame.Player.Network
+namespace InGame.Player.Test
 {
     /// <summary>
     /// 멀티 환경 모드 전환 테스트용 매니저.

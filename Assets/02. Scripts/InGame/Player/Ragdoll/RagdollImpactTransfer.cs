@@ -1,13 +1,10 @@
 using System.Collections.Generic;
 using UnityEngine;
-using Random = UnityEngine.Random;
 
 namespace InGame.Player.Ragdoll
 {
     public class RagdollImpactTransfer
     {
-        private const float TorqueScaleFactor = 0.15f;
-
         private readonly IReadOnlyList<Rigidbody> _ragdollRbs;
 
         public RagdollImpactTransfer(IReadOnlyList<Rigidbody> ragdollRbs)
@@ -15,14 +12,14 @@ namespace InGame.Player.Ragdoll
             _ragdollRbs = ragdollRbs;
         }
 
-        public void TransferImpact(ImpactData impact, Vector3 inheritedVelocity)
+        public void TransferImpact(ImpactData impact, Vector3 inheritedVelocity, Vector3 torqueImpulse)
         {
             for (int i = 0; i < _ragdollRbs.Count; i++)
                 _ragdollRbs[i].linearVelocity = inheritedVelocity;
 
             Rigidbody closestRb = GetClosestBoneRb(impact.HitPoint);
             closestRb.AddForce(impact.Impulse, ForceMode.Impulse);
-            closestRb.AddTorque(Random.insideUnitSphere * impact.Magnitude * TorqueScaleFactor, ForceMode.Impulse);
+            closestRb.AddTorque(torqueImpulse, ForceMode.Impulse);
         }
 
         private Rigidbody GetClosestBoneRb(Vector3 point)

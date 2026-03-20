@@ -3,7 +3,7 @@ using Photon.Realtime;
 using UnityEngine;
 using Hashtable = ExitGames.Client.Photon.Hashtable;
 
-namespace InGame.Player.Network
+namespace InGame.Player.Test
 {
     public class NetworkTestManager : MonoBehaviourPunCallbacks
     {

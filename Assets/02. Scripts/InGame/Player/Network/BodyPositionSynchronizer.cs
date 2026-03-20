@@ -12,14 +12,14 @@ namespace InGame.Player.Network
     /// 양쪽 모두 물리 시뮬레이션을 실행하되, 비소유자가 소유자 위치로 부드럽게 보정된다.
     /// PhotonTransformView는 syncEnabled 시 비활성화됨.
     /// 래그돌 활성 중에는 보정을 중단한다.
+    /// 회복 시 Owner의 root pos/rot/faceUp을 RPC로 전파하여 결과 동기화.
     /// </summary>
     [DefaultExecutionOrder(ExecutionOrderConstants.BodyPositionSynchronizer)]
     public class BodyPositionSynchronizer : MonoBehaviourPun, IPunObservable
     {
         private PhotonTransformView _transformView;
-        private IRagdoll _ragdoll;
+        private RagdollController _ragdollController;
         private PlayerMovement _movement;
-        private bool _wasRagdollActive;
 
         // 위치 보정
         private bool _syncEnabled;
@@ -34,9 +34,21 @@ namespace InGame.Player.Network
         private void Awake()
         {
             _transformView = GetComponent<PhotonTransformView>();
-            _ragdoll = GetComponent<IRagdoll>();
+            _ragdollController = GetComponent<RagdollController>();
             _movement = GetComponent<PlayerMovement>();
             _rb = GetComponent<Rigidbody>();
+        }
+
+        private void Start()
+        {
+            if (_ragdollController != null)
+                _ragdollController.OnRecoveryDataReady += HandleRecoveryDataReady;
+        }
+
+        private void OnDestroy()
+        {
+            if (_ragdollController != null)
+                _ragdollController.OnRecoveryDataReady -= HandleRecoveryDataReady;
         }
 
         /// <summary>
@@ -53,27 +65,30 @@ namespace InGame.Player.Network
 
         private void LateUpdate()
         {
-            if (_ragdoll == null) return;
+            if (_ragdollController == null) return;
 
-            bool isActive = _ragdoll.IsRagdollActive;
+            bool isActive = _ragdollController.IsRagdollActive;
 
-            // PhotonTransformView가 있을 때만 활성/비활성 제어
-            // (MergedPlayer에는 없으므로 null 체크 필요)
             if (_transformView != null)
                 _transformView.enabled = !_syncEnabled && !isActive;
+        }
 
-            // 래그돌 종료 순간 감지 → 위치 강제 동기화
-            if (_wasRagdollActive && !isActive && photonView.IsMine)
-            {
-                photonView.RPC(nameof(RpcSyncPostRagdoll), RpcTarget.Others,
-                    transform.position, transform.rotation);
-            }
-            _wasRagdollActive = isActive;
+        private void HandleRecoveryDataReady(Vector3 rootPos, Quaternion rootRot, bool isFaceUp)
+        {
+            if (!photonView.IsMine) return;
+            photonView.RPC(nameof(RpcSyncRecovery), RpcTarget.Others, rootPos, rootRot, isFaceUp);
+        }
+
+        [PunRPC]
+        private void RpcSyncRecovery(Vector3 rootPos, Quaternion rootRot, bool isFaceUp)
+        {
+            if (!gameObject.activeInHierarchy) return;
+            _ragdollController.ApplyRemoteRecovery(rootPos, rootRot, isFaceUp);
         }
 
         private void FixedUpdate()
         {
-            if (_ragdoll != null && _ragdoll.IsRagdollActive) return;
+            if (_ragdollController != null && _ragdollController.IsRagdollActive) return;
 
             if (!photonView.IsMine && _syncEnabled && _hasCorrection)
             {
@@ -117,18 +132,11 @@ namespace InGame.Player.Network
             {
                 Vector3 pos = (Vector3)stream.ReceiveNext();
                 Quaternion rot = (Quaternion)stream.ReceiveNext();
-                if (_ragdoll != null && _ragdoll.IsRagdollActive) return;
+                if (_ragdollController != null && _ragdollController.IsRagdollActive) return;
                 _correctionTarget = pos;
                 _correctionRotation = rot;
                 _hasCorrection = true;
             }
-        }
-
-        [PunRPC]
-        private void RpcSyncPostRagdoll(Vector3 pos, Quaternion rot)
-        {
-            transform.position = pos;
-            transform.rotation = rot;
         }
     }
 }

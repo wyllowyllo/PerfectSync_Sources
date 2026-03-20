@@ -12,6 +12,8 @@ namespace InGame.Player.Ragdoll
     [RequireComponent(typeof(PhotonView))]
     public class ImpactDetector : MonoBehaviour
     {
+        private const float TorqueScaleFactor = 0.15f;
+
         [SerializeField] private LayerMask _hazardLayers;
         [SerializeField] private float _minImpulse = 5f;
 
@@ -38,7 +40,8 @@ namespace InGame.Player.Ragdoll
             if (impulse.sqrMagnitude < _minImpulse * _minImpulse) return;
 
             Vector3 hitPoint = collision.GetContact(0).point;
-            _localPlayerInput.SendImpact(impulse, hitPoint, _photonView.ViewID);
+            Vector3 torque = Random.insideUnitSphere * impulse.magnitude * TorqueScaleFactor;
+            _localPlayerInput.SendImpact(impulse, hitPoint, _photonView.ViewID, torque);
         }
     }
 }

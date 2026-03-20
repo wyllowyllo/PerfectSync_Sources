@@ -46,6 +46,14 @@ namespace InGame.Player.Ragdoll
             return isFaceUp;
         }
 
+        public void PrepareRecoveryWithOverride(Vector3 rootPos, Quaternion rootRot)
+        {
+            CaptureSnapshot();
+            transform.position = rootPos;
+            transform.rotation = rootRot;
+            _isOverridingRagdoll = false;
+        }
+
         // Deactivate() + PlayGetUp() 이후 호출. 블렌드 시작.
         public void StartBlending(Action onComplete)
         {

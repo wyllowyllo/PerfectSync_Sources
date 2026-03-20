@@ -8,6 +8,6 @@ namespace InGame.Player.Ragdoll
     {
         ERagdollState CurrentState { get; }
         bool IsRagdollActive { get; }
-        void OnHitImpact(Vector3 impulse, Vector3 hitPoint);
+        void OnHitImpact(Vector3 impulse, Vector3 hitPoint, Vector3 torqueVector);
     }
 }

@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace InGame.UserInput
+namespace InGame.Player.Test
 {
     /// <summary>
     /// [InputViz] LineRenderer 기반 화살표 및 점프 마커 팩토리.

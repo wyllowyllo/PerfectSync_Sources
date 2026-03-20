@@ -10,9 +10,9 @@ namespace InGame.UserInput
         bool JumpPressed { get; }
 
         // 래그돌 네트워크 경계. 로컬 = 즉시 invoke, PUN2 = RPC → invoke.
-        event Action<Vector3, Vector3, int> OnImpactReceived;
+        event Action<Vector3, Vector3, int, Vector3> OnImpactReceived;
         event Action OnDeathReceived;
-        void SendImpact(Vector3 impulse, Vector3 hitPoint, int hitViewID);
+        void SendImpact(Vector3 impulse, Vector3 hitPoint, int hitViewID, Vector3 torqueVector);
         void SendDeath();
     }
 }

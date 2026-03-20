@@ -2,6 +2,7 @@ using Core.Utilities;
 using InGame.Camera.PlayerCamera;
 using InGame.Player;
 using InGame.Player.Network;
+using InGame.Player.Test;
 using InGame.Team._02._Domain;
 using Photon.Pun;
 using UnityEngine;

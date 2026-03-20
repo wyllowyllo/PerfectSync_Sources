@@ -2,7 +2,7 @@ using InGame.UserInput;
 using Photon.Pun;
 using UnityEngine;
 
-namespace InGame.Player
+namespace InGame.Player.Test
 {
     /// <summary>
     /// 키 입력으로 래그돌 충격을 테스트하는 디버그 스크립트.
@@ -61,7 +61,8 @@ namespace InGame.Player
             Vector3 hitPoint = body.transform.position;
             int viewID = pv.ViewID;
 
-            _input.SendImpact(impulse, hitPoint, viewID);
+            Vector3 torque = Random.insideUnitSphere * impulse.magnitude * 0.15f;
+            _input.SendImpact(impulse, hitPoint, viewID, torque);
             UnityEngine.Debug.Log($"[ImpactTestTrigger] Sent impact to '{_target}' (ViewID={viewID}), impulse={impulse}");
         }
 

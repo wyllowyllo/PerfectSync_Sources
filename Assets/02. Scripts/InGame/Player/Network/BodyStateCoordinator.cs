@@ -68,11 +68,11 @@ namespace InGame.Player.Network
                 controller.SetRemote(isRemote);
         }
 
-        private void HandleImpact(Vector3 impulse, Vector3 hitPoint, int hitViewID)
+        private void HandleImpact(Vector3 impulse, Vector3 hitPoint, int hitViewID, Vector3 torqueVector)
         {
             var hitBody = ResolveBodyByViewID(hitViewID);
             if (hitBody == null) return;
-            hitBody.GetComponent<RagdollController>()?.OnHitImpact(impulse, hitPoint);
+            hitBody.GetComponent<RagdollController>()?.OnHitImpact(impulse, hitPoint, torqueVector);
         }
 
         private void HandleDeath()

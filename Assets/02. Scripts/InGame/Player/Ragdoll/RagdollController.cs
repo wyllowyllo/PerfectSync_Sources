@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using InGame.Player.Animation;
 using UnityEngine;
@@ -24,22 +25,28 @@ namespace InGame.Player.Ragdoll
         public ERagdollState CurrentState => _currentState;
         public bool IsRagdollActive => _currentState != ERagdollState.Animated;
 
+        public event Action<Vector3, Quaternion, bool> OnRecoveryDataReady;
+
         private void Awake()
         {
             _physicsToggle = GetComponent<RagdollPhysicsToggle>();
             _recovery = GetComponent<RagdollRecovery>();
             _upperBodyPhysics = GetComponent<UpperBodyPhysics>();
             _animation = GetComponent<PlayerAnimation>();
+        }
+
+        private void Start()
+        {
             _impactTransfer = new RagdollImpactTransfer(_physicsToggle.RagdollRigidbodies);
         }
 
-        public void OnHitImpact(Vector3 impulse, Vector3 hitPoint)
+        public void OnHitImpact(Vector3 impulse, Vector3 hitPoint, Vector3 torqueVector)
         {
             var impact = new ImpactData(impulse, hitPoint);
 
             if (impact.Magnitude >= _ragdollThreshold)
             {
-                EnterRagdoll(impact);
+                EnterRagdoll(impact, torqueVector);
                 return;
             }
 
@@ -47,7 +54,7 @@ namespace InGame.Player.Ragdoll
                 _upperBodyPhysics.AddImpulse(impulse);
         }
 
-        private void EnterRagdoll(ImpactData impact)
+        private void EnterRagdoll(ImpactData impact, Vector3 torqueVector)
         {
             StopActiveCoroutine();
 
@@ -57,7 +64,7 @@ namespace InGame.Player.Ragdoll
 
             Vector3 inheritedVelocity = _physicsToggle.CapsuleRigidbody.linearVelocity;
             _physicsToggle.Activate();
-            _impactTransfer.TransferImpact(impact, inheritedVelocity);
+            _impactTransfer.TransferImpact(impact, inheritedVelocity, torqueVector);
 
             SetUpperBodyActive(false);
 
@@ -73,8 +80,9 @@ namespace InGame.Player.Ragdoll
             {
                 _currentState = ERagdollState.BlendToAnim;
 
-                // Deactivate 전에 RB에서 스냅샷 캡처 + 루트 정렬.
                 bool isFaceUp = _recovery.PrepareRecovery();
+
+                OnRecoveryDataReady?.Invoke(transform.position, transform.rotation, isFaceUp);
 
                 _physicsToggle.Deactivate();
 
@@ -89,6 +97,24 @@ namespace InGame.Player.Ragdoll
             _activeCoroutine = null;
         }
 
+        public void ApplyRemoteRecovery(Vector3 rootPos, Quaternion rootRot, bool isFaceUp)
+        {
+            if (_currentState != ERagdollState.Ragdoll) return;
+
+            StopActiveCoroutine();
+            _currentState = ERagdollState.BlendToAnim;
+
+            _recovery.PrepareRecoveryWithOverride(rootPos, rootRot);
+            _physicsToggle.Deactivate();
+
+            var capsuleRb = _physicsToggle.CapsuleRigidbody;
+            capsuleRb.linearVelocity = Vector3.zero;
+            capsuleRb.angularVelocity = Vector3.zero;
+
+            _animation.GetUp(isFaceUp);
+            _recovery.StartBlending(OnRecoveryComplete);
+        }
+
         public void EnterDead()
         {
             StopActiveCoroutine();
@@ -96,9 +122,8 @@ namespace InGame.Player.Ragdoll
             _recovery.StartRagdollOverride(_physicsToggle.Bones);
             Vector3 inheritedVelocity = _physicsToggle.CapsuleRigidbody.linearVelocity;
             _physicsToggle.Activate();
-            _impactTransfer.TransferImpact(new ImpactData(Vector3.zero, transform.position), inheritedVelocity);
+            _impactTransfer.TransferImpact(new ImpactData(Vector3.zero, transform.position), inheritedVelocity, Vector3.zero);
             SetUpperBodyActive(false);
-            // RecoveryCoroutine 시작 안 함 — Dead는 영구 유지.
         }
 
         private void OnRecoveryComplete()

@@ -1,8 +1,8 @@
-using InGame.Player;
 using InGame.Team._02._Domain;
+using InGame.UserInput;
 using UnityEngine;
 
-namespace InGame.UserInput
+namespace InGame.Player.Test
 {
     /// <summary>
     /// [InputViz] 합동 모드 입력 시각화. Red(Host)/Blue(Guest) 화살표로 카메라 방향과 입력 상태 표시.
