@@ -1,6 +1,5 @@
 using System.Collections;
 using InGame.Player.Animation;
-using InGame.Player.Data;
 using UnityEngine;
 
 namespace InGame.Player.Ragdoll
