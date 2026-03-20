@@ -6,20 +6,55 @@ namespace InGame.Player.Ragdoll
     public class RagdollImpactTransfer
     {
         private readonly IReadOnlyList<Rigidbody> _ragdollRbs;
+        private readonly float _impactRadius;
 
-        public RagdollImpactTransfer(IReadOnlyList<Rigidbody> ragdollRbs)
+        public RagdollImpactTransfer(IReadOnlyList<Rigidbody> ragdollRbs, float impactRadius)
         {
             _ragdollRbs = ragdollRbs;
+            _impactRadius = impactRadius;
         }
 
+        /// <summary>
+        /// 래그돌 진입 시 호출. 캡슐 속도를 상속한 뒤 충격을 거리 기반으로 분산 적용.
+        /// </summary>
         public void TransferImpact(ImpactData impact, Vector3 inheritedVelocity, Vector3 torqueImpulse)
         {
             for (int i = 0; i < _ragdollRbs.Count; i++)
                 _ragdollRbs[i].linearVelocity = inheritedVelocity;
 
-            Rigidbody closestRb = GetClosestBoneRb(impact.HitPoint);
-            closestRb.AddForce(impact.Impulse, ForceMode.Impulse);
-            closestRb.AddTorque(torqueImpulse, ForceMode.Impulse);
+            ApplyDistributedForce(impact, torqueImpulse);
+        }
+
+        /// <summary>
+        /// 래그돌 상태에서 추가 충격. 기존 속도는 유지하고 힘만 추가.
+        /// </summary>
+        public void ApplyAdditionalImpact(ImpactData impact, Vector3 torqueImpulse)
+        {
+            ApplyDistributedForce(impact, torqueImpulse);
+        }
+
+        private void ApplyDistributedForce(ImpactData impact, Vector3 torqueImpulse)
+        {
+            bool anyHit = false;
+
+            for (int i = 0; i < _ragdollRbs.Count; i++)
+            {
+                float dist = Vector3.Distance(_ragdollRbs[i].position, impact.HitPoint);
+                float falloff = Mathf.Clamp01(1f - dist / _impactRadius);
+                if (falloff <= 0f) continue;
+
+                _ragdollRbs[i].AddForce(impact.Impulse * falloff, ForceMode.Impulse);
+                _ragdollRbs[i].AddTorque(torqueImpulse * falloff, ForceMode.Impulse);
+                anyHit = true;
+            }
+
+            // 반경 내 뼈가 없으면 가장 가까운 뼈에 전량 적용
+            if (!anyHit)
+            {
+                Rigidbody closest = GetClosestBoneRb(impact.HitPoint);
+                closest.AddForce(impact.Impulse, ForceMode.Impulse);
+                closest.AddTorque(torqueImpulse, ForceMode.Impulse);
+            }
         }
 
         private Rigidbody GetClosestBoneRb(Vector3 point)

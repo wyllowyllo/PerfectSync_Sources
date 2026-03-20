@@ -14,6 +14,7 @@ namespace InGame.Player.Animation
         private static readonly int s_getUpFromBackHash = Animator.StringToHash("GetUpFromBack");
         private static readonly int s_getUpFromBellyHash = Animator.StringToHash("GetUpFromBelly");
         private static readonly int s_diveLandHash = Animator.StringToHash("DiveLand");
+        private static readonly int s_stumbleHash = Animator.StringToHash("Stumble");
 
         private void Awake()
         {
@@ -58,6 +59,16 @@ namespace InGame.Player.Animation
         {
             _animator.SetBool(s_getUpFromBackHash, false);
             _animator.SetBool(s_getUpFromBellyHash, false);
+        }
+
+        public void Stumble()
+        {
+            _animator.SetTrigger(s_stumbleHash);
+        }
+
+        public void ClearStumbleState()
+        {
+            _animator.ResetTrigger(s_stumbleHash);
         }
 
     }

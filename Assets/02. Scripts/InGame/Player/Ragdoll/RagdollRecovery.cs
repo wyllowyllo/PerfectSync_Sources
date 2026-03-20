@@ -24,6 +24,13 @@ namespace InGame.Player.Ragdoll
 
         public bool IsRecovering => _isBlending;
 
+        /// 블렌딩을 즉시 중단한다. BlendToAnim 중 재래그돌 진입 시 사용.
+        public void CancelBlending()
+        {
+            _isBlending = false;
+            _isOverridingRagdoll = false;
+        }
+
         // 래그돌 진입 시 호출. 매 LateUpdate에서 RB→본 복사 시작.
         public void StartRagdollOverride(IReadOnlyList<Bone> boneRbPairs)
         {

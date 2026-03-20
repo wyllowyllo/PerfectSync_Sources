@@ -67,7 +67,7 @@ namespace InGame.Player.Network
         {
             if (_ragdollController == null) return;
 
-            bool isActive = _ragdollController.IsRagdollActive;
+            bool isActive = _ragdollController.IsPhysicsRagdoll;
 
             if (_transformView != null)
                 _transformView.enabled = !_syncEnabled && !isActive;
@@ -88,7 +88,7 @@ namespace InGame.Player.Network
 
         private void FixedUpdate()
         {
-            if (_ragdollController != null && _ragdollController.IsRagdollActive) return;
+            if (_ragdollController != null && _ragdollController.IsPhysicsRagdoll) return;
 
             if (!photonView.IsMine && _syncEnabled && _hasCorrection)
             {
@@ -132,7 +132,7 @@ namespace InGame.Player.Network
             {
                 Vector3 pos = (Vector3)stream.ReceiveNext();
                 Quaternion rot = (Quaternion)stream.ReceiveNext();
-                if (_ragdollController != null && _ragdollController.IsRagdollActive) return;
+                if (_ragdollController != null && _ragdollController.IsPhysicsRagdoll) return;
                 _correctionTarget = pos;
                 _correctionRotation = rot;
                 _hasCorrection = true;
