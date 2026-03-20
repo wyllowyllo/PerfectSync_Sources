@@ -28,7 +28,7 @@ public class PlayerRotateAbility : PlayerAbility
     private void Update()
     {
         if (!Owner.PhotonView.IsMine) return;
-        if (!Owner.InputEnabled) return;
+        if (!InGameManager.IsLocalPlayerControllable) return;
 
         _yaw += Input.GetAxis("Mouse X") * _rotationSpeed * Time.deltaTime;
         _pitch -= Input.GetAxis("Mouse Y") * _rotationSpeed * Time.deltaTime;

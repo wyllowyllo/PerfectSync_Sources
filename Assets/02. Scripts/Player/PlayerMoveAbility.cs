@@ -20,7 +20,7 @@ public class PlayerMoveAbility : PlayerAbility
     private void Update()
     {
         if (!Owner.PhotonView.IsMine) return;
-        if (!Owner.InputEnabled) return;
+        if (!InGameManager.IsLocalPlayerControllable) return;
 
         Vector3 direction = GetMoveDirection();
         HandleJumpAndGravity();

@@ -8,7 +8,6 @@ using UnityEngine;
 public class PlayerController : MonoBehaviour
 {
     public PhotonView PhotonView { get; private set; }
-    public bool InputEnabled { get; set; }
 
     private Dictionary<Type, PlayerAbility> _abilitiesCache = new();
 
@@ -20,7 +19,7 @@ public class PlayerController : MonoBehaviour
     private void Update()
     {
         if (!PhotonView.IsMine) return;
-        if (!InputEnabled) return;
+        if (!InGameManager.IsLocalPlayerControllable) return;
 
         if (Input.GetKey(KeyCode.LeftAlt))
         {

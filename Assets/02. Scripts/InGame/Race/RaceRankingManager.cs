@@ -29,6 +29,8 @@ public class RaceRankingManager : MonoBehaviour
     public IReadOnlyList<TeamRankEntry> CurrentRankings => _currentRankings;
     public event Action<IReadOnlyList<TeamRankEntry>> OnRankingsUpdated;
     public static event Action<int> OnFirstPlaceFinished;
+    /// <summary>팀이 결승 처리되어 순서에 처음 포함될 때 (finishPlace: 1=1위). 정적 이벤트(등록 순서 안전).</summary>
+    public static event Action<int, int> OnTeamFinished;
 
     private void Awake()
     {
@@ -119,6 +121,7 @@ public class RaceRankingManager : MonoBehaviour
                     OnFirstPlaceFinished?.Invoke(team);
 
                 _finishOrder.Add(team);
+                OnTeamFinished?.Invoke(team, _finishOrder.Count);
             }
         }
 

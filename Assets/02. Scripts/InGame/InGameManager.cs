@@ -10,7 +10,11 @@ public enum GameState
     Loading,
     Intro,
     Countdown,
-    Playing
+    Playing,
+    /// <summary>로컬 플레이어 레이스 완료(1위 또는 제한 시간 내 완주).</summary>
+    RaceComplete,
+    /// <summary>로컬 플레이어 미완주로 레이스 종료(예: 10초 내 결승 미도착).</summary>
+    GameOver
 }
 
 [RequireComponent(typeof(PhotonView))]
@@ -29,6 +33,8 @@ public class InGameManager : MonoBehaviourPunCallbacks
 
     public GameState CurrentState { get; private set; } = GameState.Loading;
     public event Action<GameState> OnGameStateChanged;
+    /// <summary>레이스 시작 전 카운트다운 숫자(예: 3, 2, 1). 매 초 Invoke.</summary>
+    public event Action<int> OnRaceCountdownTick;
 
     private GameObject _localPlayer;
 
@@ -99,14 +105,13 @@ public class InGameManager : MonoBehaviourPunCallbacks
         SetState(GameState.Countdown);
         for (int i = _countdownSeconds; i > 0; i--)
         {
+            OnRaceCountdownTick?.Invoke(i);
             Debug.Log($"[InGameManager] {i}...");
             yield return new WaitForSeconds(1f);
         }
 
         SetState(GameState.Playing);
         Debug.Log("[InGameManager] 게임 시작!");
-
-        EnableLocalPlayerInput();
     }
 
     #endregion
@@ -119,6 +124,24 @@ public class InGameManager : MonoBehaviourPunCallbacks
         OnGameStateChanged?.Invoke(newState);
     }
 
+    /// <summary>로컬 플레이어 조작 가능 여부. <see cref="GameState.Playing"/>일 때만 true.</summary>
+    public static bool IsLocalPlayerControllable =>
+        Instance != null && Instance.CurrentState == GameState.Playing;
+
+    /// <summary>결승 완료 등으로 Playing 종료(입력 불가).</summary>
+    public void EnterLocalRaceComplete()
+    {
+        if (CurrentState != GameState.Playing) return;
+        SetState(GameState.RaceComplete);
+    }
+
+    /// <summary>제한 시간 내 미완주 등으로 Playing 종료(입력 불가).</summary>
+    public void EnterLocalGameOver()
+    {
+        if (CurrentState != GameState.Playing) return;
+        SetState(GameState.GameOver);
+    }
+
     private bool AreAllPlayersReady()
     {
         foreach (var player in PhotonNetwork.PlayerList)
@@ -127,15 +150,6 @@ public class InGameManager : MonoBehaviourPunCallbacks
                 return false;
         }
         return PhotonNetwork.PlayerList.Length > 0;
-    }
-
-    private void EnableLocalPlayerInput()
-    {
-        if (_localPlayer == null) return;
-
-        var controller = _localPlayer.GetComponent<PlayerController>();
-        if (controller != null)
-            controller.InputEnabled = true;
     }
 
     public static int GetLocalPlayerTeam()
