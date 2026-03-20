@@ -57,8 +57,6 @@ namespace InGame.Player.Network
 
         private void ApplyRemoteState()
         {
-            _isRemoteBody = true;
-
             if (_playerMovement != null)
                 _playerMovement.enabled = false;
 
@@ -71,8 +69,6 @@ namespace InGame.Player.Network
 
         private void ApplyLocalState()
         {
-            _isRemoteBody = false;
-
             if (_playerMovement != null)
                 _playerMovement.enabled = true;
 

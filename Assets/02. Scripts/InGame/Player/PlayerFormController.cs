@@ -100,10 +100,6 @@ namespace InGame.Player
             }
         }
 
-        public void Tick()
-        {
-        }
-
         private void ExecuteSwitch(ETeamMode targetMode)
         {
             switch (targetMode)
@@ -125,6 +121,11 @@ namespace InGame.Player
             // 위치/속도 평균 계산.
             Vector3 avgPosition = (_avatarA.transform.position + _avatarB.transform.position) * 0.5f;
             Vector3 avgVelocity = (_avatarAControllable.Velocity + _avatarBControllable.Velocity) * 0.5f;
+
+            // 회전: 두 아바타 forward 평균. 영벡터(정반대 방향)인 경우 기존 회전 유지.
+            Vector3 avgForward = (_avatarA.transform.forward + _avatarB.transform.forward) * 0.5f;
+            if (avgForward.sqrMagnitude > 0.001f)
+                _mergedBody.transform.rotation = Quaternion.LookRotation(avgForward);
 
             _mergedBody.transform.position = avgPosition;
             _mergedBody.SetActive(true);

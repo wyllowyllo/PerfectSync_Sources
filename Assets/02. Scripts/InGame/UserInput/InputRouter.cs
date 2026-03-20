@@ -77,7 +77,6 @@ namespace InGame.UserInput
 
         private void Update()
         {
-            _playerFormController.Tick();
             ReadLocalInput();
             RouteInput();
             SendLocalInput();
