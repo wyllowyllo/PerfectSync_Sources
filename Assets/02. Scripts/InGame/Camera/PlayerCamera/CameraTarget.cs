@@ -8,7 +8,7 @@ namespace InGame.Camera.PlayerCamera
         [SerializeField] private float _smoothSpeed = 10f;
         [SerializeField] private Transform _visualPelvis;
         [SerializeField] private Transform _ragdollPelvis;
-        [SerializeField] private RagdollController _ragdollController;
+        [SerializeField] private RagdollStateMachine _ragdollController;
 
         private Transform _followPoint;
 

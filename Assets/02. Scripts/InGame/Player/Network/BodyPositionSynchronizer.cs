@@ -10,7 +10,7 @@ namespace InGame.Player.Network
     public class BodyPositionSynchronizer : MonoBehaviourPun, IPunObservable
     {
         [SerializeField] private Rigidbody _rootBody;
-        [SerializeField] private RagdollController _ragdollController;
+        [SerializeField] private RagdollStateMachine _ragdollController;
         [SerializeField] private PlayerMovement _movement;
 
         private PhotonTransformView _transformView;

@@ -2,7 +2,7 @@ using UnityEngine;
 
 namespace InGame.Player.Ragdoll
 {
-    public enum ERagdollState { Animated, Stumble, Ragdoll, BlendToAnim, Dead }
+    public enum ERagdollState { Animated, Stumble, Ragdoll, Recovery, Dead }
 
     public interface IRagdoll
     {

@@ -187,7 +187,7 @@ namespace InGame.Player
         private void ForceRecoverBody(GameObject body)
         {
             if (body == null) return;
-            var ragdoll = body.GetComponentInChildren<RagdollController>();
+            var ragdoll = body.GetComponentInChildren<RagdollStateMachine>();
             if (ragdoll != null && ragdoll.IsRagdollActive)
                 ragdoll.ForceRecover();
         }

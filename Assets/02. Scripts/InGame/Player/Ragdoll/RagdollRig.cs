@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace InGame.Player.Ragdoll
 {
-    public class DualRagdollRig : MonoBehaviour, IRagdollRig
+    public class RagdollRig : MonoBehaviour, IRagdollRig
     {
         [SerializeField] private Transform _pelvis;
         [SerializeField] private Rigidbody _rootBody;

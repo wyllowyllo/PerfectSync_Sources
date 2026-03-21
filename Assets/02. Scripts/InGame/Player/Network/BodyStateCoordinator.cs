@@ -72,7 +72,7 @@ namespace InGame.Player.Network
         {
             var hitBody = ResolveBodyByViewID(hitViewID);
             if (hitBody == null) return;
-            FindInBody<RagdollController>(hitBody)?.OnHitImpact(impulse, hitPoint, torqueVector);
+            FindInBody<RagdollStateMachine>(hitBody)?.OnHitImpact(impulse, hitPoint, torqueVector);
         }
 
         private void HandleDeath()
@@ -80,11 +80,11 @@ namespace InGame.Player.Network
             switch (_currentMode)
             {
                 case ETeamMode.Merged:
-                    FindInBody<RagdollController>(_mergedBody)?.EnterDead();
+                    FindInBody<RagdollStateMachine>(_mergedBody)?.EnterDead();
                     break;
                 case ETeamMode.Separated:
-                    FindInBody<RagdollController>(_avatarA)?.EnterDead();
-                    FindInBody<RagdollController>(_avatarB)?.EnterDead();
+                    FindInBody<RagdollStateMachine>(_avatarA)?.EnterDead();
+                    FindInBody<RagdollStateMachine>(_avatarB)?.EnterDead();
                     break;
             }
         }
