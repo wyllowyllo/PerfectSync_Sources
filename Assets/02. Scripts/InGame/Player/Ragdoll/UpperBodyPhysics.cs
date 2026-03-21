@@ -9,15 +9,9 @@ namespace InGame.Player.Ragdoll
         [SerializeField] private float _damper = 8f;
         [SerializeField] private float _impulseMultiplier = 3f;
 
-        private Rigidbody _spineRb;
         private Vector3 _angularVelocity;
         private Quaternion _rotationOffset = Quaternion.identity;
         private bool _isActive = true;
-
-        private void Awake()
-        {
-            _spineRb = _spineTransform.GetComponent<Rigidbody>();
-        }
 
         private void LateUpdate()
         {
@@ -60,9 +54,6 @@ namespace InGame.Player.Ragdoll
 
             if (!active)
             {
-                if (_spineRb != null)
-                    _spineRb.isKinematic = true;
-
                 _angularVelocity = Vector3.zero;
                 _rotationOffset = Quaternion.identity;
             }

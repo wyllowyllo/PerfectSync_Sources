@@ -3,13 +3,14 @@ using UnityEngine;
 
 namespace InGame.Camera.PlayerCamera
 {
-    [RequireComponent(typeof(RagdollPhysicsToggle))]
     public class CameraTarget : MonoBehaviour
     {
         [SerializeField] private float _smoothSpeed = 10f;
+        [SerializeField] private Transform _visualPelvis;
+        [SerializeField] private Transform _ragdollPelvis;
+        [SerializeField] private RagdollController _ragdollController;
 
         private Transform _followPoint;
-        private Transform _hipsRoot;
 
         public Transform FollowPoint => _followPoint;
 
@@ -19,15 +20,16 @@ namespace InGame.Camera.PlayerCamera
             followObj.transform.SetParent(transform);
             followObj.transform.localPosition = Vector3.zero;
             _followPoint = followObj.transform;
-
-            var physicsToggle = GetComponent<RagdollPhysicsToggle>();
-            _hipsRoot = physicsToggle.HipsRoot;
         }
 
         private void LateUpdate()
         {
+            Transform target = _ragdollController != null && _ragdollController.IsPhysicsRagdoll
+                ? _ragdollPelvis
+                : _visualPelvis;
+
             float t = 1f - Mathf.Exp(-_smoothSpeed * Time.deltaTime);
-            _followPoint.position = Vector3.Lerp(_followPoint.position, _hipsRoot.position, t);
+            _followPoint.position = Vector3.Lerp(_followPoint.position, target.position, t);
         }
     }
 }

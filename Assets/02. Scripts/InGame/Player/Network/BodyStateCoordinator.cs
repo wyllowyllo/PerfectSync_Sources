@@ -16,17 +16,17 @@ namespace InGame.Player.Network
         [SerializeField] private GameObject _avatarB;
 
         private PlayerFormController _playerFormController;
-        private LocalPlayerInput localPlayerInput;
+        private LocalPlayerInput _localPlayerInput;
         private ETeamMode _currentMode;
 
         private void Start()
         {
             _playerFormController = GetComponent<PlayerFormController>();
-            localPlayerInput = GetComponent<LocalPlayerInput>();
+            _localPlayerInput = GetComponent<LocalPlayerInput>();
 
             _playerFormController.OnModeChanged += HandleModeChanged;
-            localPlayerInput.OnImpactReceived += HandleImpact;
-            localPlayerInput.OnDeathReceived += HandleDeath;
+            _localPlayerInput.OnImpactReceived += HandleImpact;
+            _localPlayerInput.OnDeathReceived += HandleDeath;
         }
 
         private void OnDestroy()
@@ -34,10 +34,10 @@ namespace InGame.Player.Network
             if (_playerFormController != null)
                 _playerFormController.OnModeChanged -= HandleModeChanged;
 
-            if (localPlayerInput != null)
+            if (_localPlayerInput != null)
             {
-                localPlayerInput.OnImpactReceived -= HandleImpact;
-                localPlayerInput.OnDeathReceived -= HandleDeath;
+                _localPlayerInput.OnImpactReceived -= HandleImpact;
+                _localPlayerInput.OnDeathReceived -= HandleDeath;
             }
         }
 
@@ -55,15 +55,15 @@ namespace InGame.Player.Network
             SetRemoteOnBody(_avatarA, isMerged);
             SetRemoteOnBody(_avatarB, isMerged);
 
-            _mergedBody?.GetComponent<BodyPositionSynchronizer>()?.SetSyncEnabled(isMerged);
-            _avatarA?.GetComponent<BodyPositionSynchronizer>()?.SetSyncEnabled(!isMerged);
-            _avatarB?.GetComponent<BodyPositionSynchronizer>()?.SetSyncEnabled(!isMerged);
+            FindInBody<BodyPositionSynchronizer>(_mergedBody)?.SetSyncEnabled(isMerged);
+            FindInBody<BodyPositionSynchronizer>(_avatarA)?.SetSyncEnabled(!isMerged);
+            FindInBody<BodyPositionSynchronizer>(_avatarB)?.SetSyncEnabled(!isMerged);
         }
 
         private void SetRemoteOnBody(GameObject body, bool isRemote)
         {
             if (body == null) return;
-            var controller = body.GetComponent<BodySimulationToggle>();
+            var controller = FindInBody<BodySimulationToggle>(body);
             if (controller != null)
                 controller.SetRemote(isRemote);
         }
@@ -72,7 +72,7 @@ namespace InGame.Player.Network
         {
             var hitBody = ResolveBodyByViewID(hitViewID);
             if (hitBody == null) return;
-            hitBody.GetComponent<RagdollController>()?.OnHitImpact(impulse, hitPoint, torqueVector);
+            FindInBody<RagdollController>(hitBody)?.OnHitImpact(impulse, hitPoint, torqueVector);
         }
 
         private void HandleDeath()
@@ -80,11 +80,11 @@ namespace InGame.Player.Network
             switch (_currentMode)
             {
                 case ETeamMode.Merged:
-                    _mergedBody?.GetComponent<RagdollController>()?.EnterDead();
+                    FindInBody<RagdollController>(_mergedBody)?.EnterDead();
                     break;
                 case ETeamMode.Separated:
-                    _avatarA?.GetComponent<RagdollController>()?.EnterDead();
-                    _avatarB?.GetComponent<RagdollController>()?.EnterDead();
+                    FindInBody<RagdollController>(_avatarA)?.EnterDead();
+                    FindInBody<RagdollController>(_avatarB)?.EnterDead();
                     break;
             }
         }
@@ -100,8 +100,14 @@ namespace InGame.Player.Network
         private static bool MatchesViewID(GameObject body, int viewID)
         {
             if (body == null) return false;
-            var pv = body.GetComponent<PhotonView>();
+            var pv = body.GetComponentInChildren<PhotonView>();
             return pv != null && pv.ViewID == viewID;
+        }
+
+        private static T FindInBody<T>(GameObject body) where T : Component
+        {
+            if (body == null) return null;
+            return body.GetComponentInChildren<T>();
         }
     }
 }

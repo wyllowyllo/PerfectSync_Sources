@@ -5,9 +5,19 @@ using UnityEngine;
 
 namespace InGame.Player.Ragdoll
 {
-    [RequireComponent(typeof(RagdollPhysicsToggle), typeof(RagdollRecovery))]
     public class RagdollController : MonoBehaviour, IRagdoll
     {
+        [Header("References")]
+        [SerializeField] private Rigidbody _rootBody;
+        [SerializeField] private DualRagdollRig _ragdollRig;
+        [SerializeField] private PoseTransfer _poseTransfer;
+        [SerializeField] private PlayerAnimation _animation;
+        [SerializeField] private UpperBodyPhysics _upperBodyPhysics;
+
+        [Header("Recovery")]
+        [SerializeField] private float _groundCheckDistance = 10f;
+        [SerializeField] private LayerMask _groundLayer;
+
         [Header("Thresholds")]
         [SerializeField] private float _stumbleThreshold = 4f;
         [SerializeField] private float _ragdollThreshold = 8f;
@@ -25,45 +35,35 @@ namespace InGame.Player.Ragdoll
         [SerializeField] private float _settleVelocity = 0.5f;
         [SerializeField] private float _impactRadius = 2.0f;
 
-        [Header("Recovery")]
+        [Header("Recovery Blend")]
+        [SerializeField] private float _getUpDuration = 1.0f;
+
+        [Header("Re-Impact")]
         [SerializeField, Range(0f, 1f)] private float _reImpactMultiplier = 0.6f;
 
         [Header("Instability")]
         [SerializeField] private float _instabilityDecayRate = 4f;
 
-        private RagdollPhysicsToggle _physicsToggle;
-        private RagdollRecovery _recovery;
-        private UpperBodyPhysics _upperBodyPhysics;
-        private PlayerAnimation _animation;
         private ERagdollState _currentState = ERagdollState.Animated;
         private RagdollImpactTransfer _impactTransfer;
         private Coroutine _activeCoroutine;
         private float _instability;
 
+        private const float RayOriginUpOffset = 0.5f;
+        private const float MinDirectionSqrMagnitude = 0.001f;
+
         public ERagdollState CurrentState => _currentState;
         public bool IsRagdollActive => _currentState != ERagdollState.Animated;
 
-        /// <summary>
-        /// 래그돌 뼈가 물리를 구동 중인지 (캡슐이 kinematic).
-        /// Stumble은 캡슐이 여전히 활성이므로 포함하지 않음.
-        /// </summary>
         public bool IsPhysicsRagdoll => _currentState == ERagdollState.Ragdoll ||
                                         _currentState == ERagdollState.BlendToAnim ||
                                         _currentState == ERagdollState.Dead;
 
         public event Action<Vector3, Quaternion, bool> OnRecoveryDataReady;
 
-        private void Awake()
-        {
-            _physicsToggle = GetComponent<RagdollPhysicsToggle>();
-            _recovery = GetComponent<RagdollRecovery>();
-            _upperBodyPhysics = GetComponent<UpperBodyPhysics>();
-            _animation = GetComponent<PlayerAnimation>();
-        }
-
         private void Start()
         {
-            _impactTransfer = new RagdollImpactTransfer(_physicsToggle.RagdollRigidbodies, _impactRadius);
+            _impactTransfer = new RagdollImpactTransfer(_ragdollRig.Rigidbodies, _impactRadius);
         }
 
         private void Update()
@@ -72,21 +72,27 @@ namespace InGame.Player.Ragdoll
                 _instability = Mathf.Max(0f, _instability - _instabilityDecayRate * Time.deltaTime);
         }
 
+        private void LateUpdate()
+        {
+            // 래그돌 활성 중: RagdollRig → VisualRoot 포즈 복사 (렌더링용).
+            if (_currentState == ERagdollState.Ragdoll || _currentState == ERagdollState.Dead)
+                _poseTransfer.CopyPose();
+        }
+
         public void OnHitImpact(Vector3 impulse, Vector3 hitPoint, Vector3 torqueVector)
         {
             var impact = new ImpactData(impulse, hitPoint);
             float effectiveMagnitude = impact.Magnitude + _instability;
 
-            // BlendToAnim 중 재충격 → 래그돌 복귀 (낮은 임계값)
+            // BlendToAnim 중 재충격 → 래그돌 복귀 (낮은 임계값).
             if (_currentState == ERagdollState.BlendToAnim &&
                 effectiveMagnitude >= _ragdollThreshold * _reImpactMultiplier)
             {
-                _recovery.CancelBlending();
                 EnterRagdoll(impact, torqueVector);
                 return;
             }
 
-            // 래그돌 중 추가 충격 → 타이머 리셋 + 추가 힘
+            // 래그돌 중 추가 충격 → 타이머 리셋 + 추가 힘.
             if (_currentState == ERagdollState.Ragdoll)
             {
                 StopActiveCoroutine();
@@ -95,21 +101,21 @@ namespace InGame.Player.Ragdoll
                 return;
             }
 
-            // 풀 래그돌 임계값
+            // 풀 래그돌 임계값.
             if (effectiveMagnitude >= _ragdollThreshold)
             {
                 EnterRagdoll(impact, torqueVector);
                 return;
             }
 
-            // Stumble 임계값
+            // Stumble 임계값.
             if (impact.Magnitude >= _stumbleThreshold && _currentState != ERagdollState.Dead)
             {
                 EnterStumble(impact);
                 return;
             }
 
-            // 약한 충격 → 상체 흔들림
+            // 약한 충격 → 상체 흔들림.
             if (_upperBodyPhysics != null && _currentState == ERagdollState.Animated)
                 _upperBodyPhysics.AddImpulse(impulse);
         }
@@ -122,12 +128,9 @@ namespace InGame.Player.Ragdoll
             _currentState = ERagdollState.Stumble;
             _instability += impact.Magnitude;
 
-            // 캡슐에 밀림 적용
-            Rigidbody capsuleRb = _physicsToggle.CapsuleRigidbody;
             Vector3 pushDir = impact.Impulse.normalized;
-            capsuleRb.AddForce(pushDir * impact.Magnitude * _stumblePushMultiplier, ForceMode.Impulse);
+            _rootBody.AddForce(pushDir * impact.Magnitude * _stumblePushMultiplier, ForceMode.Impulse);
 
-            // 상체 강한 흔들림
             if (_upperBodyPhysics != null)
                 _upperBodyPhysics.AddImpulse(impact.Impulse * _stumbleWobbleMultiplier);
 
@@ -159,21 +162,21 @@ namespace InGame.Player.Ragdoll
 
         private void EnterRagdoll(ImpactData impact, Vector3 torqueVector)
         {
-            ERagdollState prevState = _currentState;
             StopActiveCoroutine();
-
             _currentState = ERagdollState.Ragdoll;
             _instability = 0f;
 
-            _recovery.StartRagdollOverride(_physicsToggle.Bones);
+            // 현재 애니메이션 포즈를 RagdollRig에 복사.
+            _poseTransfer.SetDirection(EPoseDirection.AnimToRagdoll);
+            _poseTransfer.CopyPose();
 
-            // BlendToAnim에서 재진입 시 RB를 현재 본 위치로 동기화
-            if (prevState == ERagdollState.BlendToAnim)
-                SyncRagdollRbsToBones();
-
-            Vector3 inheritedVelocity = _physicsToggle.CapsuleRigidbody.linearVelocity;
-            _physicsToggle.Activate();
+            // RagdollRig 활성화 + 충격 적용.
+            Vector3 inheritedVelocity = _rootBody.linearVelocity;
+            _ragdollRig.Activate(inheritedVelocity);
             _impactTransfer.TransferImpact(impact, inheritedVelocity, torqueVector);
+
+            // 이후 LateUpdate에서 RagdollRig → VisualRoot 복사.
+            _poseTransfer.SetDirection(EPoseDirection.RagdollToAnim);
 
             SetUpperBodyActive(false);
             _activeCoroutine = StartCoroutine(RecoveryCoroutine());
@@ -183,57 +186,72 @@ namespace InGame.Player.Ragdoll
         {
             yield return new WaitForSeconds(_minRagdollDuration);
 
-            // 속도 기반 정지 감지 (최대 시간까지)
             float elapsed = _minRagdollDuration;
-            while (elapsed < _maxRagdollDuration && !IsRagdollSettled())
+            while (elapsed < _maxRagdollDuration && !_ragdollRig.IsSettled(_settleVelocity))
             {
                 yield return new WaitForFixedUpdate();
                 elapsed += Time.fixedDeltaTime;
             }
 
             if (_currentState == ERagdollState.Ragdoll)
-            {
-                _currentState = ERagdollState.BlendToAnim;
-
-                bool isFaceUp = _recovery.PrepareRecovery();
-                OnRecoveryDataReady?.Invoke(transform.position, transform.rotation, isFaceUp);
-
-                _physicsToggle.Deactivate();
-
-                Rigidbody capsuleRb = _physicsToggle.CapsuleRigidbody;
-                capsuleRb.linearVelocity = Vector3.zero;
-                capsuleRb.angularVelocity = Vector3.zero;
-
-                _animation.GetUp(isFaceUp);
-                _recovery.StartBlending(OnRecoveryComplete);
-            }
+                BeginRecovery();
 
             _activeCoroutine = null;
         }
 
-        private bool IsRagdollSettled()
+        private void BeginRecovery()
         {
-            var rbs = _physicsToggle.RagdollRigidbodies;
+            _currentState = ERagdollState.BlendToAnim;
 
-            // 힙(루트 뼈)의 수직 속도가 크면 아직 낙하 중
-            if (Mathf.Abs(rbs[0].linearVelocity.y) > _settleVelocity)
-                return false;
+            // 마지막 래그돌 포즈를 VisualRoot에 확정 복사.
+            _poseTransfer.CopyPose();
+            _poseTransfer.Stop();
 
-            float totalSqrSpeed = 0f;
-            for (int i = 0; i < rbs.Count; i++)
-                totalSqrSpeed += rbs[i].linearVelocity.sqrMagnitude;
+            // 펠비스 기준으로 RootBody 위치 정렬.
+            Transform pelvis = _ragdollRig.PelvisTransform;
+            bool isFaceUp = (pelvis.rotation * Vector3.forward).y > 0f;
+            AlignRootBodyToPelvis(pelvis);
 
-            return totalSqrSpeed / rbs.Count < _settleVelocity * _settleVelocity;
+            OnRecoveryDataReady?.Invoke(_rootBody.position, _rootBody.rotation, isFaceUp);
+
+            _ragdollRig.Deactivate();
+
+            // Animator GetUp 재생. 일정 시간 후 자동으로 Animated 전환.
+            _animation.GetUp(isFaceUp);
+            _activeCoroutine = StartCoroutine(GetUpCoroutine());
         }
 
-        private void SyncRagdollRbsToBones()
+        private IEnumerator GetUpCoroutine()
         {
-            var bones = _physicsToggle.Bones;
-            for (int i = 0; i < bones.Count; i++)
-            {
-                bones[i].Rb.position = bones[i].Transform.position;
-                bones[i].Rb.rotation = bones[i].Transform.rotation;
-            }
+            yield return new WaitForSeconds(_getUpDuration);
+
+            if (_currentState == ERagdollState.BlendToAnim)
+                OnGetUpComplete();
+
+            _activeCoroutine = null;
+        }
+
+        private void AlignRootBodyToPelvis(Transform pelvis)
+        {
+            Vector3 pelvisPos = pelvis.position;
+            float groundY = GetGroundY(pelvisPos);
+            _rootBody.position = new Vector3(pelvisPos.x, groundY, pelvisPos.z);
+
+            Vector3 hipsForward = pelvis.rotation * Vector3.forward;
+            hipsForward.y = 0f;
+
+            if (hipsForward.sqrMagnitude > MinDirectionSqrMagnitude)
+                _rootBody.rotation = Quaternion.LookRotation(hipsForward);
+        }
+
+        private float GetGroundY(Vector3 origin)
+        {
+            Vector3 rayOrigin = origin + Vector3.up * RayOriginUpOffset;
+
+            if (Physics.Raycast(rayOrigin, Vector3.down, out RaycastHit hit, _groundCheckDistance, _groundLayer))
+                return hit.point.y;
+
+            return origin.y;
         }
 
         #endregion
@@ -247,19 +265,24 @@ namespace InGame.Player.Ragdoll
             StopActiveCoroutine();
             _currentState = ERagdollState.BlendToAnim;
 
-            _recovery.PrepareRecoveryWithOverride(rootPos, rootRot);
-            _physicsToggle.Deactivate();
+            // 마지막 래그돌 포즈를 VisualRoot에 확정 복사.
+            _poseTransfer.CopyPose();
+            _poseTransfer.Stop();
 
-            var capsuleRb = _physicsToggle.CapsuleRigidbody;
-            capsuleRb.linearVelocity = Vector3.zero;
-            capsuleRb.angularVelocity = Vector3.zero;
+            _rootBody.position = rootPos;
+            _rootBody.rotation = rootRot;
+
+            _ragdollRig.Deactivate();
 
             _animation.GetUp(isFaceUp);
-            _recovery.StartBlending(OnRecoveryComplete);
+            _activeCoroutine = StartCoroutine(GetUpCoroutine());
         }
 
-        private void OnRecoveryComplete()
+        // Animator의 GetUp 애니메이션이 끝나면 호출. 코루틴 폴백으로도 자동 호출됨.
+        public void OnGetUpComplete()
         {
+            if (_currentState != ERagdollState.BlendToAnim) return;
+
             _currentState = ERagdollState.Animated;
             _animation.ClearGetUpState();
             SetUpperBodyActive(true);
@@ -271,33 +294,28 @@ namespace InGame.Player.Ragdoll
         {
             StopActiveCoroutine();
             _currentState = ERagdollState.Dead;
-            _recovery.StartRagdollOverride(_physicsToggle.Bones);
-            Vector3 inheritedVelocity = _physicsToggle.CapsuleRigidbody.linearVelocity;
-            _physicsToggle.Activate();
-            _impactTransfer.TransferImpact(new ImpactData(Vector3.zero, transform.position), inheritedVelocity, Vector3.zero);
+
+            _poseTransfer.SetDirection(EPoseDirection.AnimToRagdoll);
+            _poseTransfer.CopyPose();
+
+            Vector3 inheritedVelocity = _rootBody.linearVelocity;
+            _ragdollRig.Activate(inheritedVelocity);
+            _impactTransfer.TransferImpact(new ImpactData(Vector3.zero, _rootBody.position), inheritedVelocity, Vector3.zero);
+
+            _poseTransfer.SetDirection(EPoseDirection.RagdollToAnim);
             SetUpperBodyActive(false);
         }
 
-        /// 래그돌/Stumble을 즉시 종료하고 Animated로 강제 회복.
-        /// Dead 상태는 영구이므로 회복하지 않는다.
         public void ForceRecover()
         {
             if (_currentState == ERagdollState.Dead) return;
 
-            ERagdollState prevState = _currentState;
             StopActiveCoroutine();
             _currentState = ERagdollState.Animated;
             _instability = 0f;
 
-            if (prevState == ERagdollState.Ragdoll || prevState == ERagdollState.BlendToAnim)
-            {
-                _recovery.CancelBlending();
-                _physicsToggle.Deactivate();
-            }
-
-            var capsuleRb = _physicsToggle.CapsuleRigidbody;
-            capsuleRb.linearVelocity = Vector3.zero;
-            capsuleRb.angularVelocity = Vector3.zero;
+            _poseTransfer.Stop();
+            _ragdollRig.Deactivate();
 
             _animation.ClearGetUpState();
             _animation.ClearStumbleState();

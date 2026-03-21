@@ -2,10 +2,9 @@ using UnityEngine;
 
 namespace InGame.Player.Animation
 {
-    [RequireComponent(typeof(Animator))]
     public class PlayerAnimation : MonoBehaviour
     {
-        private Animator _animator;
+        [SerializeField] private Animator _animator;
 
         private static readonly int s_speedHash = Animator.StringToHash("Speed");
         private static readonly int s_isGroundedHash = Animator.StringToHash("IsGrounded");
@@ -15,11 +14,6 @@ namespace InGame.Player.Animation
         private static readonly int s_getUpFromBellyHash = Animator.StringToHash("GetUpFromBelly");
         private static readonly int s_diveLandHash = Animator.StringToHash("DiveLand");
         private static readonly int s_stumbleHash = Animator.StringToHash("Stumble");
-
-        private void Awake()
-        {
-            _animator = GetComponent<Animator>();
-        }
 
         public void Locomotion(bool isGrounded, float speed)
         {
@@ -70,6 +64,5 @@ namespace InGame.Player.Animation
         {
             _animator.ResetTrigger(s_stumbleHash);
         }
-
     }
 }

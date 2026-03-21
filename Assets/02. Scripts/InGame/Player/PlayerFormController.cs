@@ -54,9 +54,9 @@ namespace InGame.Player
 
         private void Awake()
         {
-            _mergedControllable = _mergedBody.GetComponent<IControllableBody>();
-            _avatarAControllable = _avatarA.GetComponent<IControllableBody>();
-            _avatarBControllable = _avatarB.GetComponent<IControllableBody>();
+            _mergedControllable = _mergedBody.GetComponentInChildren<IControllableBody>();
+            _avatarAControllable = _avatarA.GetComponentInChildren<IControllableBody>();
+            _avatarBControllable = _avatarB.GetComponentInChildren<IControllableBody>();
         }
 
         public void Initialize(ETeamMode startMode)
@@ -118,16 +118,18 @@ namespace InGame.Player
 
         private void SwitchToMerged()
         {
-            // 위치/속도 평균 계산.
-            Vector3 avgPosition = (_avatarA.transform.position + _avatarB.transform.position) * 0.5f;
+            Transform bodyA = _avatarAControllable.BodyTransform;
+            Transform bodyB = _avatarBControllable.BodyTransform;
+            Transform mergedBodyT = _mergedControllable.BodyTransform;
+
+            Vector3 avgPosition = (bodyA.position + bodyB.position) * 0.5f;
             Vector3 avgVelocity = (_avatarAControllable.Velocity + _avatarBControllable.Velocity) * 0.5f;
 
-            // 회전: 두 아바타 forward 평균. 영벡터(정반대 방향)인 경우 기존 회전 유지.
-            Vector3 avgForward = (_avatarA.transform.forward + _avatarB.transform.forward) * 0.5f;
+            Vector3 avgForward = (bodyA.forward + bodyB.forward) * 0.5f;
             if (avgForward.sqrMagnitude > 0.001f)
-                _mergedBody.transform.rotation = Quaternion.LookRotation(avgForward);
+                mergedBodyT.rotation = Quaternion.LookRotation(avgForward);
 
-            _mergedBody.transform.position = avgPosition;
+            mergedBodyT.position = avgPosition;
             _mergedBody.SetActive(true);
             _mergedControllable.Velocity = avgVelocity;
 
@@ -137,15 +139,16 @@ namespace InGame.Player
 
         private void SwitchToSeparated()
         {
-            Vector3 basePosition = _mergedBody.transform.position;
+            Transform mergedBodyT = _mergedControllable.BodyTransform;
+            Vector3 basePosition = mergedBodyT.position;
             Vector3 velocity = _mergedControllable.Velocity;
 
-            Vector3 right = _mergedBody.transform.right;
+            Vector3 right = mergedBodyT.right;
             Vector3 posA = basePosition - right * _separationOffset;
             Vector3 posB = basePosition + right * _separationOffset;
 
-            _avatarA.transform.position = posA;
-            _avatarB.transform.position = posB;
+            _avatarAControllable.BodyTransform.position = posA;
+            _avatarBControllable.BodyTransform.position = posB;
             _avatarA.SetActive(true);
             _avatarB.SetActive(true);
             _avatarAControllable.Velocity = velocity;
@@ -184,7 +187,7 @@ namespace InGame.Player
         private void ForceRecoverBody(GameObject body)
         {
             if (body == null) return;
-            var ragdoll = body.GetComponent<RagdollController>();
+            var ragdoll = body.GetComponentInChildren<RagdollController>();
             if (ragdoll != null && ragdoll.IsRagdollActive)
                 ragdoll.ForceRecover();
         }
