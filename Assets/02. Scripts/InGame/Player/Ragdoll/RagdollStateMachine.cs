@@ -43,11 +43,15 @@ namespace InGame.Player.Ragdoll
         [Header("Instability")]
         [SerializeField] private float _instabilityDecayRate = 4f;
 
+        [Header("Root Body Tracking")]
+        [SerializeField] private float _rootBodyTrackingSpeed = 5f;
+
         private ERagdollState _currentState = ERagdollState.Animated;
         private RagdollImpactTransfer _impactTransfer;
         private float _instability;
         private float _stateTimer;
         private float _stumbleDuration;
+        private bool _shouldTrackPelvis;
 
         private const float RayOriginUpOffset = 0.5f;
         private const float MinDirectionSqrMagnitude = 0.001f;
@@ -86,6 +90,16 @@ namespace InGame.Player.Ragdoll
                     break;
                 case ERagdollState.Dead:
                     break;
+            }
+        }
+
+        private void FixedUpdate()
+        {
+            if (_shouldTrackPelvis)
+            {
+                Vector3 pelvisPos = _ragdollRig.PelvisTransform.position;
+                float t = 1f - Mathf.Exp(-_rootBodyTrackingSpeed * Time.fixedDeltaTime);
+                _rootBody.MovePosition(Vector3.Lerp(_rootBody.position, pelvisPos, t));
             }
         }
 
@@ -148,6 +162,7 @@ namespace InGame.Player.Ragdoll
                 Vector3.zero);
 
             _poseTransfer.SetDirection(EPoseDirection.RagdollToAnim);
+            _shouldTrackPelvis = false;
             SetActiveRagdollForceActive(false);
         }
 
@@ -157,6 +172,7 @@ namespace InGame.Player.Ragdoll
 
             ERagdollState prevState = _currentState;
             _currentState = ERagdollState.Animated;
+            _shouldTrackPelvis = false;
             _instability = 0f;
             _stateTimer = 0f;
 
@@ -248,6 +264,7 @@ namespace InGame.Player.Ragdoll
 
             _poseTransfer.SetDirection(EPoseDirection.RagdollToAnim);
 
+            _shouldTrackPelvis = true;
             SetActiveRagdollForceActive(true);
         }
 
@@ -264,6 +281,7 @@ namespace InGame.Player.Ragdoll
 
         private void BeginRecovery()
         {
+            _shouldTrackPelvis = false;
             _poseTransfer.Stop();
 
             Transform pelvis = _ragdollRig.PelvisTransform;

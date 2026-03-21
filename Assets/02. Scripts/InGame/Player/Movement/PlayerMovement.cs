@@ -98,7 +98,6 @@ namespace InGame.Player.Movement
                 float stumbleFactor = isStumbling ? _stumbleSpeedMultiplier : 1f;
                 float speedMultiplier = (_isGrounded ? 1f : _airControlFactor) * stumbleFactor;
                 Accelerate(_inputDirection * _moveSpeed * speedMultiplier);
-                RotateToVelocity();
             }
 
             // 애니메이션 파라미터 갱신.
@@ -141,6 +140,14 @@ namespace InGame.Player.Movement
             velocity.x = _currentVelocity.x;
             velocity.z = _currentVelocity.z;
             _rootBody.linearVelocity = velocity;
+
+            if (_currentVelocity.sqrMagnitude > 0.01f)
+            {
+                Quaternion targetRot = Quaternion.LookRotation(_currentVelocity);
+                _rootBody.MoveRotation(Quaternion.Slerp(
+                    _rootBody.rotation, targetRot,
+                    Time.fixedDeltaTime * _rotationSpeed));
+            }
         }
 
         public void ApplyInput(Vector3 worldDirection, bool jump)
@@ -163,17 +170,6 @@ namespace InGame.Player.Movement
             else
             {
                 _currentVelocity = targetVelocity;
-            }
-        }
-
-        private void RotateToVelocity()
-        {
-            if (_currentVelocity.sqrMagnitude > 0.01f)
-            {
-                _rootBody.rotation = Quaternion.Slerp(
-                    _rootBody.rotation,
-                    Quaternion.LookRotation(_currentVelocity),
-                    Time.deltaTime * _rotationSpeed);
             }
         }
 
