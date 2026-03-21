@@ -32,6 +32,7 @@ namespace InGame.Player.Ragdoll
         [SerializeField] private float _maxRagdollDuration = 3.0f;
         [SerializeField] private float _settleVelocity = 0.5f;
         [SerializeField] private float _impactRadius = 2.0f;
+        [SerializeField] private float _impactForceScale = 0.3f;
 
         [Header("Recovery Blend")]
         [SerializeField] private float _recoveryDuration = 0.25f;
@@ -62,16 +63,17 @@ namespace InGame.Player.Ragdoll
 
         private void Start()
         {
-            _impactTransfer = new RagdollImpactTransfer(_ragdollRig.Rigidbodies, _impactRadius);
+            _impactTransfer = new RagdollImpactTransfer(_ragdollRig.Rigidbodies, _impactRadius, _impactForceScale);
             SetActiveRagdollForceActive(false);
         }
 
         private void Update()
         {
+            DecayInstability();
+
             switch (_currentState)
             {
                 case ERagdollState.Animated:
-                    UpdateAnimated();
                     break;
                 case ERagdollState.Stumble:
                     UpdateStumble();
@@ -131,6 +133,8 @@ namespace InGame.Player.Ragdoll
 
         public void EnterDead()
         {
+            if (_currentState == ERagdollState.Dead) return;
+
             _currentState = ERagdollState.Dead;
 
             _poseTransfer.SetDirection(EPoseDirection.AnimToRagdoll);
@@ -151,17 +155,21 @@ namespace InGame.Player.Ragdoll
         {
             if (_currentState == ERagdollState.Dead) return;
 
+            ERagdollState prevState = _currentState;
             _currentState = ERagdollState.Animated;
             _instability = 0f;
             _stateTimer = 0f;
 
-            _poseTransfer.Stop();
-            _ragdollRig.Deactivate();
-            _poseTransfer.RestoreVisualBones();
+            if (prevState == ERagdollState.Ragdoll || prevState == ERagdollState.Recovery)
+            {
+                _poseTransfer.Stop();
+                _ragdollRig.Deactivate();
+                _poseTransfer.RestoreVisualBones();
+                SetActiveRagdollForceActive(false);
+            }
 
             _animation.ClearGetUpState();
             _animation.ClearStumbleState();
-            SetActiveRagdollForceActive(false);
         }
 
         public void ApplyRemoteRecovery(Vector3 rootPos, Quaternion rootRot, bool isFaceUp)
@@ -191,16 +199,6 @@ namespace InGame.Player.Ragdoll
 
         #endregion
 
-        #region Animated
-
-        private void UpdateAnimated()
-        {
-            if (_instability > 0f)
-                _instability = Mathf.Max(0f, _instability - _instabilityDecayRate * Time.deltaTime);
-        }
-
-        #endregion
-
         #region Stumble
 
         private void EnterStumble(ImpactData impact)
@@ -223,9 +221,6 @@ namespace InGame.Player.Ragdoll
         private void UpdateStumble()
         {
             _stateTimer += Time.deltaTime;
-
-            if (_instability > 0f)
-                _instability = Mathf.Max(0f, _instability - _instabilityDecayRate * Time.deltaTime);
 
             if (_stateTimer >= _stumbleDuration)
             {
@@ -307,6 +302,12 @@ namespace InGame.Player.Ragdoll
         #endregion
 
         #region Helpers
+
+        private void DecayInstability()
+        {
+            if (_instability > 0f)
+                _instability = Mathf.Max(0f, _instability - _instabilityDecayRate * Time.deltaTime);
+        }
 
         private void AlignRootBodyToPelvis(Transform pelvis)
         {

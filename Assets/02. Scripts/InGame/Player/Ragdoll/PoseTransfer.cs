@@ -105,8 +105,6 @@ namespace InGame.Player.Ragdoll
 
             _visualBones = visualList.ToArray();
             _ragdollBones = ragdollList.ToArray();
-
-            Debug.Log($"[PoseTransfer] 본 매핑 완료: {_visualBones.Length}개 물리 본 연결됨.");
         }
 
         private void CollectAllBones(Transform root, Dictionary<string, Transform> map)

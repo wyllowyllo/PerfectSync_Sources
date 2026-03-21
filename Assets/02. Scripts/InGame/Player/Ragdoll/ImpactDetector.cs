@@ -10,7 +10,7 @@ namespace InGame.Player.Ragdoll
         private const float TorqueScaleFactor = 0.15f;
 
         [SerializeField] private LayerMask _hazardLayers;
-        [SerializeField] private float _minImpulse = 5f;
+        [SerializeField] private float _minImpulse = 3f;
         [SerializeField] private PhotonView _photonView;
         [SerializeField] private BodySimulationToggle _bodyToggle;
 
@@ -23,6 +23,7 @@ namespace InGame.Player.Ragdoll
 
         private void OnCollisionEnter(Collision collision)
         {
+            if (_localPlayerInput == null) return;
             if (_bodyToggle != null && _bodyToggle.IsRemote) return;
 
             if ((_hazardLayers & (1 << collision.gameObject.layer)) == 0) return;

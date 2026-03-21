@@ -8,8 +8,14 @@ namespace InGame.Player.Ragdoll
         [SerializeField] private Transform _pelvis;
         [SerializeField] private Rigidbody _rootBody;
 
+        [Header("Ragdoll Damping")]
+        [SerializeField] private float _activeLinearDamping = 0.5f;
+        [SerializeField] private float _activeAngularDamping = 1.0f;
+
         private Rigidbody[] _ragdollRbs;
         private Collider[] _ragdollCols;
+        private float[] _originalLinearDamping;
+        private float[] _originalAngularDamping;
 
         public IReadOnlyList<Rigidbody> Rigidbodies => _ragdollRbs;
         public Transform PelvisTransform => _pelvis;
@@ -19,6 +25,15 @@ namespace InGame.Player.Ragdoll
         {
             _ragdollRbs = GetComponentsInChildren<Rigidbody>(true);
             _ragdollCols = GetComponentsInChildren<Collider>(true);
+
+            _originalLinearDamping = new float[_ragdollRbs.Length];
+            _originalAngularDamping = new float[_ragdollRbs.Length];
+            for (int i = 0; i < _ragdollRbs.Length; i++)
+            {
+                _originalLinearDamping[i] = _ragdollRbs[i].linearDamping;
+                _originalAngularDamping[i] = _ragdollRbs[i].angularDamping;
+            }
+
             gameObject.SetActive(false);
         }
 
@@ -29,6 +44,8 @@ namespace InGame.Player.Ragdoll
             for (int i = 0; i < _ragdollRbs.Length; i++)
             {
                 _ragdollRbs[i].isKinematic = false;
+                _ragdollRbs[i].linearDamping = _activeLinearDamping;
+                _ragdollRbs[i].angularDamping = _activeAngularDamping;
                 _ragdollRbs[i].linearVelocity = inheritedVelocity;
             }
 
@@ -41,7 +58,11 @@ namespace InGame.Player.Ragdoll
         public void Deactivate()
         {
             for (int i = 0; i < _ragdollRbs.Length; i++)
+            {
+                _ragdollRbs[i].linearDamping = _originalLinearDamping[i];
+                _ragdollRbs[i].angularDamping = _originalAngularDamping[i];
                 _ragdollRbs[i].isKinematic = true;
+            }
 
             for (int i = 0; i < _ragdollCols.Length; i++)
                 _ragdollCols[i].enabled = false;

@@ -5,8 +5,8 @@ namespace InGame.Player.Ragdoll
     public class ActiveRagdollForce : MonoBehaviour
     {
         [SerializeField] private Rigidbody _pelvisRb;
-        [SerializeField] private float _uprightTorqueStrength = 5f;
-        [SerializeField] private float _dampingFactor = 2f;
+        [SerializeField] private float _uprightTorqueStrength = 15f;
+        [SerializeField] private float _dampingFactor = 5f;
 
         private bool _isActive;
 

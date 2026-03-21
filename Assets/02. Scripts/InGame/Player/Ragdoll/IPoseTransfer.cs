@@ -11,5 +11,6 @@ namespace InGame.Player.Ragdoll
         void SetDirection(EPoseDirection direction);
         void CopyPose();
         void Stop();
+        void RestoreVisualBones();
     }
 }

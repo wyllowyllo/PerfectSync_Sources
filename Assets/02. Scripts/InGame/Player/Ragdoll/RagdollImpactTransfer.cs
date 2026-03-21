@@ -7,11 +7,13 @@ namespace InGame.Player.Ragdoll
     {
         private readonly IReadOnlyList<Rigidbody> _ragdollRbs;
         private readonly float _impactRadius;
+        private readonly float _forceScale;
 
-        public RagdollImpactTransfer(IReadOnlyList<Rigidbody> ragdollRbs, float impactRadius)
+        public RagdollImpactTransfer(IReadOnlyList<Rigidbody> ragdollRbs, float impactRadius, float forceScale)
         {
             _ragdollRbs = ragdollRbs;
             _impactRadius = impactRadius;
+            _forceScale = forceScale;
         }
 
         /// <summary>
@@ -43,8 +45,8 @@ namespace InGame.Player.Ragdoll
                 float falloff = Mathf.Clamp01(1f - dist / _impactRadius);
                 if (falloff <= 0f) continue;
 
-                _ragdollRbs[i].AddForce(impact.Impulse * falloff, ForceMode.Impulse);
-                _ragdollRbs[i].AddTorque(torqueImpulse * falloff, ForceMode.Impulse);
+                _ragdollRbs[i].AddForce(impact.Impulse * (falloff * _forceScale), ForceMode.Impulse);
+                _ragdollRbs[i].AddTorque(torqueImpulse * (falloff * _forceScale), ForceMode.Impulse);
                 anyHit = true;
             }
 
@@ -52,8 +54,8 @@ namespace InGame.Player.Ragdoll
             if (!anyHit)
             {
                 Rigidbody closest = GetClosestBoneRb(impact.HitPoint);
-                closest.AddForce(impact.Impulse, ForceMode.Impulse);
-                closest.AddTorque(torqueImpulse, ForceMode.Impulse);
+                closest.AddForce(impact.Impulse * _forceScale, ForceMode.Impulse);
+                closest.AddTorque(torqueImpulse * _forceScale, ForceMode.Impulse);
             }
         }
 
