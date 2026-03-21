@@ -17,5 +17,6 @@ namespace Core
         // ── 후처리 (10+) ──
         public const int BodySimulationToggle = 10;
         public const int BodyPositionSynchronizer = 100;
+        public const int RagdollBoneSynchronizer = 101;
     }
 }

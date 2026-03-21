@@ -24,6 +24,7 @@ namespace InGame.Player.Ragdoll
         private void OnCollisionEnter(Collision collision)
         {
             if (_localPlayerInput == null) return;
+            if (_photonView != null && !_photonView.IsMine) return;
             if (_bodyToggle != null && _bodyToggle.IsRemote) return;
 
             if ((_hazardLayers & (1 << collision.gameObject.layer)) == 0) return;

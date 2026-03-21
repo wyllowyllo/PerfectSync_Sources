@@ -52,9 +52,11 @@ namespace InGame.Player.Ragdoll
         private float _stateTimer;
         private float _stumbleDuration;
         private bool _shouldTrackPelvis;
+        private bool _isRecoveryAuthority = true;
 
         private const float RayOriginUpOffset = 0.5f;
         private const float MinDirectionSqrMagnitude = 0.001f;
+        private const float RemoteRecoveryTimeout = 5.0f;
 
         public ERagdollState CurrentState => _currentState;
         public bool IsRagdollActive => _currentState != ERagdollState.Animated;
@@ -64,6 +66,11 @@ namespace InGame.Player.Ragdoll
                                         _currentState == ERagdollState.Dead;
 
         public event Action<Vector3, Quaternion, bool> OnRecoveryDataReady;
+
+        public void SetRecoveryAuthority(bool isAuthority)
+        {
+            _isRecoveryAuthority = isAuthority;
+        }
 
         private void Start()
         {
@@ -124,8 +131,11 @@ namespace InGame.Player.Ragdoll
                     break;
 
                 case ERagdollState.Ragdoll:
-                    _impactTransfer.ApplyAdditionalImpact(impact, torqueVector);
-                    _stateTimer = 0f;
+                    if (_isRecoveryAuthority)
+                    {
+                        _impactTransfer.ApplyAdditionalImpact(impact, torqueVector);
+                        _stateTimer = 0f;
+                    }
                     break;
 
                 case ERagdollState.Animated:
@@ -154,12 +164,19 @@ namespace InGame.Player.Ragdoll
             _poseTransfer.SetDirection(EPoseDirection.AnimToRagdoll);
             _poseTransfer.CopyPose();
 
-            Vector3 inheritedVelocity = _rootBody.linearVelocity;
-            _ragdollRig.Activate(inheritedVelocity);
-            _impactTransfer.TransferImpact(
-                new ImpactData(Vector3.zero, _rootBody.position),
-                inheritedVelocity,
-                Vector3.zero);
+            if (_isRecoveryAuthority)
+            {
+                Vector3 inheritedVelocity = _rootBody.linearVelocity;
+                _ragdollRig.Activate(inheritedVelocity);
+                _impactTransfer.TransferImpact(
+                    new ImpactData(Vector3.zero, _rootBody.position),
+                    inheritedVelocity,
+                    Vector3.zero);
+            }
+            else
+            {
+                _ragdollRig.ActivateKinematic();
+            }
 
             _poseTransfer.SetDirection(EPoseDirection.RagdollToAnim);
             _shouldTrackPelvis = false;
@@ -190,8 +207,17 @@ namespace InGame.Player.Ragdoll
 
         public void ApplyRemoteRecovery(Vector3 rootPos, Quaternion rootRot, bool isFaceUp)
         {
-            if (_currentState != ERagdollState.Ragdoll) return;
+            if (_currentState != ERagdollState.Ragdoll && _currentState != ERagdollState.Recovery)
+                return;
 
+            if (_currentState == ERagdollState.Recovery)
+            {
+                _rootBody.position = rootPos;
+                _rootBody.rotation = rootRot;
+                return;
+            }
+
+            _shouldTrackPelvis = false;
             _poseTransfer.Stop();
 
             _rootBody.position = rootPos;
@@ -258,14 +284,21 @@ namespace InGame.Player.Ragdoll
             _poseTransfer.SetDirection(EPoseDirection.AnimToRagdoll);
             _poseTransfer.CopyPose();
 
-            Vector3 inheritedVelocity = _rootBody.linearVelocity;
-            _ragdollRig.Activate(inheritedVelocity);
-            _impactTransfer.TransferImpact(impact, inheritedVelocity, torqueVector);
+            if (_isRecoveryAuthority)
+            {
+                Vector3 inheritedVelocity = _rootBody.linearVelocity;
+                _ragdollRig.Activate(inheritedVelocity);
+                _impactTransfer.TransferImpact(impact, inheritedVelocity, torqueVector);
+                SetActiveRagdollForceActive(true);
+            }
+            else
+            {
+                _ragdollRig.ActivateKinematic();
+                SetActiveRagdollForceActive(false);
+            }
 
             _poseTransfer.SetDirection(EPoseDirection.RagdollToAnim);
-
             _shouldTrackPelvis = true;
-            SetActiveRagdollForceActive(true);
         }
 
         private void UpdateRagdoll()
@@ -275,8 +308,16 @@ namespace InGame.Player.Ragdoll
             if (_stateTimer < _minRagdollDuration)
                 return;
 
-            if (_ragdollRig.IsSettled(_settleVelocity) || _stateTimer >= _maxRagdollDuration)
-                BeginRecovery();
+            if (_isRecoveryAuthority)
+            {
+                if (_ragdollRig.IsSettled(_settleVelocity) || _stateTimer >= _maxRagdollDuration)
+                    BeginRecovery();
+            }
+            else
+            {
+                if (_stateTimer >= RemoteRecoveryTimeout)
+                    BeginRecovery();
+            }
         }
 
         private void BeginRecovery()

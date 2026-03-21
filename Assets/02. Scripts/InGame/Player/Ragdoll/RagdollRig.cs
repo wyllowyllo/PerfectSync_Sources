@@ -14,10 +14,12 @@ namespace InGame.Player.Ragdoll
 
         private Rigidbody[] _ragdollRbs;
         private Collider[] _ragdollCols;
+        private Transform[] _ragdollBoneTransforms;
         private float[] _originalLinearDamping;
         private float[] _originalAngularDamping;
 
         public IReadOnlyList<Rigidbody> Rigidbodies => _ragdollRbs;
+        public IReadOnlyList<Transform> BoneTransforms => _ragdollBoneTransforms;
         public Transform PelvisTransform => _pelvis;
         public Rigidbody RootBody => _rootBody;
 
@@ -26,15 +28,30 @@ namespace InGame.Player.Ragdoll
             _ragdollRbs = GetComponentsInChildren<Rigidbody>(true);
             _ragdollCols = GetComponentsInChildren<Collider>(true);
 
+            _ragdollBoneTransforms = new Transform[_ragdollRbs.Length];
             _originalLinearDamping = new float[_ragdollRbs.Length];
             _originalAngularDamping = new float[_ragdollRbs.Length];
             for (int i = 0; i < _ragdollRbs.Length; i++)
             {
+                _ragdollBoneTransforms[i] = _ragdollRbs[i].transform;
                 _originalLinearDamping[i] = _ragdollRbs[i].linearDamping;
                 _originalAngularDamping[i] = _ragdollRbs[i].angularDamping;
             }
 
             gameObject.SetActive(false);
+        }
+
+        public void ActivateKinematic()
+        {
+            gameObject.SetActive(true);
+
+            for (int i = 0; i < _ragdollRbs.Length; i++)
+                _ragdollRbs[i].isKinematic = true;
+
+            for (int i = 0; i < _ragdollCols.Length; i++)
+                _ragdollCols[i].enabled = false;
+
+            _rootBody.isKinematic = true;
         }
 
         public void Activate(Vector3 inheritedVelocity)

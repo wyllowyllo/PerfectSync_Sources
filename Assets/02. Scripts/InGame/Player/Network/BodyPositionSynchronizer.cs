@@ -30,7 +30,10 @@ namespace InGame.Player.Network
         private void Start()
         {
             if (_ragdollController != null)
+            {
                 _ragdollController.OnRecoveryDataReady += HandleRecoveryDataReady;
+                _ragdollController.SetRecoveryAuthority(photonView.IsMine);
+            }
         }
 
         private void OnDestroy()
@@ -68,11 +71,16 @@ namespace InGame.Player.Network
         {
             if (!gameObject.activeInHierarchy) return;
             _ragdollController.ApplyRemoteRecovery(rootPos, rootRot, isFaceUp);
+            _hasCorrection = false;
         }
 
         private void FixedUpdate()
         {
-            if (_ragdollController != null && _ragdollController.IsPhysicsRagdoll) return;
+            if (_ragdollController != null && _ragdollController.IsPhysicsRagdoll)
+            {
+                _hasCorrection = false;
+                return;
+            }
 
             if (!photonView.IsMine && _syncEnabled && _hasCorrection)
             {

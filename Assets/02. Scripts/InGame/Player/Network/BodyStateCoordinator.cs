@@ -58,6 +58,10 @@ namespace InGame.Player.Network
             FindInBody<BodyPositionSynchronizer>(_mergedBody)?.SetSyncEnabled(isMerged);
             FindInBody<BodyPositionSynchronizer>(_avatarA)?.SetSyncEnabled(!isMerged);
             FindInBody<BodyPositionSynchronizer>(_avatarB)?.SetSyncEnabled(!isMerged);
+
+            FindInBody<RagdollBoneSynchronizer>(_mergedBody)?.SetSyncEnabled(isMerged);
+            FindInBody<RagdollBoneSynchronizer>(_avatarA)?.SetSyncEnabled(!isMerged);
+            FindInBody<RagdollBoneSynchronizer>(_avatarB)?.SetSyncEnabled(!isMerged);
         }
 
         private void SetRemoteOnBody(GameObject body, bool isRemote)
