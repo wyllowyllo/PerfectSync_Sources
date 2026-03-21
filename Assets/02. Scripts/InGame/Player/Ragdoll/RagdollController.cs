@@ -203,11 +203,9 @@ namespace InGame.Player.Ragdoll
         {
             _currentState = ERagdollState.BlendToAnim;
 
-            // 마지막 래그돌 포즈를 VisualRoot에 확정 복사.
-            _poseTransfer.CopyPose();
             _poseTransfer.Stop();
 
-            // 펠비스 기준으로 RootBody 위치 정렬.
+            // 펠비스 기준으로 RootBody 위치 정렬 (래그돌 비활성 전에 위치 캡처).
             Transform pelvis = _ragdollRig.PelvisTransform;
             bool isFaceUp = (pelvis.rotation * Vector3.forward).y > 0f;
             AlignRootBodyToPelvis(pelvis);
@@ -215,6 +213,9 @@ namespace InGame.Player.Ragdoll
             OnRecoveryDataReady?.Invoke(_rootBody.position, _rootBody.rotation, isFaceUp);
 
             _ragdollRig.Deactivate();
+
+            // 비주얼 본을 초기 로컬 포즈로 복원 → 뒤틀림 방지.
+            _poseTransfer.RestoreVisualBones();
 
             // Animator GetUp 재생. 일정 시간 후 자동으로 Animated 전환.
             _animation.GetUp(isFaceUp);
@@ -265,14 +266,14 @@ namespace InGame.Player.Ragdoll
             StopActiveCoroutine();
             _currentState = ERagdollState.BlendToAnim;
 
-            // 마지막 래그돌 포즈를 VisualRoot에 확정 복사.
-            _poseTransfer.CopyPose();
             _poseTransfer.Stop();
 
             _rootBody.position = rootPos;
             _rootBody.rotation = rootRot;
 
             _ragdollRig.Deactivate();
+
+            _poseTransfer.RestoreVisualBones();
 
             _animation.GetUp(isFaceUp);
             _activeCoroutine = StartCoroutine(GetUpCoroutine());
@@ -316,6 +317,7 @@ namespace InGame.Player.Ragdoll
 
             _poseTransfer.Stop();
             _ragdollRig.Deactivate();
+            _poseTransfer.RestoreVisualBones();
 
             _animation.ClearGetUpState();
             _animation.ClearStumbleState();

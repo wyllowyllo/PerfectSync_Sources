@@ -50,7 +50,7 @@ namespace InGame.Player.Test
                 return;
             }
 
-            var pv = body.GetComponent<PhotonView>();
+            var pv = body.GetComponentInChildren<PhotonView>();
             if (pv == null)
             {
                 UnityEngine.Debug.LogWarning($"[ImpactTestTrigger] No PhotonView on '{body.name}'.");

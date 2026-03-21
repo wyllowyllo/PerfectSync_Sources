@@ -55,6 +55,11 @@ namespace InGame.Player.Movement
         public bool Grounded => _isGrounded;
         public float CurrentSpeed => _currentVelocity.magnitude;
 
+        private void Awake()
+        {
+            _rootBody.constraints = RigidbodyConstraints.FreezeRotation;
+        }
+
         private void Start()
         {
             _previousRagdollState = ERagdollState.Animated;
