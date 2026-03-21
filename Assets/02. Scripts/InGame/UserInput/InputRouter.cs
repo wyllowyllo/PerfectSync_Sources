@@ -1,5 +1,4 @@
 using Core.Utilities;
-using InGame.Camera.PlayerCamera;
 using InGame.Player;
 using InGame.Player.Network;
 using InGame.Player.Test;
@@ -17,9 +16,6 @@ namespace InGame.UserInput
         [Header("Settings")]
         [SerializeField] private ETeamMode _startMode = ETeamMode.Merged;
 
-        [Header("Cameras")]
-        [SerializeField] private TpsCameraController _cameraControllerA;
-
         [Header("Bodies")]
         [SerializeField] private GameObject _mergedBody;
 
@@ -28,6 +24,7 @@ namespace InGame.UserInput
         private RemotePlayerInput _remotePlayerInput;
         private TeamModeSynchronizer _teamModeSynchronizer;
         private Transform _cameraTransformA;
+        private UnityEngine.Camera _mainCamera;
         private bool _isHost;
         private ETeamMode _currentMode;
 
@@ -60,13 +57,12 @@ namespace InGame.UserInput
             _isHost = photonView.IsMine;
             _currentMode = _startMode;
 
-            SetupCameras();
+            _mainCamera = UnityEngine.Camera.main;
+            _cameraTransformA = _mainCamera != null ? _mainCamera.transform : null;
             _coopInputVisualizer = GetComponent<CoopInputVisualizer>(); // [InputViz]
 
             _playerFormController.OnModeChanged += HandleModeChanged;
             _playerFormController.Initialize(_startMode);
-
-            SetCameraTargetByRole();
 
             if (_teamModeSynchronizer != null)
                 _teamModeSynchronizer.OnSwitchRequested += HandleSwitchRequested;
@@ -164,7 +160,6 @@ namespace InGame.UserInput
         private void HandleModeChanged(ETeamMode newMode)
         {
             _currentMode = newMode;
-            SetCameraTargetByRole();
         }
 
         // [InputViz]
@@ -173,29 +168,6 @@ namespace InGame.UserInput
         public ETeamMode CurrentMode => _currentMode;
         public GameObject MergedBody => _mergedBody;
         // [/InputViz]
-
-        // ── Camera ───────────────────────────────────────────────────
-
-        private void SetupCameras()
-        {
-            if (_cameraControllerA == null)
-                _cameraControllerA = FindAnyObjectByType<TpsCameraController>();
-
-            _cameraTransformA = _cameraControllerA != null
-                ? _cameraControllerA.transform
-                : UnityEngine.Camera.main.transform;
-        }
-
-        private void SetCameraTargetByRole()
-        {
-            if (_cameraControllerA == null) return;
-
-            var target = _isHost
-                ? _playerFormController.PrimaryCameraFollowPoint
-                : _playerFormController.SecondaryCameraFollowPoint;
-
-            _cameraControllerA.SetTarget(target);
-        }
 
         private void OnDestroy()
         {

@@ -3,8 +3,10 @@ namespace Core
     public static class ExecutionOrderConstants
     {
         // ── 초기화 (-10) ──
-        public const int CameraTargetLinker = -10;
         public const int BodyStateCoordinator = -10;
+
+        // ── 카메라 (+5) ── PoseTransfer(0) 이후 visual pelvis 읽기 보장.
+        public const int CinemachineCameraManager = 5;
 
         // ── 입력 (-5) ──
         public const int LocalPlayerInput = -5;

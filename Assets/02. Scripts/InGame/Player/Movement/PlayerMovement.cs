@@ -1,4 +1,3 @@
-using InGame.Camera.PlayerCamera;
 using InGame.Player.Animation;
 using InGame.Player.Ragdoll;
 using UnityEngine;
@@ -13,7 +12,6 @@ namespace InGame.Player.Movement
         [SerializeField] private RagdollStateMachine _ragdollController;
         [SerializeField] private PlayerJump _playerJump;
         [SerializeField] private PlayerAnimation _anim;
-        [SerializeField] private CameraTarget _cameraTarget;
 
         [Header("Movement")]
         [SerializeField] private float _moveSpeed = 5f;
@@ -50,7 +48,6 @@ namespace InGame.Player.Movement
             }
         }
         public Transform BodyTransform => _rootBody.transform;
-        public Transform CameraFollowPoint => _cameraTarget.FollowPoint;
         public bool IsRagdollActive => _ragdollController.IsRagdollActive;
         public bool Grounded => _isGrounded;
         public float CurrentSpeed => _currentVelocity.magnitude;
