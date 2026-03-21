@@ -11,7 +11,6 @@ namespace InGame.Player.Ragdoll
         [SerializeField] private RagdollRig _ragdollRig;
         [SerializeField] private PoseTransfer _poseTransfer;
         [SerializeField] private PlayerAnimation _animation;
-        [SerializeField] private WobbleEffect _wobbleEffect;
         [SerializeField] private ActiveRagdollForce _activeRagdollForce;
 
         [Header("Recovery")]
@@ -27,7 +26,6 @@ namespace InGame.Player.Ragdoll
         [SerializeField] private float _maxStumbleDuration = 0.8f;
         [SerializeField] private float _stumbleDurationPerImpulse = 0.08f;
         [SerializeField] private float _stumblePushMultiplier = 0.3f;
-        [SerializeField] private float _stumbleWobbleMultiplier = 2f;
 
         [Header("Ragdoll")]
         [SerializeField] private float _minRagdollDuration = 0.3f;
@@ -65,7 +63,6 @@ namespace InGame.Player.Ragdoll
         private void Start()
         {
             _impactTransfer = new RagdollImpactTransfer(_ragdollRig.Rigidbodies, _impactRadius);
-            SetWobbleActive(true);
             SetActiveRagdollForceActive(false);
         }
 
@@ -125,10 +122,6 @@ namespace InGame.Player.Ragdoll
                     {
                         EnterStumble(impact);
                     }
-                    else if (_wobbleEffect != null && _currentState == ERagdollState.Animated)
-                    {
-                        _wobbleEffect.AddImpulse(impulse);
-                    }
                     break;
 
                 case ERagdollState.Dead:
@@ -151,7 +144,6 @@ namespace InGame.Player.Ragdoll
                 Vector3.zero);
 
             _poseTransfer.SetDirection(EPoseDirection.RagdollToAnim);
-            SetWobbleActive(false);
             SetActiveRagdollForceActive(false);
         }
 
@@ -169,7 +161,6 @@ namespace InGame.Player.Ragdoll
 
             _animation.ClearGetUpState();
             _animation.ClearStumbleState();
-            SetWobbleActive(true);
             SetActiveRagdollForceActive(false);
         }
 
@@ -220,9 +211,6 @@ namespace InGame.Player.Ragdoll
             Vector3 pushDir = impact.Impulse.normalized;
             _rootBody.AddForce(pushDir * impact.Magnitude * _stumblePushMultiplier, ForceMode.Impulse);
 
-            if (_wobbleEffect != null)
-                _wobbleEffect.AddImpulse(impact.Impulse * _stumbleWobbleMultiplier);
-
             _animation.Stumble();
 
             _stumbleDuration = Mathf.Clamp(
@@ -265,7 +253,6 @@ namespace InGame.Player.Ragdoll
 
             _poseTransfer.SetDirection(EPoseDirection.RagdollToAnim);
 
-            SetWobbleActive(false);
             SetActiveRagdollForceActive(true);
         }
 
@@ -315,7 +302,6 @@ namespace InGame.Player.Ragdoll
         {
             _currentState = ERagdollState.Animated;
             _animation.ClearGetUpState();
-            SetWobbleActive(true);
         }
 
         #endregion
@@ -343,12 +329,6 @@ namespace InGame.Player.Ragdoll
                 return hit.point.y;
 
             return origin.y;
-        }
-
-        private void SetWobbleActive(bool active)
-        {
-            if (_wobbleEffect != null)
-                _wobbleEffect.SetActive(active);
         }
 
         private void SetActiveRagdollForceActive(bool active)
