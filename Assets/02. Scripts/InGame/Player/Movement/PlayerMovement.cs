@@ -73,7 +73,7 @@ namespace InGame.Player.Movement
             ERagdollState currentRagdollState = _ragdollController.CurrentState;
 
             // 풀 래그돌에서 복귀 시에만 속도 초기화 (Stumble 복귀는 속도 유지).
-            if ((_previousRagdollState == ERagdollState.Recovery || _previousRagdollState == ERagdollState.Ragdoll)
+            if ((_previousRagdollState == ERagdollState.BlendToAnim || _previousRagdollState == ERagdollState.Ragdolled)
                 && currentRagdollState == ERagdollState.Animated)
             {
                 _currentVelocity = Vector3.zero;

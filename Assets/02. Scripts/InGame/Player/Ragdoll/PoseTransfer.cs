@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace InGame.Player.Ragdoll
 {
-    public class PoseTransfer : MonoBehaviour, IPoseTransfer
+    public class PoseTransfer : MonoBehaviour
     {
         [SerializeField] private Transform _visualRoot;
         [SerializeField] private Transform _ragdollRoot;
@@ -15,34 +15,22 @@ namespace InGame.Player.Ragdoll
         private Vector3[] _restLocalPositions;
         private Quaternion[] _restLocalRotations;
 
-        private EPoseDirection _direction;
-        private bool _isActive;
-
         private void Awake()
         {
             BuildBoneMapping();
             CaptureRestPose();
         }
 
-        public void SetDirection(EPoseDirection direction)
+        // 비주얼 본 → 래그돌 본 복사 (래그돌 진입 시).
+        public void CopyAnimToRagdoll()
         {
-            _direction = direction;
-            _isActive = true;
+            CopyBones(_visualBones, _ragdollBones);
         }
 
-        public void CopyPose()
+        // 래그돌 본 → 비주얼 본 복사 (래그돌 중 매 프레임).
+        public void CopyRagdollToAnim()
         {
-            if (!_isActive) return;
-
-            if (_direction == EPoseDirection.AnimToRagdoll)
-                CopyBones(_visualBones, _ragdollBones);
-            else
-                CopyBones(_ragdollBones, _visualBones);
-        }
-
-        public void Stop()
-        {
-            _isActive = false;
+            CopyBones(_ragdollBones, _visualBones);
         }
 
         // 매핑된 비주얼 본을 초기 로컬 포즈로 복원.

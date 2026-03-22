@@ -26,6 +26,8 @@ namespace InGame.Player.Ragdoll
             _hasSnapshot = false;
             _receiveInterval = DefaultReceiveInterval;
 
+            // 단일 계층: 본을 kinematic으로 설정하여 BoneReceiver가 위치를 직접 제어.
+            // 스켈레톤 분리는 RagdollStateMachine이 담당.
             _ragdollRig.ActivateKinematic();
         }
 
@@ -70,9 +72,7 @@ namespace InGame.Player.Ragdoll
                     _currentSnapshot.BonePositions.Length,
                     _previousSnapshot.BonePositions.Length));
 
-            // 모든 본: world position + world rotation 보간.
-            // 래그돌 물리는 각 Rigidbody를 독립적으로 이동시키므로
-            // hierarchy 기반 local transform만으로는 정확한 재현 불가.
+            // 단일 계층: 본 = 비주얼. 네트워크 데이터를 직접 본에 적용하면 메시가 따라감.
             for (int i = 0; i < count; i++)
             {
                 bones[i].position = Vector3.Lerp(
@@ -85,9 +85,8 @@ namespace InGame.Player.Ragdoll
                     t);
             }
 
-            // RootBody를 pelvis 위치로 이동.
-            // AnimBody/VisualRoot가 RootBody의 자식이므로,
-            // PoseTransfer에 매핑되지 않은 비주얼 본도 래그돌 근처에 위치.
+            // RootBody를 pelvis 위치로 이동 (카메라 추적용).
+            // 스켈레톤이 분리되어 있으므로 rootBody 이동이 본에 영향을 주지 않음.
             if (_rootBody != null && count > 0)
                 _rootBody.MovePosition(bones[0].position);
         }

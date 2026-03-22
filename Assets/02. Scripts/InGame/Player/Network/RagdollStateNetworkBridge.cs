@@ -10,7 +10,6 @@ namespace InGame.Player.Network
     {
         [SerializeField] private RagdollStateMachine _ragdollStateMachine;
         [SerializeField] private RagdollBoneReceiver _boneReceiver;
-        [SerializeField] private PoseTransfer _poseTransfer;
 
         private bool _isAuthority = true;
 
@@ -34,15 +33,7 @@ namespace InGame.Player.Network
                 _ragdollStateMachine.OnStateChanged -= HandleStateChanged;
         }
 
-        private void LateUpdate()
-        {
-            // Remote: RagdollBoneReceiver가 kinematic 본을 갱신한 뒤, PoseTransfer로 비주얼 복사.
-            if (_isAuthority) return;
-
-            ERagdollState state = _ragdollStateMachine.CurrentState;
-            if (state == ERagdollState.Ragdoll || state == ERagdollState.Dead)
-                _poseTransfer.CopyPose();
-        }
+        // 단일 계층: 물리/BoneReceiver가 본을 직접 구동하므로 LateUpdate 복사 불필요.
 
         #region Authority → Remote 전송
 
@@ -52,20 +43,20 @@ namespace InGame.Player.Network
 
             switch (newState)
             {
-                case ERagdollState.Ragdoll:
-                    photonView.RPC(nameof(RpcEnterRagdoll), RpcTarget.Others);
+                case ERagdollState.Ragdolled:
+                    photonView.RPC(nameof(RpcEnterRagdolled), RpcTarget.Others);
                     break;
 
                 case ERagdollState.Stumble:
                     photonView.RPC(nameof(RpcEnterStumble), RpcTarget.Others);
                     break;
 
-                case ERagdollState.Recovery:
+                case ERagdollState.BlendToAnim:
                     Vector3 pos = _ragdollStateMachine.GetRecoveryPosition();
                     Quaternion rot = _ragdollStateMachine.GetRecoveryRotation();
                     bool faceUp = _ragdollStateMachine.GetIsFaceUp();
                     photonView.RPC(
-                        nameof(RpcEnterRecovery), RpcTarget.Others,
+                        nameof(RpcEnterBlendToAnim), RpcTarget.Others,
                         pos, rot, faceUp);
                     break;
 
@@ -84,13 +75,13 @@ namespace InGame.Player.Network
         #region Remote RPC 수신
 
         [PunRPC]
-        private void RpcEnterRagdoll()
+        private void RpcEnterRagdolled()
         {
             if (_isAuthority) return;
             if (!gameObject.activeInHierarchy) return;
 
             _boneReceiver.Activate();
-            _ragdollStateMachine.EnterRagdollRemote();
+            _ragdollStateMachine.EnterRagdolledRemote();
         }
 
         [PunRPC]
@@ -103,13 +94,13 @@ namespace InGame.Player.Network
         }
 
         [PunRPC]
-        private void RpcEnterRecovery(Vector3 rootPos, Quaternion rootRot, bool isFaceUp)
+        private void RpcEnterBlendToAnim(Vector3 rootPos, Quaternion rootRot, bool isFaceUp)
         {
             if (_isAuthority) return;
             if (!gameObject.activeInHierarchy) return;
 
             _boneReceiver.Deactivate();
-            _ragdollStateMachine.EnterRecoveryRemote(rootPos, rootRot, isFaceUp);
+            _ragdollStateMachine.EnterBlendToAnimRemote(rootPos, rootRot, isFaceUp);
         }
 
         [PunRPC]
