@@ -60,6 +60,10 @@ namespace InGame.Player.Ragdoll
         private Vector3 _lerpTargetPos;
         private Quaternion _lerpTargetRot;
         private float _lerpTimer;
+        private bool _hasPendingRecovery;
+        private Vector3 _pendingRecoveryPos;
+        private Quaternion _pendingRecoveryRot;
+        private bool _pendingRecoveryFaceUp;
 
         private const float RayOriginUpOffset = 0.5f;
         private const float MinDirectionSqrMagnitude = 0.001f;
@@ -73,6 +77,7 @@ namespace InGame.Player.Ragdoll
                                         _currentState == ERagdollState.Dead;
 
         public event Action<Vector3, Quaternion, bool> OnRecoveryDataReady;
+        public event Action OnGuestSettled;
 
         public void SetRecoveryAuthority(bool isAuthority)
         {
@@ -201,6 +206,7 @@ namespace InGame.Player.Ragdoll
             _currentState = ERagdollState.Animated;
             _shouldTrackPelvis = false;
             _isLerpingToRecovery = false;
+            _hasPendingRecovery = false;
             _instability = 0f;
             _stateTimer = 0f;
 
@@ -228,24 +234,11 @@ namespace InGame.Player.Ragdoll
                 return;
             }
 
-            _shouldTrackPelvis = false;
-            _poseTransfer.Stop();
-
-            _ragdollRig.Deactivate();
-            _poseTransfer.RestoreVisualBones();
-
-            // 즉시 텔레포트 대신 부드러운 lerp 시작.
-            _lerpStartPos = _rootBody.position;
-            _lerpStartRot = _rootBody.rotation;
-            _lerpTargetPos = rootPos;
-            _lerpTargetRot = rootRot;
-            _lerpTimer = 0f;
-            _isLerpingToRecovery = true;
-
-            _animation.GetUp(isFaceUp);
-            _currentState = ERagdollState.Recovery;
-            _stateTimer = 0f;
-            SetActiveRagdollForceActive(false);
+            // 즉시 recovery 하지 않고, 로컬 래그돌이 안정화될 때까지 대기.
+            _pendingRecoveryPos = rootPos;
+            _pendingRecoveryRot = rootRot;
+            _pendingRecoveryFaceUp = isFaceUp;
+            _hasPendingRecovery = true;
         }
 
         // Animator의 GetUp 애니메이션이 끝나면 호출.
@@ -323,29 +316,65 @@ namespace InGame.Player.Ragdoll
             }
             else
             {
-                if (_stateTimer >= RemoteRecoveryTimeout)
+                // Host recovery 데이터가 도착했으면, 로컬 래그돌이 안정화될 때까지 대기.
+                if (_hasPendingRecovery)
+                {
+                    if (_ragdollRig.IsSettled(_settleVelocity) || _stateTimer >= _maxRagdollDuration)
+                        ExecutePendingRecovery();
+                }
+                else if (_stateTimer >= RemoteRecoveryTimeout)
+                {
                     BeginRecovery();
+                }
             }
         }
 
-        private void BeginRecovery()
+        private void ExecutePendingRecovery()
         {
+            _hasPendingRecovery = false;
+
+            // Host에 "나도 settle됐다" 알림.
+            OnGuestSettled?.Invoke();
+
             _shouldTrackPelvis = false;
             _poseTransfer.Stop();
-
-            Transform pelvis = _ragdollRig.PelvisTransform;
-            bool isFaceUp = (pelvis.rotation * Vector3.forward).y > 0f;
-            AlignRootBodyToPelvis(pelvis);
-
-            OnRecoveryDataReady?.Invoke(_rootBody.position, _rootBody.rotation, isFaceUp);
 
             _ragdollRig.Deactivate();
             _poseTransfer.RestoreVisualBones();
 
-            _animation.GetUp(isFaceUp);
+            _lerpStartPos = _rootBody.position;
+            _lerpStartRot = _rootBody.rotation;
+            _lerpTargetPos = _pendingRecoveryPos;
+            _lerpTargetRot = _pendingRecoveryRot;
+            _lerpTimer = 0f;
+            _isLerpingToRecovery = true;
+
+            _animation.GetUp(_pendingRecoveryFaceUp);
             _currentState = ERagdollState.Recovery;
             _stateTimer = 0f;
             SetActiveRagdollForceActive(false);
+        }
+
+        private void BeginRecovery()
+        {
+            Transform pelvis = _ragdollRig.PelvisTransform;
+            bool isFaceUp = (pelvis.rotation * Vector3.forward).y > 0f;
+            AlignRootBodyToPelvis(pelvis);
+
+            // Recovery 데이터를 guest에 전송하되, 바로 실행하지 않고 대기.
+            OnRecoveryDataReady?.Invoke(_rootBody.position, _rootBody.rotation, isFaceUp);
+
+            _pendingRecoveryPos = _rootBody.position;
+            _pendingRecoveryRot = _rootBody.rotation;
+            _pendingRecoveryFaceUp = isFaceUp;
+            _hasPendingRecovery = true;
+        }
+
+        // Guest가 settle 확인을 보내면 host가 recovery 실행.
+        public void OnRemoteSettled()
+        {
+            if (!_hasPendingRecovery) return;
+            ExecutePendingRecovery();
         }
 
         #endregion

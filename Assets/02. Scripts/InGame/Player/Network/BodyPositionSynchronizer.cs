@@ -32,6 +32,7 @@ namespace InGame.Player.Network
             if (_ragdollController != null)
             {
                 _ragdollController.OnRecoveryDataReady += HandleRecoveryDataReady;
+                _ragdollController.OnGuestSettled += HandleGuestSettled;
                 _ragdollController.SetRecoveryAuthority(photonView.IsMine);
             }
         }
@@ -39,7 +40,10 @@ namespace InGame.Player.Network
         private void OnDestroy()
         {
             if (_ragdollController != null)
+            {
                 _ragdollController.OnRecoveryDataReady -= HandleRecoveryDataReady;
+                _ragdollController.OnGuestSettled -= HandleGuestSettled;
+            }
         }
 
         public void SetSyncEnabled(bool enabled)
@@ -72,6 +76,19 @@ namespace InGame.Player.Network
             if (!gameObject.activeInHierarchy) return;
             _ragdollController.ApplyRemoteRecovery(rootPos, rootRot, isFaceUp);
             _hasCorrection = false;
+        }
+
+        private void HandleGuestSettled()
+        {
+            if (photonView.IsMine) return;
+            photonView.RPC(nameof(RpcGuestSettled), RpcTarget.Others);
+        }
+
+        [PunRPC]
+        private void RpcGuestSettled()
+        {
+            if (!gameObject.activeInHierarchy) return;
+            _ragdollController.OnRemoteSettled();
         }
 
         private void FixedUpdate()
