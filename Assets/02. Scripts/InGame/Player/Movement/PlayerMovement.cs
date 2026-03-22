@@ -1,3 +1,4 @@
+using System;
 using InGame.Player.Animation;
 using InGame.Player.Ragdoll;
 using UnityEngine;
@@ -35,8 +36,14 @@ namespace InGame.Player.Movement
         private bool _jumpRequested;
         private bool _isGrounded;
         private Vector3 _inputDirection;
+        private Vector3 _previousPosition;
 
         private const float CoyoteTime = 0.1f;
+
+        // Host-authoritative 합체 모드: 애니메이션 트리거 동기화용.
+        public event Action OnJumped;
+        public event Action OnDived;
+        public event Action<bool> OnDiveLanded;
 
         public Vector3 Velocity
         {
@@ -60,6 +67,7 @@ namespace InGame.Player.Movement
         private void Start()
         {
             _previousRagdollState = ERagdollState.Animated;
+            _previousPosition = _rootBody.position;
         }
 
         private void Update()
@@ -81,6 +89,18 @@ namespace InGame.Player.Movement
                 return;
 
             _isGrounded = IsGrounded();
+
+            // Host-authoritative 패시브 모드: 위치 델타로 애니메이션만 구동.
+            if (_rootBody.isKinematic)
+            {
+                Vector3 delta = _rootBody.position - _previousPosition;
+                delta.y = 0f;
+                float visualSpeed = delta.magnitude / Time.deltaTime;
+                _previousPosition = _rootBody.position;
+                _anim.Locomotion(_isGrounded, visualSpeed);
+                return;
+            }
+
             if (_isGrounded)
                 _lastGroundedTime = Time.time;
 
@@ -89,6 +109,7 @@ namespace InGame.Player.Movement
             {
                 _playerJump.ClearDiving();
                 _anim.Land(true);
+                OnDiveLanded?.Invoke(true);
                 _currentVelocity = Vector3.zero;
             }
 
@@ -117,10 +138,12 @@ namespace InGame.Player.Movement
                 if (canJump)
                 {
                     _playerJump.Jump();
+                    OnJumped?.Invoke();
                 }
                 else if (_playerJump.TryDive(_inputDirection))
                 {
                     _currentVelocity = Vector3.zero;
+                    OnDived?.Invoke();
                 }
                 _jumpRequested = false;
             }
@@ -128,6 +151,8 @@ namespace InGame.Player.Movement
 
         private void FixedUpdate()
         {
+            if (_rootBody.isKinematic) return;
+
             ERagdollState state = _ragdollController.CurrentState;
             if (state != ERagdollState.Animated && state != ERagdollState.Stumble)
                 return;

@@ -124,6 +124,10 @@ namespace InGame.UserInput
                 _coopInputVisualizer.UpdateInputState(worldDirA, worldDirB, jumpA, jumpB);
             // [/InputViz]
 
+            // Host-authoritative: Guest는 합체 모드에서 로컬 물리 입력 적용 안 함.
+            if (_currentMode == ETeamMode.Merged && !_isHost)
+                return;
+
             _playerFormController.ApplyInput(worldDirA, worldDirB, jumpA, jumpB);
         }
 

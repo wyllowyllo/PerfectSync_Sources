@@ -1,4 +1,5 @@
 using Core;
+using InGame.Player.Animation;
 using InGame.Player.Movement;
 using InGame.Player.Ragdoll;
 using Photon.Pun;
@@ -12,6 +13,7 @@ namespace InGame.Player.Network
         [SerializeField] private Rigidbody _rootBody;
         [SerializeField] private RagdollStateMachine _ragdollController;
         [SerializeField] private PlayerMovement _movement;
+        [SerializeField] private PlayerAnimation _animation;
 
         private PhotonTransformView _transformView;
         private bool _syncEnabled;
@@ -21,6 +23,8 @@ namespace InGame.Player.Network
 
         private const float SnapThreshold = 2.0f;
         private const float CorrectionFactor = 0.15f;
+        private const float InterpolationFactor = 0.3f;
+        private const float VerticalVelocityThreshold = 0.5f;
 
         private void Awake()
         {
@@ -35,6 +39,13 @@ namespace InGame.Player.Network
                 _ragdollController.OnGuestSettled += HandleGuestSettled;
                 _ragdollController.SetRecoveryAuthority(photonView.IsMine);
             }
+
+            if (_movement != null)
+            {
+                _movement.OnJumped += HandleJumped;
+                _movement.OnDived += HandleDived;
+                _movement.OnDiveLanded += HandleDiveLanded;
+            }
         }
 
         private void OnDestroy()
@@ -43,6 +54,13 @@ namespace InGame.Player.Network
             {
                 _ragdollController.OnRecoveryDataReady -= HandleRecoveryDataReady;
                 _ragdollController.OnGuestSettled -= HandleGuestSettled;
+            }
+
+            if (_movement != null)
+            {
+                _movement.OnJumped -= HandleJumped;
+                _movement.OnDived -= HandleDived;
+                _movement.OnDiveLanded -= HandleDiveLanded;
             }
         }
 
@@ -104,26 +122,82 @@ namespace InGame.Player.Network
                 float dist = Vector3.Distance(_rootBody.position, _correctionTarget);
                 if (dist > SnapThreshold)
                 {
-                    _rootBody.position = _correctionTarget;
-                    _rootBody.rotation = _correctionRotation;
+                    _rootBody.MovePosition(_correctionTarget);
+                    _rootBody.MoveRotation(_correctionRotation);
                 }
                 else if (dist > 0.01f)
                 {
-                    bool airborne = _movement != null && !_movement.Grounded;
-                    if (airborne)
+                    if (_rootBody.isKinematic)
                     {
-                        Vector3 corrected = Vector3.Lerp(_rootBody.position, _correctionTarget, CorrectionFactor);
-                        corrected.y = _rootBody.position.y;
-                        _rootBody.position = corrected;
+                        // Host-authoritative 합체 모드: MovePosition으로 부드러운 보간.
+                        _rootBody.MovePosition(
+                            Vector3.Lerp(_rootBody.position, _correctionTarget, InterpolationFactor));
+                        _rootBody.MoveRotation(
+                            Quaternion.Slerp(_rootBody.rotation, _correctionRotation, InterpolationFactor));
                     }
                     else
                     {
-                        _rootBody.position = Vector3.Lerp(_rootBody.position, _correctionTarget, CorrectionFactor);
+                        // 분리 모드: 로컬 물리와 공존하는 보정.
+                        bool skipVerticalCorrection = (_movement != null && !_movement.Grounded)
+                            || Mathf.Abs(_rootBody.linearVelocity.y) > VerticalVelocityThreshold;
+                        if (skipVerticalCorrection)
+                        {
+                            Vector3 corrected = Vector3.Lerp(
+                                _rootBody.position, _correctionTarget, CorrectionFactor);
+                            corrected.y = _rootBody.position.y;
+                            _rootBody.position = corrected;
+                        }
+                        else
+                        {
+                            _rootBody.position = Vector3.Lerp(
+                                _rootBody.position, _correctionTarget, CorrectionFactor);
+                        }
+                        _rootBody.rotation = Quaternion.Slerp(
+                            _rootBody.rotation, _correctionRotation, CorrectionFactor);
                     }
-                    _rootBody.rotation = Quaternion.Slerp(_rootBody.rotation, _correctionRotation, CorrectionFactor);
                 }
             }
         }
+
+        #region Animation RPC (Host-authoritative 합체 모드)
+
+        private void HandleJumped()
+        {
+            if (!photonView.IsMine) return;
+            photonView.RPC(nameof(RpcAnimJump), RpcTarget.Others);
+        }
+
+        private void HandleDived()
+        {
+            if (!photonView.IsMine) return;
+            photonView.RPC(nameof(RpcAnimDive), RpcTarget.Others);
+        }
+
+        private void HandleDiveLanded(bool active)
+        {
+            if (!photonView.IsMine) return;
+            photonView.RPC(nameof(RpcAnimLand), RpcTarget.Others, active);
+        }
+
+        [PunRPC]
+        private void RpcAnimJump()
+        {
+            if (_animation != null) _animation.Jump();
+        }
+
+        [PunRPC]
+        private void RpcAnimDive()
+        {
+            if (_animation != null) _animation.Dive();
+        }
+
+        [PunRPC]
+        private void RpcAnimLand(bool active)
+        {
+            if (_animation != null) _animation.Land(active);
+        }
+
+        #endregion
 
         public void OnPhotonSerializeView(PhotonStream stream, PhotonMessageInfo info)
         {

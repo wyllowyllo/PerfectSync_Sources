@@ -17,12 +17,14 @@ namespace InGame.Player.Network
 
         private PlayerFormController _playerFormController;
         private LocalPlayerInput _localPlayerInput;
+        private PhotonView _photonView;
         private ETeamMode _currentMode;
 
         private void Start()
         {
             _playerFormController = GetComponent<PlayerFormController>();
             _localPlayerInput = GetComponent<LocalPlayerInput>();
+            _photonView = GetComponent<PhotonView>();
 
             _playerFormController.OnModeChanged += HandleModeChanged;
             _localPlayerInput.OnImpactReceived += HandleImpact;
@@ -50,8 +52,14 @@ namespace InGame.Player.Network
         private void RefreshBodyMode(ETeamMode mode)
         {
             bool isMerged = mode == ETeamMode.Merged;
+            bool isHost = _photonView != null && _photonView.IsMine;
 
-            SetRemoteOnBody(_mergedBody, !isMerged);
+            // Merged + Guest → host-authoritative (kinematic + 애니 유지).
+            if (isMerged && !isHost)
+                SetHostAuthoritativeOnBody(_mergedBody);
+            else
+                SetRemoteOnBody(_mergedBody, !isMerged);
+
             SetRemoteOnBody(_avatarA, isMerged);
             SetRemoteOnBody(_avatarB, isMerged);
 
@@ -67,9 +75,17 @@ namespace InGame.Player.Network
         private void SetRemoteOnBody(GameObject body, bool isRemote)
         {
             if (body == null) return;
-            var controller = FindInBody<BodySimulationToggle>(body);
-            if (controller != null)
-                controller.SetRemote(isRemote);
+            var toggle = FindInBody<BodySimulationToggle>(body);
+            if (toggle != null)
+                toggle.SetRemote(isRemote);
+        }
+
+        private void SetHostAuthoritativeOnBody(GameObject body)
+        {
+            if (body == null) return;
+            var toggle = FindInBody<BodySimulationToggle>(body);
+            if (toggle != null)
+                toggle.SetHostAuthoritative();
         }
 
         private void HandleImpact(Vector3 impulse, Vector3 hitPoint, int hitViewID, Vector3 torqueVector)
