@@ -115,15 +115,17 @@ namespace InGame.Player.Ragdoll
 
         private void InitializeBlendBones()
         {
-            var transforms = _skeletonRoot.GetComponentsInChildren<Transform>(true);
-            _blendBones = new BonePose[transforms.Length];
+            // 래그돌 본(Rigidbody가 있는 본)만 블렌드 대상으로 수집.
+            // 장식 오브젝트(눈, 모자 등)는 부모 본을 따라 자연스럽게 이동하므로 제외.
+            var boneTransforms = _ragdollRig.BoneTransforms;
+            _blendBones = new BonePose[boneTransforms.Count];
 
             Transform hipTransform = _animator.GetBoneTransform(HumanBodyBones.Hips);
 
-            for (int i = 0; i < transforms.Length; i++)
+            for (int i = 0; i < boneTransforms.Count; i++)
             {
-                _blendBones[i].Transform = transforms[i];
-                if (transforms[i] == hipTransform)
+                _blendBones[i].Transform = boneTransforms[i];
+                if (boneTransforms[i] == hipTransform)
                     _hipBoneIndex = i;
             }
         }
@@ -489,7 +491,7 @@ namespace InGame.Player.Ragdoll
 
                 for (int i = 0; i < _blendBones.Length; i++)
                 {
-                    if (_blendBones[i].Transform == _skeletonRoot) continue;
+                    if (_blendBones[i].Transform == null) continue;
 
                     _blendBones[i].Transform.rotation = _blendBones[i].StoredRotation;
 
@@ -510,7 +512,7 @@ namespace InGame.Player.Ragdoll
             // 저장된 래그돌 포즈와 현재 애니메이션 포즈를 보간.
             for (int i = 0; i < _blendBones.Length; i++)
             {
-                if (_blendBones[i].Transform == _skeletonRoot) continue;
+                if (_blendBones[i].Transform == null) continue;
 
                 if (i == _hipBoneIndex)
                 {

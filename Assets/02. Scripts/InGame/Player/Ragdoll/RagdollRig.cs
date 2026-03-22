@@ -77,7 +77,10 @@ namespace InGame.Player.Ragdoll
         private void SetCollidersEnabled(bool value)
         {
             for (int i = 0; i < _ragdollCols.Length; i++)
+            {
                 _ragdollCols[i].enabled = value;
+                Debug.Log($"[RagdollRig] {_ragdollCols[i].gameObject.name}.Collider = {value} (actual: {_ragdollCols[i].enabled})");
+            }
         }
     }
 }
