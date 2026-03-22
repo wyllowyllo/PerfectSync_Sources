@@ -54,6 +54,7 @@ namespace InGame.Player.Ragdoll
         private float _stumbleDuration;
         private bool _shouldTrackPelvis;
         private bool _isRecoveryAuthority = true;
+        private bool _needsRemoteHandshake = true;
         private bool _isLerpingToRecovery;
         private Vector3 _lerpStartPos;
         private Quaternion _lerpStartRot;
@@ -82,6 +83,11 @@ namespace InGame.Player.Ragdoll
         public void SetRecoveryAuthority(bool isAuthority)
         {
             _isRecoveryAuthority = isAuthority;
+        }
+
+        public void SetNeedsRemoteHandshake(bool needs)
+        {
+            _needsRemoteHandshake = needs;
         }
 
         private void Start()
@@ -361,13 +367,21 @@ namespace InGame.Player.Ragdoll
             bool isFaceUp = (pelvis.rotation * Vector3.forward).y > 0f;
             AlignRootBodyToPelvis(pelvis);
 
-            // Recovery 데이터를 guest에 전송하되, 바로 실행하지 않고 대기.
-            OnRecoveryDataReady?.Invoke(_rootBody.position, _rootBody.rotation, isFaceUp);
-
             _pendingRecoveryPos = _rootBody.position;
             _pendingRecoveryRot = _rootBody.rotation;
             _pendingRecoveryFaceUp = isFaceUp;
             _hasPendingRecovery = true;
+
+            if (_needsRemoteHandshake)
+            {
+                // 합체 모드: recovery 데이터를 상대에게 전송하고, 상대 settle 대기.
+                OnRecoveryDataReady?.Invoke(_rootBody.position, _rootBody.rotation, isFaceUp);
+            }
+            else
+            {
+                // 분리 모드: 핸드셰이크 없이 즉시 recovery 실행.
+                ExecutePendingRecovery();
+            }
         }
 
         // Guest가 settle 확인을 보내면 host가 recovery 실행.

@@ -163,19 +163,19 @@ namespace InGame.Player.Network
 
         private void HandleJumped()
         {
-            if (!photonView.IsMine) return;
+            if (!photonView.IsMine || !_syncEnabled) return;
             photonView.RPC(nameof(RpcAnimJump), RpcTarget.Others);
         }
 
         private void HandleDived()
         {
-            if (!photonView.IsMine) return;
+            if (!photonView.IsMine || !_syncEnabled) return;
             photonView.RPC(nameof(RpcAnimDive), RpcTarget.Others);
         }
 
         private void HandleDiveLanded(bool active)
         {
-            if (!photonView.IsMine) return;
+            if (!photonView.IsMine || !_syncEnabled) return;
             photonView.RPC(nameof(RpcAnimLand), RpcTarget.Others, active);
         }
 

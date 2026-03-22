@@ -73,6 +73,8 @@ namespace InGame.Player.Network
             {
                 FindInBody<RagdollStateMachine>(_avatarA)?.SetRecoveryAuthority(true);
                 FindInBody<RagdollStateMachine>(_avatarB)?.SetRecoveryAuthority(true);
+                FindInBody<RagdollStateMachine>(_avatarA)?.SetNeedsRemoteHandshake(false);
+                FindInBody<RagdollStateMachine>(_avatarB)?.SetNeedsRemoteHandshake(false);
             }
         }
 
