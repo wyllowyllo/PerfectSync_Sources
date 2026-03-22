@@ -48,6 +48,12 @@ public class InGameManager : MonoBehaviourPunCallbacks
         Instance = this;
     }
 
+    private void OnDestroy()
+    {
+        if (Instance == this)
+            Instance = null;
+    }
+
     private IEnumerator Start()
     {
         yield return new WaitUntil(() =>
@@ -132,14 +138,41 @@ public class InGameManager : MonoBehaviourPunCallbacks
     public void EnterLocalRaceComplete()
     {
         if (CurrentState != GameState.Playing) return;
+        TrySaveFinalRankToPlayerProperties();
         SetState(GameState.RaceComplete);
+        SetLocalRaceDoneProperty();
     }
 
     /// <summary>제한 시간 내 미완주 등으로 Playing 종료(입력 불가).</summary>
     public void EnterLocalGameOver()
     {
         if (CurrentState != GameState.Playing) return;
+        TrySaveFinalRankToPlayerProperties();
         SetState(GameState.GameOver);
+        SetLocalRaceDoneProperty();
+    }
+
+    private void TrySaveFinalRankToPlayerProperties()
+    {
+        if (!PhotonNetwork.InRoom || PhotonNetwork.LocalPlayer == null) return;
+        if (RaceRankingManager.Instance == null) return;
+
+        int myTeam = GetLocalPlayerTeam();
+        if (myTeam == PhotonTeamManager.TeamNone) return;
+
+        foreach (var e in RaceRankingManager.Instance.CurrentRankings)
+        {
+            if (e.TeamNumber != myTeam) continue;
+
+            PhotonNetwork.LocalPlayer.SetCustomProperties(new Hashtable { { InGameRaceKeys.FinalRankKey, e.Rank } });
+            return;
+        }
+    }
+
+    private void SetLocalRaceDoneProperty()
+    {
+        if (!PhotonNetwork.InRoom || PhotonNetwork.LocalPlayer == null) return;
+        PhotonNetwork.LocalPlayer.SetCustomProperties(new Hashtable { { InGameRaceKeys.RaceDoneKey, true } });
     }
 
     private bool AreAllPlayersReady()

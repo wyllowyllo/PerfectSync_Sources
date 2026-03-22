@@ -14,9 +14,11 @@ public class LobbyManager : MonoBehaviourPunCallbacks
     [SerializeField] private MatchButtonUI _matchButtonUI;
     [SerializeField] private MatchingScreenUI _matchingScreenUI;
 
+    [Header("Scene")]
+    [SerializeField] private string _inGameSceneName = "InGame";
+
     [Header("Settings")]
     [SerializeField] private float _countdownSeconds = 3f;
-    [SerializeField] private string _inGameSceneName = "InGame";
 
     private Coroutine _countdownCoroutine;
     private bool _isGameStarting;
@@ -160,8 +162,10 @@ public class LobbyManager : MonoBehaviourPunCallbacks
 
         _matchingScreenUI.SetStatus("게임을 시작합니다...");
 
-        if (PhotonNetwork.IsMasterClient)
-            PhotonNetwork.LoadLevel(_inGameSceneName);
+        if (SceneLoader.Instance != null)
+            SceneLoader.Instance.LoadScenePhoton(_inGameSceneName);
+        else
+            Debug.LogError("[LobbyManager] SceneLoader 싱글톤이 없습니다. 로비 씬에 SceneLoader를 배치하세요.");
     }
 
     private void CancelCountdown()
