@@ -311,7 +311,7 @@ namespace InGame.Player.Ragdoll
 
             if (_isRecoveryAuthority)
             {
-                if (_ragdollRig.IsSettled(_settleVelocity) || _stateTimer >= _maxRagdollDuration)
+                if (IsReadyToRecover() || _stateTimer >= _maxRagdollDuration)
                     BeginRecovery();
             }
             else
@@ -319,7 +319,7 @@ namespace InGame.Player.Ragdoll
                 // Host recovery 데이터가 도착했으면, 로컬 래그돌이 안정화될 때까지 대기.
                 if (_hasPendingRecovery)
                 {
-                    if (_ragdollRig.IsSettled(_settleVelocity) || _stateTimer >= _maxRagdollDuration)
+                    if (IsReadyToRecover() || _stateTimer >= _maxRagdollDuration)
                         ExecutePendingRecovery();
                 }
                 else if (_stateTimer >= RemoteRecoveryTimeout)
@@ -416,6 +416,17 @@ namespace InGame.Player.Ragdoll
 
             if (hipsForward.sqrMagnitude > MinDirectionSqrMagnitude)
                 _rootBody.rotation = Quaternion.LookRotation(hipsForward);
+        }
+
+        private bool IsReadyToRecover()
+        {
+            if (!_ragdollRig.IsSettled(_settleVelocity))
+                return false;
+
+            // Pelvis가 지면에 닿아있는지 확인.
+            Vector3 pelvisPos = _ragdollRig.PelvisTransform.position;
+            Vector3 rayOrigin = pelvisPos + Vector3.up * RayOriginUpOffset;
+            return Physics.Raycast(rayOrigin, Vector3.down, _groundCheckDistance, _groundLayer);
         }
 
         private float GetGroundY(Vector3 origin)

@@ -9,8 +9,8 @@ namespace InGame.Player.Ragdoll
         [SerializeField] private Rigidbody _rootBody;
 
         [Header("Ragdoll Damping")]
-        [SerializeField] private float _activeLinearDamping = 0.5f;
-        [SerializeField] private float _activeAngularDamping = 1.0f;
+        [SerializeField] private float _activeLinearDamping = 4f;
+        [SerializeField] private float _activeAngularDamping = 4f;
 
         private Rigidbody[] _ragdollRbs;
         private Collider[] _ragdollCols;
