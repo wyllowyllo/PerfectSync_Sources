@@ -207,15 +207,25 @@ namespace InGame.Player.Network
             {
                 stream.SendNext(_rootBody.position);
                 stream.SendNext(_rootBody.rotation);
+                stream.SendNext(_movement != null ? _movement.CurrentSpeed : 0f);
+                stream.SendNext(_movement != null && _movement.Grounded);
             }
             else
             {
                 Vector3 pos = (Vector3)stream.ReceiveNext();
                 Quaternion rot = (Quaternion)stream.ReceiveNext();
+                float speed = (float)stream.ReceiveNext();
+                bool grounded = (bool)stream.ReceiveNext();
+
                 if (_ragdollController != null && _ragdollController.IsPhysicsRagdoll) return;
+
                 _correctionTarget = pos;
                 _correctionRotation = rot;
                 _hasCorrection = true;
+
+                // Host-authoritative: kinematic 바디에 Host의 애니메이션 파라미터 직접 적용.
+                if (_rootBody.isKinematic && _animation != null)
+                    _animation.Locomotion(grounded, speed);
             }
         }
     }

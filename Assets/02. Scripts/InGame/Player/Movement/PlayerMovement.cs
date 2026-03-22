@@ -36,7 +36,6 @@ namespace InGame.Player.Movement
         private bool _jumpRequested;
         private bool _isGrounded;
         private Vector3 _inputDirection;
-        private Vector3 _previousPosition;
 
         private const float CoyoteTime = 0.1f;
 
@@ -67,7 +66,6 @@ namespace InGame.Player.Movement
         private void Start()
         {
             _previousRagdollState = ERagdollState.Animated;
-            _previousPosition = _rootBody.position;
         }
 
         private void Update()
@@ -89,18 +87,6 @@ namespace InGame.Player.Movement
                 return;
 
             _isGrounded = IsGrounded();
-
-            // Host-authoritative 패시브 모드: 위치 델타로 애니메이션만 구동.
-            if (_rootBody.isKinematic)
-            {
-                Vector3 delta = _rootBody.position - _previousPosition;
-                delta.y = 0f;
-                float visualSpeed = delta.magnitude / Time.deltaTime;
-                _previousPosition = _rootBody.position;
-                _anim.Locomotion(_isGrounded, visualSpeed);
-                return;
-            }
-
             if (_isGrounded)
                 _lastGroundedTime = Time.time;
 

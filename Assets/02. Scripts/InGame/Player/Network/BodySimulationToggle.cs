@@ -54,20 +54,5 @@ namespace InGame.Player.Network
                 _rootBody.isKinematic = false;
         }
 
-        // Host-authoritative 합체 모드: PlayerMovement 유지 (패시브 애니메이션), 물리 OFF.
-        public void SetHostAuthoritative()
-        {
-            _isRemoteBody = true;
-
-            if (_playerJump != null)
-                _playerJump.enabled = false;
-
-            // PlayerMovement.OnEnable() → isKinematic=false 되므로 순서 중요.
-            if (_playerMovement != null)
-                _playerMovement.enabled = true;
-
-            if (_rootBody != null)
-                _rootBody.isKinematic = true;
-        }
     }
 }

@@ -54,11 +54,8 @@ namespace InGame.Player.Network
             bool isMerged = mode == ETeamMode.Merged;
             bool isHost = _photonView != null && _photonView.IsMine;
 
-            // Merged + Guest → host-authoritative (kinematic + 애니 유지).
-            if (isMerged && !isHost)
-                SetHostAuthoritativeOnBody(_mergedBody);
-            else
-                SetRemoteOnBody(_mergedBody, !isMerged);
+            // Merged + Host → local (물리 시뮬), Merged + Guest → remote (kinematic).
+            SetRemoteOnBody(_mergedBody, !isMerged || !isHost);
 
             SetRemoteOnBody(_avatarA, isMerged);
             SetRemoteOnBody(_avatarB, isMerged);
@@ -78,14 +75,6 @@ namespace InGame.Player.Network
             var toggle = FindInBody<BodySimulationToggle>(body);
             if (toggle != null)
                 toggle.SetRemote(isRemote);
-        }
-
-        private void SetHostAuthoritativeOnBody(GameObject body)
-        {
-            if (body == null) return;
-            var toggle = FindInBody<BodySimulationToggle>(body);
-            if (toggle != null)
-                toggle.SetHostAuthoritative();
         }
 
         private void HandleImpact(Vector3 impulse, Vector3 hitPoint, int hitViewID, Vector3 torqueVector)
