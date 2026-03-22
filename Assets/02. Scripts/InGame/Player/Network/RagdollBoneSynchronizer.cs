@@ -55,24 +55,35 @@ namespace InGame.Player.Network
         {
             if (!_syncEnabled) return;
             if (_ragdollStateMachine == null) return;
-            if (!_ragdollStateMachine.IsPhysicsRagdoll) return;
 
+            // 항상 플래그를 읽고 써서 스트림 동기화 보장.
             if (stream.IsWriting)
             {
-                stream.SendNext(_pelvisRb.position);
-                stream.SendNext(_pelvisRb.linearVelocity);
+                bool isRagdoll = _ragdollStateMachine.IsPhysicsRagdoll;
+                stream.SendNext(isRagdoll);
+
+                if (isRagdoll)
+                {
+                    stream.SendNext(_pelvisRb.position);
+                    stream.SendNext(_pelvisRb.linearVelocity);
+                }
             }
             else
             {
-                _targetPosition = (Vector3)stream.ReceiveNext();
-                _targetVelocity = (Vector3)stream.ReceiveNext();
+                bool isRagdoll = (bool)stream.ReceiveNext();
 
-                // 네트워크 지연만큼 위치 예측.
-                float lag = Mathf.Abs(
-                    (float)(PhotonNetwork.Time - info.SentServerTime));
-                _targetPosition += _targetVelocity * lag;
+                if (isRagdoll)
+                {
+                    _targetPosition = (Vector3)stream.ReceiveNext();
+                    _targetVelocity = (Vector3)stream.ReceiveNext();
 
-                _hasTarget = true;
+                    // 네트워크 지연만큼 위치 예측.
+                    float lag = Mathf.Abs(
+                        (float)(PhotonNetwork.Time - info.SentServerTime));
+                    _targetPosition += _targetVelocity * lag;
+
+                    _hasTarget = true;
+                }
             }
         }
     }

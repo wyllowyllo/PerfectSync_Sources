@@ -36,6 +36,7 @@ namespace InGame.Player.Ragdoll
 
         [Header("Recovery Blend")]
         [SerializeField] private float _recoveryDuration = 0.25f;
+        [SerializeField] private float _recoveryLerpDuration = 0.4f;
 
         [Header("Re-Impact")]
         [SerializeField, Range(0f, 1f)] private float _reImpactMultiplier = 0.6f;
@@ -53,6 +54,12 @@ namespace InGame.Player.Ragdoll
         private float _stumbleDuration;
         private bool _shouldTrackPelvis;
         private bool _isRecoveryAuthority = true;
+        private bool _isLerpingToRecovery;
+        private Vector3 _lerpStartPos;
+        private Quaternion _lerpStartRot;
+        private Vector3 _lerpTargetPos;
+        private Quaternion _lerpTargetRot;
+        private float _lerpTimer;
 
         private const float RayOriginUpOffset = 0.5f;
         private const float MinDirectionSqrMagnitude = 0.001f;
@@ -107,6 +114,19 @@ namespace InGame.Player.Ragdoll
                 Vector3 pelvisPos = _ragdollRig.PelvisTransform.position;
                 float t = 1f - Mathf.Exp(-_rootBodyTrackingSpeed * Time.fixedDeltaTime);
                 _rootBody.MovePosition(Vector3.Lerp(_rootBody.position, pelvisPos, t));
+            }
+
+            if (_isLerpingToRecovery)
+            {
+                _lerpTimer += Time.fixedDeltaTime;
+                float t = Mathf.Clamp01(_lerpTimer / _recoveryLerpDuration);
+                float smoothT = t * t * (3f - 2f * t);
+
+                _rootBody.MovePosition(Vector3.Lerp(_lerpStartPos, _lerpTargetPos, smoothT));
+                _rootBody.MoveRotation(Quaternion.Slerp(_lerpStartRot, _lerpTargetRot, smoothT));
+
+                if (t >= 1f)
+                    _isLerpingToRecovery = false;
             }
         }
 
@@ -180,6 +200,7 @@ namespace InGame.Player.Ragdoll
             ERagdollState prevState = _currentState;
             _currentState = ERagdollState.Animated;
             _shouldTrackPelvis = false;
+            _isLerpingToRecovery = false;
             _instability = 0f;
             _stateTimer = 0f;
 
@@ -210,11 +231,16 @@ namespace InGame.Player.Ragdoll
             _shouldTrackPelvis = false;
             _poseTransfer.Stop();
 
-            _rootBody.position = rootPos;
-            _rootBody.rotation = rootRot;
-
             _ragdollRig.Deactivate();
             _poseTransfer.RestoreVisualBones();
+
+            // 즉시 텔레포트 대신 부드러운 lerp 시작.
+            _lerpStartPos = _rootBody.position;
+            _lerpStartRot = _rootBody.rotation;
+            _lerpTargetPos = rootPos;
+            _lerpTargetRot = rootRot;
+            _lerpTimer = 0f;
+            _isLerpingToRecovery = true;
 
             _animation.GetUp(isFaceUp);
             _currentState = ERagdollState.Recovery;
