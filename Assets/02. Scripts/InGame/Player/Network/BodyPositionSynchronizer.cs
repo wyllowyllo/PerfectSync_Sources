@@ -33,13 +33,6 @@ namespace InGame.Player.Network
 
         private void Start()
         {
-            if (_ragdollController != null)
-            {
-                _ragdollController.OnRecoveryDataReady += HandleRecoveryDataReady;
-                _ragdollController.OnGuestSettled += HandleGuestSettled;
-                _ragdollController.SetRecoveryAuthority(photonView.IsMine);
-            }
-
             if (_movement != null)
             {
                 _movement.OnJumped += HandleJumped;
@@ -50,12 +43,6 @@ namespace InGame.Player.Network
 
         private void OnDestroy()
         {
-            if (_ragdollController != null)
-            {
-                _ragdollController.OnRecoveryDataReady -= HandleRecoveryDataReady;
-                _ragdollController.OnGuestSettled -= HandleGuestSettled;
-            }
-
             if (_movement != null)
             {
                 _movement.OnJumped -= HandleJumped;
@@ -80,33 +67,6 @@ namespace InGame.Player.Network
 
             if (_transformView != null)
                 _transformView.enabled = !_syncEnabled && !isActive;
-        }
-
-        private void HandleRecoveryDataReady(Vector3 rootPos, Quaternion rootRot, bool isFaceUp)
-        {
-            if (!photonView.IsMine) return;
-            photonView.RPC(nameof(RpcSyncRecovery), RpcTarget.Others, rootPos, rootRot, isFaceUp);
-        }
-
-        [PunRPC]
-        private void RpcSyncRecovery(Vector3 rootPos, Quaternion rootRot, bool isFaceUp)
-        {
-            if (!gameObject.activeInHierarchy) return;
-            _ragdollController.ApplyRemoteRecovery(rootPos, rootRot, isFaceUp);
-            _hasCorrection = false;
-        }
-
-        private void HandleGuestSettled()
-        {
-            if (photonView.IsMine) return;
-            photonView.RPC(nameof(RpcGuestSettled), RpcTarget.Others);
-        }
-
-        [PunRPC]
-        private void RpcGuestSettled()
-        {
-            if (!gameObject.activeInHierarchy) return;
-            _ragdollController.OnRemoteSettled();
         }
 
         private void FixedUpdate()

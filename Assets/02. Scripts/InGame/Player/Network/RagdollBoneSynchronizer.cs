@@ -10,45 +10,19 @@ namespace InGame.Player.Network
     {
         [SerializeField] private RagdollRig _ragdollRig;
         [SerializeField] private RagdollStateMachine _ragdollStateMachine;
-
-        [Header("Pelvis Correction")]
-        [SerializeField] private float _blendFactor = 0.15f;
-        [SerializeField] private float _catchUpTime = 0.3f;
+        [SerializeField] private RagdollBoneReceiver _boneReceiver;
 
         private bool _syncEnabled;
-        private Rigidbody _pelvisRb;
-
-        private Vector3 _targetPosition;
-        private Vector3 _targetVelocity;
-        private bool _hasTarget;
+        private bool _isAuthority = true;
 
         public void SetSyncEnabled(bool enabled)
         {
             _syncEnabled = enabled;
-            _hasTarget = false;
         }
 
-        private void Start()
+        public void SetAuthority(bool isAuthority)
         {
-            _pelvisRb = _ragdollRig.Rigidbodies[0];
-        }
-
-        private void FixedUpdate()
-        {
-            if (photonView.IsMine) return;
-            if (!_syncEnabled || !_hasTarget) return;
-            if (!_ragdollStateMachine.IsPhysicsRagdoll) return;
-
-            // 호스트 위치 방향으로 보정 속도 계산.
-            Vector3 correctionVel = (_targetPosition - _pelvisRb.position) / _catchUpTime;
-
-            // 로컬 물리 속도와 호스트 속도 + 보정을 블렌딩.
-            Vector3 blendedVel = Vector3.Lerp(
-                _pelvisRb.linearVelocity,
-                _targetVelocity + correctionVel,
-                _blendFactor);
-
-            _pelvisRb.linearVelocity = blendedVel;
+            _isAuthority = isAuthority;
         }
 
         public void OnPhotonSerializeView(PhotonStream stream, PhotonMessageInfo info)
@@ -56,34 +30,38 @@ namespace InGame.Player.Network
             if (!_syncEnabled) return;
             if (_ragdollStateMachine == null) return;
 
-            // 항상 플래그를 읽고 써서 스트림 동기화 보장.
             if (stream.IsWriting)
             {
-                bool isRagdoll = _ragdollStateMachine.IsPhysicsRagdoll;
-                stream.SendNext(isRagdoll);
-
-                if (isRagdoll)
-                {
-                    stream.SendNext(_pelvisRb.position);
-                    stream.SendNext(_pelvisRb.linearVelocity);
-                }
+                WriteToStream(stream);
             }
             else
             {
-                bool isRagdoll = (bool)stream.ReceiveNext();
+                ReadFromStream(stream, info);
+            }
+        }
 
-                if (isRagdoll)
-                {
-                    _targetPosition = (Vector3)stream.ReceiveNext();
-                    _targetVelocity = (Vector3)stream.ReceiveNext();
+        private void WriteToStream(PhotonStream stream)
+        {
+            bool isRagdoll = _ragdollStateMachine.IsPhysicsRagdoll;
+            stream.SendNext(isRagdoll);
 
-                    // 네트워크 지연만큼 위치 예측.
-                    float lag = Mathf.Abs(
-                        (float)(PhotonNetwork.Time - info.SentServerTime));
-                    _targetPosition += _targetVelocity * lag;
+            if (isRagdoll)
+            {
+                RagdollBoneSnapshot snapshot = RagdollBoneSnapshot.Capture(_ragdollRig);
+                snapshot.WriteTo(stream);
+            }
+        }
 
-                    _hasTarget = true;
-                }
+        private void ReadFromStream(PhotonStream stream, PhotonMessageInfo _)
+        {
+            bool isRagdoll = (bool)stream.ReceiveNext();
+
+            if (isRagdoll)
+            {
+                RagdollBoneSnapshot snapshot = RagdollBoneSnapshot.ReadFrom(stream);
+
+                if (_boneReceiver != null)
+                    _boneReceiver.ApplySnapshot(snapshot);
             }
         }
     }

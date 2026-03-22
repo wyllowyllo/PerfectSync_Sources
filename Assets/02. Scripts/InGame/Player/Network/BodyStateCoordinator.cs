@@ -60,22 +60,46 @@ namespace InGame.Player.Network
             SetRemoteOnBody(_avatarA, isMerged);
             SetRemoteOnBody(_avatarB, isMerged);
 
+            // Position sync.
             FindInBody<BodyPositionSynchronizer>(_mergedBody)?.SetSyncEnabled(isMerged);
             FindInBody<BodyPositionSynchronizer>(_avatarA)?.SetSyncEnabled(false);
             FindInBody<BodyPositionSynchronizer>(_avatarB)?.SetSyncEnabled(false);
 
-            FindInBody<RagdollBoneSynchronizer>(_mergedBody)?.SetSyncEnabled(isMerged);
-            FindInBody<RagdollBoneSynchronizer>(_avatarA)?.SetSyncEnabled(false);
-            FindInBody<RagdollBoneSynchronizer>(_avatarB)?.SetSyncEnabled(false);
-
-            // 분리 모드: 각 클라이언트가 자기 아바타의 래그돌을 로컬로 recovery.
-            if (!isMerged)
+            // Ragdoll bone sync + authority 설정.
+            if (isMerged)
             {
-                FindInBody<RagdollStateMachine>(_avatarA)?.SetRecoveryAuthority(true);
-                FindInBody<RagdollStateMachine>(_avatarB)?.SetRecoveryAuthority(true);
-                FindInBody<RagdollStateMachine>(_avatarA)?.SetNeedsRemoteHandshake(false);
-                FindInBody<RagdollStateMachine>(_avatarB)?.SetNeedsRemoteHandshake(false);
+                ConfigureRagdollAuthority(_mergedBody, true, isHost);
+                ConfigureRagdollAuthority(_avatarA, false, false);
+                ConfigureRagdollAuthority(_avatarB, false, false);
             }
+            else
+            {
+                ConfigureRagdollAuthority(_mergedBody, false, false);
+                // 분리 모드: 호스트가 AvatarA, 게스트가 AvatarB 제어.
+                ConfigureRagdollAuthority(_avatarA, true, isHost);
+                ConfigureRagdollAuthority(_avatarB, true, !isHost);
+            }
+        }
+
+        private void ConfigureRagdollAuthority(
+            GameObject body, bool syncEnabled, bool isAuthority)
+        {
+            if (body == null) return;
+
+            var boneSynchronizer = FindInBody<RagdollBoneSynchronizer>(body);
+            if (boneSynchronizer != null)
+            {
+                boneSynchronizer.SetSyncEnabled(syncEnabled);
+                boneSynchronizer.SetAuthority(isAuthority);
+            }
+
+            var bridge = FindInBody<RagdollStateNetworkBridge>(body);
+            if (bridge != null)
+                bridge.SetAuthority(isAuthority);
+
+            var stateMachine = FindInBody<RagdollStateMachine>(body);
+            if (stateMachine != null)
+                stateMachine.SetAuthority(isAuthority);
         }
 
         private void SetRemoteOnBody(GameObject body, bool isRemote)
@@ -86,11 +110,16 @@ namespace InGame.Player.Network
                 toggle.SetRemote(isRemote);
         }
 
-        private void HandleImpact(Vector3 impulse, Vector3 hitPoint, int hitViewID, Vector3 torqueVector)
+        private void HandleImpact(
+            Vector3 impulse, Vector3 hitPoint, int hitViewID, Vector3 torqueVector)
         {
             var hitBody = ResolveBodyByViewID(hitViewID);
             if (hitBody == null) return;
-            FindInBody<RagdollStateMachine>(hitBody)?.OnHitImpact(impulse, hitPoint, torqueVector);
+
+            // Authority만 impact 처리. Remote는 RagdollStateNetworkBridge RPC로 제어.
+            var stateMachine = FindInBody<RagdollStateMachine>(hitBody);
+            if (stateMachine != null)
+                stateMachine.OnHitImpact(impulse, hitPoint, torqueVector);
         }
 
         private void HandleDeath()

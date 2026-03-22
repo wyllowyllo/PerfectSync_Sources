@@ -53,22 +53,16 @@ namespace InGame.Player.Ragdoll
         private float _stateTimer;
         private float _stumbleDuration;
         private bool _shouldTrackPelvis;
-        private bool _isRecoveryAuthority = true;
-        private bool _needsRemoteHandshake = true;
+        private bool _isAuthority = true;
         private bool _isLerpingToRecovery;
         private Vector3 _lerpStartPos;
         private Quaternion _lerpStartRot;
         private Vector3 _lerpTargetPos;
         private Quaternion _lerpTargetRot;
         private float _lerpTimer;
-        private bool _hasPendingRecovery;
-        private Vector3 _pendingRecoveryPos;
-        private Quaternion _pendingRecoveryRot;
-        private bool _pendingRecoveryFaceUp;
 
         private const float RayOriginUpOffset = 0.5f;
         private const float MinDirectionSqrMagnitude = 0.001f;
-        private const float RemoteRecoveryTimeout = 5.0f;
 
         public ERagdollState CurrentState => _currentState;
         public bool IsRagdollActive => _currentState != ERagdollState.Animated;
@@ -77,27 +71,24 @@ namespace InGame.Player.Ragdoll
                                         _currentState == ERagdollState.Recovery ||
                                         _currentState == ERagdollState.Dead;
 
-        public event Action<Vector3, Quaternion, bool> OnRecoveryDataReady;
-        public event Action OnGuestSettled;
+        public event Action<ERagdollState> OnStateChanged;
 
-        public void SetRecoveryAuthority(bool isAuthority)
+        public void SetAuthority(bool isAuthority)
         {
-            _isRecoveryAuthority = isAuthority;
-        }
-
-        public void SetNeedsRemoteHandshake(bool needs)
-        {
-            _needsRemoteHandshake = needs;
+            _isAuthority = isAuthority;
         }
 
         private void Start()
         {
-            _impactTransfer = new RagdollImpactTransfer(_ragdollRig.Rigidbodies, _impactRadius, _impactForceScale);
+            _impactTransfer = new RagdollImpactTransfer(
+                _ragdollRig.Rigidbodies, _impactRadius, _impactForceScale);
             SetActiveRagdollForceActive(false);
         }
 
         private void Update()
         {
+            if (!_isAuthority) return;
+
             DecayInstability();
 
             switch (_currentState)
@@ -143,14 +134,20 @@ namespace InGame.Player.Ragdoll
 
         private void LateUpdate()
         {
+            // Authority: 래그돌 물리 본 → 비주얼 본 복사.
+            // Remote에서는 RagdollBoneReceiver.LateUpdate가 이 역할을 대신함.
+            if (!_isAuthority) return;
+
             if (_currentState == ERagdollState.Ragdoll || _currentState == ERagdollState.Dead)
                 _poseTransfer.CopyPose();
         }
 
-        #region Public API
+        #region Public API (Authority)
 
         public void OnHitImpact(Vector3 impulse, Vector3 hitPoint, Vector3 torqueVector)
         {
+            if (!_isAuthority) return;
+
             var impact = new ImpactData(impulse, hitPoint);
             float effectiveMagnitude = impact.Magnitude + _instability;
 
@@ -202,6 +199,8 @@ namespace InGame.Player.Ragdoll
             _poseTransfer.SetDirection(EPoseDirection.RagdollToAnim);
             _shouldTrackPelvis = false;
             SetActiveRagdollForceActive(false);
+
+            OnStateChanged?.Invoke(ERagdollState.Dead);
         }
 
         public void ForceRecover()
@@ -209,10 +208,8 @@ namespace InGame.Player.Ragdoll
             if (_currentState == ERagdollState.Dead) return;
 
             ERagdollState prevState = _currentState;
-            _currentState = ERagdollState.Animated;
             _shouldTrackPelvis = false;
             _isLerpingToRecovery = false;
-            _hasPendingRecovery = false;
             _instability = 0f;
             _stateTimer = 0f;
 
@@ -226,25 +223,9 @@ namespace InGame.Player.Ragdoll
 
             _animation.ClearGetUpState();
             _animation.ClearStumbleState();
-        }
 
-        public void ApplyRemoteRecovery(Vector3 rootPos, Quaternion rootRot, bool isFaceUp)
-        {
-            if (_currentState != ERagdollState.Ragdoll && _currentState != ERagdollState.Recovery)
-                return;
-
-            if (_currentState == ERagdollState.Recovery)
-            {
-                _rootBody.position = rootPos;
-                _rootBody.rotation = rootRot;
-                return;
-            }
-
-            // 즉시 recovery 하지 않고, 로컬 래그돌이 안정화될 때까지 대기.
-            _pendingRecoveryPos = rootPos;
-            _pendingRecoveryRot = rootRot;
-            _pendingRecoveryFaceUp = isFaceUp;
-            _hasPendingRecovery = true;
+            _currentState = ERagdollState.Animated;
+            OnStateChanged?.Invoke(ERagdollState.Animated);
         }
 
         // Animator의 GetUp 애니메이션이 끝나면 호출.
@@ -256,7 +237,70 @@ namespace InGame.Player.Ragdoll
 
         #endregion
 
-        #region Stumble
+        #region Remote Entry (RagdollStateNetworkBridge가 호출)
+
+        public void EnterRagdollRemote()
+        {
+            _currentState = ERagdollState.Ragdoll;
+            _stateTimer = 0f;
+            _instability = 0f;
+            _shouldTrackPelvis = false;
+
+            // Kinematic rig 활성화 (물리 없음). RagdollBoneReceiver가 본 데이터를 적용.
+            _ragdollRig.ActivateKinematic();
+            _poseTransfer.SetDirection(EPoseDirection.RagdollToAnim);
+        }
+
+        public void EnterRecoveryRemote(Vector3 rootPos, Quaternion rootRot, bool isFaceUp)
+        {
+            _shouldTrackPelvis = false;
+            _poseTransfer.Stop();
+            _ragdollRig.Deactivate();
+            _poseTransfer.RestoreVisualBones();
+
+            _lerpStartPos = _rootBody.position;
+            _lerpStartRot = _rootBody.rotation;
+            _lerpTargetPos = rootPos;
+            _lerpTargetRot = rootRot;
+            _lerpTimer = 0f;
+            _isLerpingToRecovery = true;
+
+            _animation.GetUp(isFaceUp);
+            _currentState = ERagdollState.Recovery;
+            _stateTimer = 0f;
+        }
+
+        public void EnterAnimatedRemote()
+        {
+            _currentState = ERagdollState.Animated;
+            _isLerpingToRecovery = false;
+            _animation.ClearGetUpState();
+        }
+
+        public void EnterStumbleRemote()
+        {
+            _currentState = ERagdollState.Stumble;
+            _animation.Stumble();
+
+            // Remote에서는 duration을 authority와 동기화할 필요 없음.
+            // Authority가 Animated 전환 RPC를 보내면 그때 종료.
+            _stumbleDuration = _maxStumbleDuration;
+            _stateTimer = 0f;
+        }
+
+        public void EnterDeadRemote()
+        {
+            _currentState = ERagdollState.Dead;
+            _shouldTrackPelvis = false;
+
+            // Kinematic rig 활성화. RagdollBoneReceiver가 본 데이터를 적용.
+            _ragdollRig.ActivateKinematic();
+            _poseTransfer.SetDirection(EPoseDirection.RagdollToAnim);
+        }
+
+        #endregion
+
+        #region Stumble (Authority Only)
 
         private void EnterStumble(ImpactData impact)
         {
@@ -264,7 +308,9 @@ namespace InGame.Player.Ragdoll
             _instability += impact.Magnitude;
 
             Vector3 pushDir = impact.Impulse.normalized;
-            _rootBody.AddForce(pushDir * impact.Magnitude * _stumblePushMultiplier, ForceMode.Impulse);
+            _rootBody.AddForce(
+                pushDir * impact.Magnitude * _stumblePushMultiplier,
+                ForceMode.Impulse);
 
             _animation.Stumble();
 
@@ -273,6 +319,8 @@ namespace InGame.Player.Ragdoll
                 _minStumbleDuration,
                 _maxStumbleDuration);
             _stateTimer = 0f;
+
+            OnStateChanged?.Invoke(ERagdollState.Stumble);
         }
 
         private void UpdateStumble()
@@ -283,12 +331,13 @@ namespace InGame.Player.Ragdoll
             {
                 _currentState = ERagdollState.Animated;
                 _animation.ClearStumbleState();
+                OnStateChanged?.Invoke(ERagdollState.Animated);
             }
         }
 
         #endregion
 
-        #region Ragdoll
+        #region Ragdoll (Authority Only)
 
         private void EnterRagdoll(ImpactData impact, Vector3 torqueVector)
         {
@@ -306,6 +355,8 @@ namespace InGame.Player.Ragdoll
 
             _poseTransfer.SetDirection(EPoseDirection.RagdollToAnim);
             _shouldTrackPelvis = true;
+
+            OnStateChanged?.Invoke(ERagdollState.Ragdoll);
         }
 
         private void UpdateRagdoll()
@@ -315,50 +366,8 @@ namespace InGame.Player.Ragdoll
             if (_stateTimer < _minRagdollDuration)
                 return;
 
-            if (_isRecoveryAuthority)
-            {
-                if (IsReadyToRecover() || _stateTimer >= _maxRagdollDuration)
-                    BeginRecovery();
-            }
-            else
-            {
-                // Host recovery 데이터가 도착했으면, 로컬 래그돌이 안정화될 때까지 대기.
-                if (_hasPendingRecovery)
-                {
-                    if (IsReadyToRecover() || _stateTimer >= _maxRagdollDuration)
-                        ExecutePendingRecovery();
-                }
-                else if (_stateTimer >= RemoteRecoveryTimeout)
-                {
-                    BeginRecovery();
-                }
-            }
-        }
-
-        private void ExecutePendingRecovery()
-        {
-            _hasPendingRecovery = false;
-
-            // Host에 "나도 settle됐다" 알림.
-            OnGuestSettled?.Invoke();
-
-            _shouldTrackPelvis = false;
-            _poseTransfer.Stop();
-
-            _ragdollRig.Deactivate();
-            _poseTransfer.RestoreVisualBones();
-
-            _lerpStartPos = _rootBody.position;
-            _lerpStartRot = _rootBody.rotation;
-            _lerpTargetPos = _pendingRecoveryPos;
-            _lerpTargetRot = _pendingRecoveryRot;
-            _lerpTimer = 0f;
-            _isLerpingToRecovery = true;
-
-            _animation.GetUp(_pendingRecoveryFaceUp);
-            _currentState = ERagdollState.Recovery;
-            _stateTimer = 0f;
-            SetActiveRagdollForceActive(false);
+            if (IsReadyToRecover() || _stateTimer >= _maxRagdollDuration)
+                BeginRecovery();
         }
 
         private void BeginRecovery()
@@ -367,33 +376,29 @@ namespace InGame.Player.Ragdoll
             bool isFaceUp = (pelvis.rotation * Vector3.forward).y > 0f;
             AlignRootBodyToPelvis(pelvis);
 
-            _pendingRecoveryPos = _rootBody.position;
-            _pendingRecoveryRot = _rootBody.rotation;
-            _pendingRecoveryFaceUp = isFaceUp;
-            _hasPendingRecovery = true;
+            _shouldTrackPelvis = false;
+            _poseTransfer.Stop();
+            _ragdollRig.Deactivate();
+            _poseTransfer.RestoreVisualBones();
 
-            if (_needsRemoteHandshake)
-            {
-                // 합체 모드: recovery 데이터를 상대에게 전송하고, 상대 settle 대기.
-                OnRecoveryDataReady?.Invoke(_rootBody.position, _rootBody.rotation, isFaceUp);
-            }
-            else
-            {
-                // 분리 모드: 핸드셰이크 없이 즉시 recovery 실행.
-                ExecutePendingRecovery();
-            }
-        }
+            _lerpStartPos = _rootBody.position;
+            _lerpStartRot = _rootBody.rotation;
+            _lerpTargetPos = _rootBody.position;
+            _lerpTargetRot = _rootBody.rotation;
+            _lerpTimer = 0f;
+            _isLerpingToRecovery = true;
 
-        // Guest가 settle 확인을 보내면 host가 recovery 실행.
-        public void OnRemoteSettled()
-        {
-            if (!_hasPendingRecovery) return;
-            ExecutePendingRecovery();
+            _animation.GetUp(isFaceUp);
+            _currentState = ERagdollState.Recovery;
+            _stateTimer = 0f;
+            SetActiveRagdollForceActive(false);
+
+            OnStateChanged?.Invoke(ERagdollState.Recovery);
         }
 
         #endregion
 
-        #region Recovery
+        #region Recovery (Authority Only)
 
         private void UpdateRecovery()
         {
@@ -407,16 +412,27 @@ namespace InGame.Player.Ragdoll
         {
             _currentState = ERagdollState.Animated;
             _animation.ClearGetUpState();
+            OnStateChanged?.Invoke(ERagdollState.Animated);
         }
 
         #endregion
 
         #region Helpers
 
+        public Vector3 GetRecoveryPosition() => _rootBody.position;
+        public Quaternion GetRecoveryRotation() => _rootBody.rotation;
+
+        public bool GetIsFaceUp()
+        {
+            Transform pelvis = _ragdollRig.PelvisTransform;
+            return (pelvis.rotation * Vector3.forward).y > 0f;
+        }
+
         private void DecayInstability()
         {
             if (_instability > 0f)
-                _instability = Mathf.Max(0f, _instability - _instabilityDecayRate * Time.deltaTime);
+                _instability = Mathf.Max(
+                    0f, _instability - _instabilityDecayRate * Time.deltaTime);
         }
 
         private void AlignRootBodyToPelvis(Transform pelvis)
@@ -437,17 +453,19 @@ namespace InGame.Player.Ragdoll
             if (!_ragdollRig.IsSettled(_settleVelocity))
                 return false;
 
-            // Pelvis가 지면에 닿아있는지 확인.
             Vector3 pelvisPos = _ragdollRig.PelvisTransform.position;
             Vector3 rayOrigin = pelvisPos + Vector3.up * RayOriginUpOffset;
-            return Physics.Raycast(rayOrigin, Vector3.down, _groundCheckDistance, _groundLayer);
+            return Physics.Raycast(
+                rayOrigin, Vector3.down, _groundCheckDistance, _groundLayer);
         }
 
         private float GetGroundY(Vector3 origin)
         {
             Vector3 rayOrigin = origin + Vector3.up * RayOriginUpOffset;
 
-            if (Physics.Raycast(rayOrigin, Vector3.down, out RaycastHit hit, _groundCheckDistance, _groundLayer))
+            if (Physics.Raycast(
+                    rayOrigin, Vector3.down, out RaycastHit hit,
+                    _groundCheckDistance, _groundLayer))
                 return hit.point.y;
 
             return origin.y;

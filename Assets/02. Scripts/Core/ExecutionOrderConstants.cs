@@ -18,5 +18,6 @@ namespace Core
         public const int BodySimulationToggle = 10;
         public const int BodyPositionSynchronizer = 100;
         public const int RagdollBoneSynchronizer = 101;
+        public const int RagdollStateNetworkBridge = 102;
     }
 }
