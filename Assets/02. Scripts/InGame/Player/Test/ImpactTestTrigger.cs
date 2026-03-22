@@ -40,7 +40,7 @@ namespace InGame.Player.Test
 
         private void Update()
         {
-            if (_input == null || !_input.IsOwner) return;
+            if (_input == null ) return;
             if (!Input.GetKeyDown(_triggerKey)) return;
 
             GameObject body = GetTargetBody();

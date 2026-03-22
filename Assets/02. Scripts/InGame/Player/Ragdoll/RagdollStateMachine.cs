@@ -131,11 +131,8 @@ namespace InGame.Player.Ragdoll
                     break;
 
                 case ERagdollState.Ragdoll:
-                    if (_isRecoveryAuthority)
-                    {
-                        _impactTransfer.ApplyAdditionalImpact(impact, torqueVector);
-                        _stateTimer = 0f;
-                    }
+                    _impactTransfer.ApplyAdditionalImpact(impact, torqueVector);
+                    _stateTimer = 0f;
                     break;
 
                 case ERagdollState.Animated:
@@ -164,19 +161,12 @@ namespace InGame.Player.Ragdoll
             _poseTransfer.SetDirection(EPoseDirection.AnimToRagdoll);
             _poseTransfer.CopyPose();
 
-            if (_isRecoveryAuthority)
-            {
-                Vector3 inheritedVelocity = _rootBody.linearVelocity;
-                _ragdollRig.Activate(inheritedVelocity);
-                _impactTransfer.TransferImpact(
-                    new ImpactData(Vector3.zero, _rootBody.position),
-                    inheritedVelocity,
-                    Vector3.zero);
-            }
-            else
-            {
-                _ragdollRig.ActivateKinematic();
-            }
+            Vector3 inheritedVelocity = _rootBody.linearVelocity;
+            _ragdollRig.Activate(inheritedVelocity);
+            _impactTransfer.TransferImpact(
+                new ImpactData(Vector3.zero, _rootBody.position),
+                inheritedVelocity,
+                Vector3.zero);
 
             _poseTransfer.SetDirection(EPoseDirection.RagdollToAnim);
             _shouldTrackPelvis = false;
@@ -284,18 +274,10 @@ namespace InGame.Player.Ragdoll
             _poseTransfer.SetDirection(EPoseDirection.AnimToRagdoll);
             _poseTransfer.CopyPose();
 
-            if (_isRecoveryAuthority)
-            {
-                Vector3 inheritedVelocity = _rootBody.linearVelocity;
-                _ragdollRig.Activate(inheritedVelocity);
-                _impactTransfer.TransferImpact(impact, inheritedVelocity, torqueVector);
-                SetActiveRagdollForceActive(true);
-            }
-            else
-            {
-                _ragdollRig.ActivateKinematic();
-                SetActiveRagdollForceActive(false);
-            }
+            Vector3 inheritedVelocity = _rootBody.linearVelocity;
+            _ragdollRig.Activate(inheritedVelocity);
+            _impactTransfer.TransferImpact(impact, inheritedVelocity, torqueVector);
+            SetActiveRagdollForceActive(true);
 
             _poseTransfer.SetDirection(EPoseDirection.RagdollToAnim);
             _shouldTrackPelvis = true;
