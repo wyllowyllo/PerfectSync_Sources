@@ -61,12 +61,19 @@ namespace InGame.Player.Network
             SetRemoteOnBody(_avatarB, isMerged);
 
             FindInBody<BodyPositionSynchronizer>(_mergedBody)?.SetSyncEnabled(isMerged);
-            FindInBody<BodyPositionSynchronizer>(_avatarA)?.SetSyncEnabled(!isMerged);
-            FindInBody<BodyPositionSynchronizer>(_avatarB)?.SetSyncEnabled(!isMerged);
+            FindInBody<BodyPositionSynchronizer>(_avatarA)?.SetSyncEnabled(false);
+            FindInBody<BodyPositionSynchronizer>(_avatarB)?.SetSyncEnabled(false);
 
             FindInBody<RagdollBoneSynchronizer>(_mergedBody)?.SetSyncEnabled(isMerged);
-            FindInBody<RagdollBoneSynchronizer>(_avatarA)?.SetSyncEnabled(!isMerged);
-            FindInBody<RagdollBoneSynchronizer>(_avatarB)?.SetSyncEnabled(!isMerged);
+            FindInBody<RagdollBoneSynchronizer>(_avatarA)?.SetSyncEnabled(false);
+            FindInBody<RagdollBoneSynchronizer>(_avatarB)?.SetSyncEnabled(false);
+
+            // 분리 모드: 각 클라이언트가 자기 아바타의 래그돌을 로컬로 recovery.
+            if (!isMerged)
+            {
+                FindInBody<RagdollStateMachine>(_avatarA)?.SetRecoveryAuthority(true);
+                FindInBody<RagdollStateMachine>(_avatarB)?.SetRecoveryAuthority(true);
+            }
         }
 
         private void SetRemoteOnBody(GameObject body, bool isRemote)
