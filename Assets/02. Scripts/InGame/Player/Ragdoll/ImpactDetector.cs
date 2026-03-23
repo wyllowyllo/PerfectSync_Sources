@@ -39,15 +39,26 @@ namespace InGame.Player.Ragdoll
                 if (!source.TryComputeImpulse(collision, out impulse, out torque))
                     return;
             }
-            else
+            else if (!TryComputeFallbackImpulse(collision, out impulse, out torque))
             {
-                impulse = collision.relativeVelocity;
-                if (impulse.sqrMagnitude < _minImpulse * _minImpulse) return;
-                torque = Random.insideUnitSphere * impulse.magnitude * TorqueScaleFactor;
+                return;
             }
 
             Vector3 hitPoint = collision.GetContact(0).point;
             _localPlayerInput.SendImpact(impulse, hitPoint, _photonView.ViewID, torque);
+        }
+
+        private bool TryComputeFallbackImpulse(Collision collision, out Vector3 impulse, out Vector3 torque)
+        {
+            impulse = collision.relativeVelocity;
+            if (impulse.sqrMagnitude < _minImpulse * _minImpulse)
+            {
+                torque = Vector3.zero;
+                return false;
+            }
+
+            torque = Random.insideUnitSphere * impulse.magnitude * TorqueScaleFactor;
+            return true;
         }
     }
 }

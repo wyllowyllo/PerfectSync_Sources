@@ -44,9 +44,14 @@ namespace InGame.Player.Ragdoll
             }
         }
 
+        private const int MaxBoneCount = 64;
+
         public static RagdollBoneSnapshot ReadFrom(PhotonStream stream)
         {
             int count = (int)stream.ReceiveNext();
+            if (count < 0 || count > MaxBoneCount)
+                return new RagdollBoneSnapshot(System.Array.Empty<Vector3>(), System.Array.Empty<Quaternion>());
+
             var positions = new Vector3[count];
             var rotations = new Quaternion[count];
 

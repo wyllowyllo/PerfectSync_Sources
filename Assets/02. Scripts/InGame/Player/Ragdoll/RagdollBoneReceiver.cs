@@ -17,6 +17,8 @@ namespace InGame.Player.Ragdoll
 
         private const float DefaultReceiveInterval = 0.1f;
         private const float MaxInterpolationTime = 0.2f;
+        private const float MinIntervalThreshold = 0.001f;
+        private const float IntervalSmoothingFactor = 0.5f;
 
         public bool IsActive => _isActive;
 
@@ -48,8 +50,8 @@ namespace InGame.Player.Ragdoll
             if (_hasSnapshot)
             {
                 float interval = now - _lastReceiveTime;
-                if (interval > 0.001f)
-                    _receiveInterval = Mathf.Lerp(_receiveInterval, interval, 0.5f);
+                if (interval > MinIntervalThreshold)
+                    _receiveInterval = Mathf.Lerp(_receiveInterval, interval, IntervalSmoothingFactor);
             }
 
             _lastReceiveTime = now;
@@ -88,7 +90,7 @@ namespace InGame.Player.Ragdoll
             // RootBody를 pelvis 위치로 이동 (카메라 추적용).
             // 스켈레톤이 분리되어 있으므로 rootBody 이동이 본에 영향을 주지 않음.
             if (_rootBody != null && count > 0)
-                _rootBody.MovePosition(bones[0].position);
+                _rootBody.MovePosition(_ragdollRig.PelvisTransform.position);
         }
     }
 }

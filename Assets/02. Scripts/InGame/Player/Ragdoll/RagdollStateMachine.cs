@@ -1,6 +1,7 @@
 using System;
 using InGame.Player.Animation;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 namespace InGame.Player.Ragdoll
 {
@@ -43,63 +44,43 @@ namespace InGame.Player.Ragdoll
         [Header("Root Body Tracking")]
         [SerializeField] private float _rootBodyTrackingSpeed = 5f;
 
-        [Header("Remote Root Lerp")]
-        [SerializeField] private float _rootLerpDuration = 0.4f;
+        [Header("Root Transition")]
+        [FormerlySerializedAs("_rootLerpDuration")]
+        [SerializeField] private float _rootTransitionDuration = 0.4f;
 
         // State.
         private ERagdollState _currentState = ERagdollState.Animated;
         private RagdollImpactTransfer _impactTransfer;
+        private RagdollBlender _blender;
         private float _instability;
         private float _stateTimer;
-        private bool _shouldTrackPelvis;
         private bool _isAuthority = true;
 
         // Skeleton detach.
         private Transform _skeletonOriginalParent;
         private bool _isDetached;
 
-        // Blend data (RagdollHelper 방식).
-        private struct BonePose
-        {
-            public Transform Transform;
-            public Vector3 StoredPosition;
-            public Quaternion StoredRotation;
-        }
+        // Root control.
+        private bool _shouldTrackPelvis;
+        private RagdollRootTransition _rootTransition;
 
-        private BonePose[] _blendBones;
-        private int _hipBoneIndex = -1;
-        private Vector3 _ragdolledHipPosition;
-        private Vector3 _ragdolledHeadPosition;
-        private Vector3 _ragdolledFeetPosition;
-        private float _blendStartTime;
 
-        // Remote root lerp.
-        private bool _isLerpingRoot;
-        private Vector3 _lerpStartPos;
-        private Quaternion _lerpStartRot;
-        private Vector3 _lerpTargetPos;
-        private Quaternion _lerpTargetRot;
-        private float _lerpTimer;
-
-        private const float MecanimTransitionTime = 0.05f;
-        private const float RayOriginUpOffset = 0.5f;
-        private const float MinDirectionSqrMagnitude = 0.001f;
-
+        // 프로퍼티
         public ERagdollState CurrentState => _currentState;
         public bool IsRagdollActive => _currentState != ERagdollState.Animated;
-
-        public bool IsPhysicsRagdoll => _currentState == ERagdollState.Ragdolled
-                                        || _currentState == ERagdollState.Dead;
+        public bool IsPhysicsRagdoll => _currentState == ERagdollState.Ragdolled || _currentState == ERagdollState.Dead;
 
         // 래그돌 시스템이 rootBody 위치를 관리 중인지 여부.
-        // Ragdolled/Dead: pelvis 추적, BlendToAnim: root lerp.
+        // Ragdolled/Dead: pelvis 추적, BlendToAnim: root transition.
         // 이 동안 외부 위치 보정(BodyPositionSynchronizer, PhotonTransformView)을 억제해야 함.
-        public bool IsRootManagedByRagdoll => _currentState == ERagdollState.Ragdolled
-                                            || _currentState == ERagdollState.Dead
-                                            || _currentState == ERagdollState.BlendToAnim;
+        public bool IsRootManagedByRagdoll => _currentState != ERagdollState.Animated;
 
+        // 이벤트
         public event Action<ERagdollState> OnStateChanged;
         public event Action OnStumblePlayed;
+
+        // 상수
+        private const float RayOriginUpOffset = 0.5f;
 
         public void SetAuthority(bool isAuthority)
         {
@@ -109,26 +90,9 @@ namespace InGame.Player.Ragdoll
         private void Start()
         {
             _skeletonOriginalParent = _skeletonRoot.parent;
-            _impactTransfer = new RagdollImpactTransfer(
-                _ragdollRig.Rigidbodies, _impactRadius, _impactForceScale);
-            InitializeBlendBones();
-        }
-
-        private void InitializeBlendBones()
-        {
-            // 래그돌 본(Rigidbody가 있는 본)만 블렌드 대상으로 수집.
-            // 장식 오브젝트(눈, 모자 등)는 부모 본을 따라 자연스럽게 이동하므로 제외.
-            var boneTransforms = _ragdollRig.BoneTransforms;
-            _blendBones = new BonePose[boneTransforms.Count];
-
-            Transform hipTransform = _animator.GetBoneTransform(HumanBodyBones.Hips);
-
-            for (int i = 0; i < boneTransforms.Count; i++)
-            {
-                _blendBones[i].Transform = boneTransforms[i];
-                if (boneTransforms[i] == hipTransform)
-                    _hipBoneIndex = i;
-            }
+            _impactTransfer = new RagdollImpactTransfer(_ragdollRig.Rigidbodies, _impactRadius, _impactForceScale);
+            _blender = new RagdollBlender(_ragdollRig, _animator, _ragdollToAnimBlendTime, _groundCheckDistance, _groundLayer);
+            _rootTransition = new RagdollRootTransition(_rootTransitionDuration);
         }
 
         private void Update()
@@ -151,35 +115,20 @@ namespace InGame.Player.Ragdoll
         private void FixedUpdate()
         {
             if (_shouldTrackPelvis)
-            {
-                Vector3 pelvisPos = _ragdollRig.PelvisTransform.position;
-                float t = 1f - Mathf.Exp(-_rootBodyTrackingSpeed * Time.fixedDeltaTime);
-                _rootBody.MovePosition(Vector3.Lerp(_rootBody.position, pelvisPos, t));
-            }
+                TrackPelvis();
 
-            if (_isLerpingRoot)
-            {
-                _lerpTimer += Time.fixedDeltaTime;
-                float t = Mathf.Clamp01(_lerpTimer / _rootLerpDuration);
-                float smoothT = t * t * (3f - 2f * t);
-
-                _rootBody.MovePosition(Vector3.Lerp(_lerpStartPos, _lerpTargetPos, smoothT));
-                _rootBody.MoveRotation(Quaternion.Slerp(_lerpStartRot, _lerpTargetRot, smoothT));
-
-                if (t >= 1f)
-                    _isLerpingRoot = false;
-            }
+            _rootTransition.Tick(_rootBody);
         }
 
         private void LateUpdate()
         {
-            // GetUp 애니메이션 반복 방지 (RagdollHelper 방식).
+            // GetUp 애니메이션 반복 방지.
             _animation.ClearGetUpState();
 
             // BlendToAnim 블렌드는 Authority와 Remote 모두 적용.
             // Remote에서도 래그돌 포즈→애니메이션 포즈 블렌딩이 필요함.
             if (_currentState == ERagdollState.BlendToAnim)
-                ApplyBlend();
+                _blender.ApplyBlend(_isAuthority, _rootBody);
         }
 
         #region Skeleton Detach / Reattach
@@ -199,6 +148,23 @@ namespace InGame.Player.Ragdoll
 
             _skeletonRoot.SetParent(_skeletonOriginalParent, true);
             _isDetached = false;
+        }
+
+        #endregion
+
+        #region Root Control
+
+        private void TrackPelvis()
+        {
+            Vector3 pelvisPos = _ragdollRig.PelvisTransform.position;
+            float t = 1f - Mathf.Exp(-_rootBodyTrackingSpeed * Time.fixedDeltaTime);
+            _rootBody.MovePosition(Vector3.Lerp(_rootBody.position, pelvisPos, t));
+        }
+
+        private void ResetRootControl(bool trackPelvis = false)
+        {
+            _shouldTrackPelvis = trackPelvis;
+            _rootTransition.Cancel();
         }
 
         #endregion
@@ -248,8 +214,7 @@ namespace InGame.Player.Ragdoll
 
             _animator.enabled = false;
             _rootBody.isKinematic = true;
-            _shouldTrackPelvis = false;
-            _isLerpingRoot = false;
+            ResetRootControl();
 
             _currentState = ERagdollState.Dead;
             OnStateChanged?.Invoke(ERagdollState.Dead);
@@ -259,8 +224,7 @@ namespace InGame.Player.Ragdoll
         {
             if (_currentState == ERagdollState.Dead) return;
 
-            _shouldTrackPelvis = false;
-            _isLerpingRoot = false;
+            ResetRootControl();
             _instability = 0f;
             _stateTimer = 0f;
 
@@ -296,8 +260,7 @@ namespace InGame.Player.Ragdoll
         {
             _currentState = ERagdollState.Ragdolled;
             _stateTimer = 0f;
-            _shouldTrackPelvis = false;
-            _isLerpingRoot = false;
+            ResetRootControl();
 
             DetachSkeleton();
             _ragdollRig.ActivateKinematic();
@@ -307,26 +270,21 @@ namespace InGame.Player.Ragdoll
 
         public void EnterBlendToAnimRemote(Vector3 rootPos, Quaternion rootRot, bool isFaceUp)
         {
-            _shouldTrackPelvis = false;
+            ResetRootControl();
 
             // BoneReceiver가 위치시킨 래그돌 포즈를 블렌드용으로 캡처.
             // Animator 활성화 전에 캡처해야 현재 래그돌 포즈를 유지할 수 있음.
-            CaptureBlendPoses();
+            _blender.CaptureBlendPoses();
 
             _ragdollRig.Deactivate();
             ReattachSkeleton();
 
-            _lerpStartPos = _rootBody.position;
-            _lerpStartRot = _rootBody.rotation;
-            _lerpTargetPos = rootPos;
-            _lerpTargetRot = rootRot;
-            _lerpTimer = 0f;
-            _isLerpingRoot = true;
+            _rootTransition.Begin(_rootBody, rootPos, rootRot);
 
             _animator.enabled = true;
             _animation.GetUp(isFaceUp);
 
-            _blendStartTime = Time.time;
+            _blender.StartBlend();
             _currentState = ERagdollState.BlendToAnim;
             _stateTimer = 0f;
         }
@@ -334,7 +292,7 @@ namespace InGame.Player.Ragdoll
         public void EnterAnimatedRemote()
         {
             _currentState = ERagdollState.Animated;
-            _isLerpingRoot = false;
+            ResetRootControl();
             ReattachSkeleton();
             _animator.enabled = true;
             _animation.ClearGetUpState();
@@ -354,8 +312,7 @@ namespace InGame.Player.Ragdoll
         public void EnterDeadRemote()
         {
             _currentState = ERagdollState.Dead;
-            _shouldTrackPelvis = false;
-            _isLerpingRoot = false;
+            ResetRootControl();
 
             DetachSkeleton();
             _ragdollRig.ActivateKinematic();
@@ -393,8 +350,7 @@ namespace InGame.Player.Ragdoll
 
             _animator.enabled = false;
             _rootBody.isKinematic = true;
-            _shouldTrackPelvis = true;
-            _isLerpingRoot = false;
+            ResetRootControl(trackPelvis: true);
 
             OnStateChanged?.Invoke(ERagdollState.Ragdolled);
         }
@@ -412,38 +368,29 @@ namespace InGame.Player.Ragdoll
 
         #endregion
 
-        #region BlendToAnim (Authority) — RagdollHelper 방식 블렌드
+        #region BlendToAnim (Authority)
 
         private void BeginBlendToAnim()
         {
-            // 블렌드용 본 포즈 캡처 (물리가 구동한 현재 포즈).
-            CaptureBlendPoses();
+            _blender.CaptureBlendPoses();
+            _blender.CaptureRootMatchData();
 
-            // 루트 매칭용 위치 저장.
-            Transform hipBone = _animator.GetBoneTransform(HumanBodyBones.Hips);
-            Transform headBone = _animator.GetBoneTransform(HumanBodyBones.Head);
-            Transform leftFoot = _animator.GetBoneTransform(HumanBodyBones.LeftFoot);
-            Transform rightFoot = _animator.GetBoneTransform(HumanBodyBones.RightFoot);
-
-            _ragdolledHipPosition = hipBone.position;
-            _ragdolledHeadPosition = headBone.position;
-            _ragdolledFeetPosition = 0.5f * (leftFoot.position + rightFoot.position);
-
-            bool isFaceUp = (hipBone.rotation * Vector3.forward).y > 0f;
+            bool isFaceUp = GetIsFaceUp();
 
             // 래그돌 비활성화 + 스켈레톤 재결합.
             _ragdollRig.Deactivate();
             ReattachSkeleton();
 
             // 루트 바디를 래그돌 최종 위치에 맞춤.
-            AlignRootBodyToPelvis(hipBone);
+            Transform hipBone = _animator.GetBoneTransform(HumanBodyBones.Hips);
+            _blender.AlignRootBodyToPelvis(_rootBody, hipBone);
             _shouldTrackPelvis = false;
 
             // 애니메이터 재활성화 + 기립 애니메이션.
             _animator.enabled = true;
             _animation.GetUp(isFaceUp);
 
-            _blendStartTime = Time.time;
+            _blender.StartBlend();
             _currentState = ERagdollState.BlendToAnim;
             _stateTimer = 0f;
 
@@ -454,88 +401,8 @@ namespace InGame.Player.Ragdoll
         {
             _stateTimer += Time.deltaTime;
 
-            float elapsed = Time.time - _blendStartTime - MecanimTransitionTime;
-            float ragdollBlend = 1.0f - elapsed / _ragdollToAnimBlendTime;
-
-            if (ragdollBlend <= 0f)
+            if (_blender.IsBlendComplete())
                 TransitionToAnimated();
-        }
-
-        private void ApplyBlend()
-        {
-            float elapsed = Time.time - _blendStartTime;
-
-            // 메카님 전환 대기: 루트를 래그돌 위치에 맞추고 본을 래그돌 포즈로 유지.
-            if (elapsed <= MecanimTransitionTime)
-            {
-                // 루트 매칭은 Authority만 수행. Remote는 _isLerpingRoot로 별도 처리.
-                if (_isAuthority)
-                    MatchRootToRagdolledPose();
-
-                for (int i = 0; i < _blendBones.Length; i++)
-                {
-                    if (_blendBones[i].Transform == null) continue;
-
-                    _blendBones[i].Transform.rotation = _blendBones[i].StoredRotation;
-
-                    if (i == _hipBoneIndex)
-                        _blendBones[i].Transform.position = _blendBones[i].StoredPosition;
-                }
-
-                return;
-            }
-
-            // 블렌드 계수: 1.0(래그돌) → 0.0(애니메이션).
-            float ragdollBlend = 1.0f
-                - (elapsed - MecanimTransitionTime)
-                / _ragdollToAnimBlendTime;
-            ragdollBlend = Mathf.Clamp01(ragdollBlend);
-
-            // Animator가 이미 이번 프레임 애니메이션 포즈를 적용한 상태.
-            // 저장된 래그돌 포즈와 현재 애니메이션 포즈를 보간.
-            for (int i = 0; i < _blendBones.Length; i++)
-            {
-                if (_blendBones[i].Transform == null) continue;
-
-                if (i == _hipBoneIndex)
-                {
-                    _blendBones[i].Transform.position = Vector3.Lerp(
-                        _blendBones[i].Transform.position,
-                        _blendBones[i].StoredPosition,
-                        ragdollBlend);
-                }
-
-                _blendBones[i].Transform.rotation = Quaternion.Slerp(
-                    _blendBones[i].Transform.rotation,
-                    _blendBones[i].StoredRotation,
-                    ragdollBlend);
-            }
-        }
-
-        private void MatchRootToRagdolledPose()
-        {
-            Transform hipBone = _animator.GetBoneTransform(HumanBodyBones.Hips);
-            Vector3 offset = _ragdolledHipPosition - hipBone.position;
-            Vector3 newRootPos = _rootBody.position + offset;
-
-            newRootPos.y = GetGroundY(newRootPos);
-            _rootBody.position = newRootPos;
-
-            Vector3 ragdolledDir = _ragdolledHeadPosition - _ragdolledFeetPosition;
-            ragdolledDir.y = 0f;
-
-            Transform leftFoot = _animator.GetBoneTransform(HumanBodyBones.LeftFoot);
-            Transform rightFoot = _animator.GetBoneTransform(HumanBodyBones.RightFoot);
-            Vector3 animFeetPos = 0.5f * (leftFoot.position + rightFoot.position);
-            Vector3 animDir = _animator.GetBoneTransform(HumanBodyBones.Head).position - animFeetPos;
-            animDir.y = 0f;
-
-            if (ragdolledDir.sqrMagnitude > MinDirectionSqrMagnitude
-                && animDir.sqrMagnitude > MinDirectionSqrMagnitude)
-            {
-                _rootBody.rotation *= Quaternion.FromToRotation(
-                    animDir.normalized, ragdolledDir.normalized);
-            }
         }
 
         #endregion
@@ -553,15 +420,6 @@ namespace InGame.Player.Ragdoll
             OnStateChanged?.Invoke(ERagdollState.Animated);
         }
 
-        private void CaptureBlendPoses()
-        {
-            for (int i = 0; i < _blendBones.Length; i++)
-            {
-                _blendBones[i].StoredPosition = _blendBones[i].Transform.position;
-                _blendBones[i].StoredRotation = _blendBones[i].Transform.rotation;
-            }
-        }
-
         public Vector3 GetRecoveryPosition() => _rootBody.position;
         public Quaternion GetRecoveryRotation() => _rootBody.rotation;
 
@@ -574,21 +432,7 @@ namespace InGame.Player.Ragdoll
         private void DecayInstability()
         {
             if (_instability > 0f)
-                _instability = Mathf.Max(
-                    0f, _instability - _instabilityDecayRate * Time.deltaTime);
-        }
-
-        private void AlignRootBodyToPelvis(Transform pelvis)
-        {
-            Vector3 pelvisPos = pelvis.position;
-            float groundY = GetGroundY(pelvisPos);
-            _rootBody.position = new Vector3(pelvisPos.x, groundY, pelvisPos.z);
-
-            Vector3 hipsForward = pelvis.rotation * Vector3.forward;
-            hipsForward.y = 0f;
-
-            if (hipsForward.sqrMagnitude > MinDirectionSqrMagnitude)
-                _rootBody.rotation = Quaternion.LookRotation(hipsForward);
+                _instability = Mathf.Max(0f, _instability - _instabilityDecayRate * Time.deltaTime);
         }
 
         private bool IsReadyToRecover()
@@ -598,20 +442,7 @@ namespace InGame.Player.Ragdoll
 
             Vector3 pelvisPos = _ragdollRig.PelvisTransform.position;
             Vector3 rayOrigin = pelvisPos + Vector3.up * RayOriginUpOffset;
-            return Physics.Raycast(
-                rayOrigin, Vector3.down, _groundCheckDistance, _groundLayer);
-        }
-
-        private float GetGroundY(Vector3 origin)
-        {
-            Vector3 rayOrigin = origin + Vector3.up * RayOriginUpOffset;
-
-            if (Physics.Raycast(
-                    rayOrigin, Vector3.down, out RaycastHit hit,
-                    _groundCheckDistance, _groundLayer))
-                return hit.point.y;
-
-            return origin.y;
+            return Physics.Raycast(rayOrigin, Vector3.down, _groundCheckDistance, _groundLayer);
         }
 
         #endregion

@@ -9,6 +9,7 @@ namespace InGame.Player.Ragdoll
     {
         [SerializeField] private Transform _pelvis;
 
+        private Rigidbody _pelvisRb;
         private Rigidbody[] _ragdollRbs;
         private Collider[] _ragdollCols;
         private Transform[] _ragdollBoneTransforms;
@@ -21,6 +22,7 @@ namespace InGame.Player.Ragdoll
         {
             _ragdollRbs = GetComponentsInChildren<Rigidbody>(true);
             _ragdollCols = GetComponentsInChildren<Collider>(true);
+            _pelvisRb = _pelvis.GetComponent<Rigidbody>();
 
             _ragdollBoneTransforms = new Transform[_ragdollRbs.Length];
             for (int i = 0; i < _ragdollRbs.Length; i++)
@@ -55,15 +57,20 @@ namespace InGame.Player.Ragdoll
             SetCollidersEnabled(false);
         }
 
+        private const float AngularVelocityWeight = 0.3f;
+
         public bool IsSettled(float settleVelocity)
         {
             // 펠비스 수직 속도가 크면 아직 낙하 중.
-            if (Mathf.Abs(_ragdollRbs[0].linearVelocity.y) > settleVelocity)
+            if (Mathf.Abs(_pelvisRb.linearVelocity.y) > settleVelocity)
                 return false;
 
             float totalSqrSpeed = 0f;
             for (int i = 0; i < _ragdollRbs.Length; i++)
+            {
                 totalSqrSpeed += _ragdollRbs[i].linearVelocity.sqrMagnitude;
+                totalSqrSpeed += _ragdollRbs[i].angularVelocity.sqrMagnitude * AngularVelocityWeight;
+            }
 
             return totalSqrSpeed / _ragdollRbs.Length < settleVelocity * settleVelocity;
         }
@@ -77,10 +84,7 @@ namespace InGame.Player.Ragdoll
         private void SetCollidersEnabled(bool value)
         {
             for (int i = 0; i < _ragdollCols.Length; i++)
-            {
                 _ragdollCols[i].enabled = value;
-                Debug.Log($"[RagdollRig] {_ragdollCols[i].gameObject.name}.Collider = {value} (actual: {_ragdollCols[i].enabled})");
-            }
         }
     }
 }
