@@ -63,15 +63,16 @@ namespace InGame.Player.Network
         {
             if (_ragdollController == null) return;
 
-            bool isActive = _ragdollController.IsPhysicsRagdoll;
+            // BlendToAnim 중에도 외부 위치 보정을 억제해야 root lerp와 충돌하지 않음.
+            bool isManaged = _ragdollController.IsRootManagedByRagdoll;
 
             if (_transformView != null)
-                _transformView.enabled = !_syncEnabled && !isActive;
+                _transformView.enabled = !_syncEnabled && !isManaged;
         }
 
         private void FixedUpdate()
         {
-            if (_ragdollController != null && _ragdollController.IsPhysicsRagdoll)
+            if (_ragdollController != null && _ragdollController.IsRootManagedByRagdoll)
             {
                 _hasCorrection = false;
                 return;
@@ -177,7 +178,7 @@ namespace InGame.Player.Network
                 float speed = (float)stream.ReceiveNext();
                 bool grounded = (bool)stream.ReceiveNext();
 
-                if (_ragdollController != null && _ragdollController.IsPhysicsRagdoll) return;
+                if (_ragdollController != null && _ragdollController.IsRootManagedByRagdoll) return;
 
                 _correctionTarget = pos;
                 _correctionRotation = rot;

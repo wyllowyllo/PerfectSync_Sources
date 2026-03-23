@@ -98,6 +98,13 @@ namespace InGame.Player.Ragdoll
         public bool IsPhysicsRagdoll => _currentState == ERagdollState.Ragdolled
                                         || _currentState == ERagdollState.Dead;
 
+        // 래그돌 시스템이 rootBody 위치를 관리 중인지 여부.
+        // Ragdolled/Dead: pelvis 추적, BlendToAnim: root lerp.
+        // 이 동안 외부 위치 보정(BodyPositionSynchronizer, PhotonTransformView)을 억제해야 함.
+        public bool IsRootManagedByRagdoll => _currentState == ERagdollState.Ragdolled
+                                            || _currentState == ERagdollState.Dead
+                                            || _currentState == ERagdollState.BlendToAnim;
+
         public event Action<ERagdollState> OnStateChanged;
 
         public void SetAuthority(bool isAuthority)
@@ -178,9 +185,8 @@ namespace InGame.Player.Ragdoll
             // GetUp 애니메이션 반복 방지 (RagdollHelper 방식).
             _animation.ClearGetUpState();
 
-            if (!_isAuthority) return;
-
-            // 단일 계층: Ragdolled/Dead 중에는 물리가 본을 직접 구동하므로 복사 불필요.
+            // BlendToAnim 블렌드는 Authority와 Remote 모두 적용.
+            // Remote에서도 래그돌 포즈→애니메이션 포즈 블렌딩이 필요함.
             if (_currentState == ERagdollState.BlendToAnim)
                 ApplyBlend();
         }
@@ -306,11 +312,17 @@ namespace InGame.Player.Ragdoll
             DetachSkeleton();
             _ragdollRig.ActivateKinematic();
             _animator.enabled = false;
+            _rootBody.isKinematic = true;
         }
 
         public void EnterBlendToAnimRemote(Vector3 rootPos, Quaternion rootRot, bool isFaceUp)
         {
             _shouldTrackPelvis = false;
+
+            // BoneReceiver가 위치시킨 래그돌 포즈를 블렌드용으로 캡처.
+            // Animator 활성화 전에 캡처해야 현재 래그돌 포즈를 유지할 수 있음.
+            CaptureBlendPoses();
+
             _ragdollRig.Deactivate();
             ReattachSkeleton();
 
@@ -324,6 +336,7 @@ namespace InGame.Player.Ragdoll
             _animator.enabled = true;
             _animation.GetUp(isFaceUp);
 
+            _blendStartTime = Time.time;
             _currentState = ERagdollState.BlendToAnim;
             _stateTimer = 0f;
         }
@@ -335,6 +348,12 @@ namespace InGame.Player.Ragdoll
             ReattachSkeleton();
             _animator.enabled = true;
             _animation.ClearGetUpState();
+
+            // 래그돌 진입 시 kinematic으로 전환했으므로 복원.
+            // 합체 모드에서는 BodySimulationToggle이 다시 kinematic으로 되돌림.
+            _rootBody.isKinematic = false;
+            _rootBody.linearVelocity = Vector3.zero;
+            _rootBody.angularVelocity = Vector3.zero;
         }
 
         public void EnterStumbleRemote()
@@ -353,6 +372,7 @@ namespace InGame.Player.Ragdoll
 
             DetachSkeleton();
             _ragdollRig.ActivateKinematic();
+            _rootBody.isKinematic = true;
             _animator.enabled = false;
         }
 
@@ -487,7 +507,9 @@ namespace InGame.Player.Ragdoll
             // 메카님 전환 대기: 루트를 래그돌 위치에 맞추고 본을 래그돌 포즈로 유지.
             if (elapsed <= MecanimTransitionTime)
             {
-                MatchRootToRagdolledPose();
+                // 루트 매칭은 Authority만 수행. Remote는 _isLerpingRoot로 별도 처리.
+                if (_isAuthority)
+                    MatchRootToRagdolledPose();
 
                 for (int i = 0; i < _blendBones.Length; i++)
                 {
