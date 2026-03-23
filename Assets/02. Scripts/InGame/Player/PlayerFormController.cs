@@ -15,7 +15,7 @@ namespace InGame.Player
         [SerializeField] private GameObject _avatarB;
 
         [Header("Settings")]
-        [SerializeField] private float _separationOffset = 1.0f;
+        [SerializeField] private float _separationOffset = 1.0f; // 분리모드 전환 시 두 명 사이 거리
 
         private IControllableBody _mergedControllable;
         private IControllableBody _avatarAControllable;
@@ -26,6 +26,9 @@ namespace InGame.Player
         public event Action<ETeamMode> OnModeChanged;
         
         // 프로퍼티
+        public ETeamMode CurrentMode => _currentMode;
+        /// 래그돌 활성 중에는 폼 전환 불가 (요청 단계 가드용)
+        public bool CanChangeForm() => !IsAnyRagdollActive();
         public Transform PrimaryBodyTransform => _currentMode switch
         {
             ETeamMode.Merged => _mergedControllable.BodyTransform,
@@ -52,10 +55,7 @@ namespace InGame.Player
             ApplyMode(startMode);
         }
 
-        public ETeamMode CurrentMode => _currentMode;
-
-        /// 래그돌 활성 중에는 폼 전환 불가 (요청 단계 가드용)
-        public bool CanChangeForm() => !IsAnyRagdollActive();
+       
 
         /// 네트워크 확정 폼 전환 — 래그돌 활성 시 강제 회복 후 전환 실행
         public void ExecuteFormToggle()
