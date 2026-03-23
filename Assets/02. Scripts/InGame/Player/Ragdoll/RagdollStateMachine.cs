@@ -20,12 +20,6 @@ namespace InGame.Player.Ragdoll
         [SerializeField] private float _stumbleThreshold = 3f;
         [SerializeField] private float _ragdollThreshold = 7f;
 
-        [Header("Stumble")]
-        [SerializeField] private float _minStumbleDuration = 0.3f;
-        [SerializeField] private float _maxStumbleDuration = 0.8f;
-        [SerializeField] private float _stumbleDurationPerImpulse = 0.08f;
-        [SerializeField] private float _stumblePushMultiplier = 0.3f;
-
         [Header("Ragdoll")]
         [SerializeField] private float _minRagdollDuration = 0.3f;
         [SerializeField] private float _maxRagdollDuration = 3.0f;
@@ -57,7 +51,6 @@ namespace InGame.Player.Ragdoll
         private RagdollImpactTransfer _impactTransfer;
         private float _instability;
         private float _stateTimer;
-        private float _stumbleDuration;
         private bool _shouldTrackPelvis;
         private bool _isAuthority = true;
 
@@ -106,6 +99,7 @@ namespace InGame.Player.Ragdoll
                                             || _currentState == ERagdollState.BlendToAnim;
 
         public event Action<ERagdollState> OnStateChanged;
+        public event Action OnStumblePlayed;
 
         public void SetAuthority(bool isAuthority)
         {
@@ -145,9 +139,6 @@ namespace InGame.Player.Ragdoll
 
             switch (_currentState)
             {
-                case ERagdollState.Stumble:
-                    UpdateStumble();
-                    break;
                 case ERagdollState.Ragdolled:
                     UpdateRagdoll();
                     break;
@@ -234,7 +225,6 @@ namespace InGame.Player.Ragdoll
                     break;
 
                 case ERagdollState.Animated:
-                case ERagdollState.Stumble:
                     if (effectiveMagnitude >= _ragdollThreshold)
                         EnterRagdolled(impact, torqueVector);
                     else if (impact.Magnitude >= _stumbleThreshold)
@@ -356,12 +346,9 @@ namespace InGame.Player.Ragdoll
             _rootBody.angularVelocity = Vector3.zero;
         }
 
-        public void EnterStumbleRemote()
+        public void PlayStumbleAnimation()
         {
-            _currentState = ERagdollState.Stumble;
             _animation.Stumble();
-            _stumbleDuration = _maxStumbleDuration;
-            _stateTimer = 0f;
         }
 
         public void EnterDeadRemote()
@@ -382,35 +369,9 @@ namespace InGame.Player.Ragdoll
 
         private void EnterStumble(ImpactData impact)
         {
-            _currentState = ERagdollState.Stumble;
             _instability += impact.Magnitude;
-
-            Vector3 pushDir = impact.Impulse.normalized;
-            _rootBody.AddForce(
-                pushDir * impact.Magnitude * _stumblePushMultiplier,
-                ForceMode.Impulse);
-
             _animation.Stumble();
-
-            _stumbleDuration = Mathf.Clamp(
-                impact.Magnitude * _stumbleDurationPerImpulse,
-                _minStumbleDuration,
-                _maxStumbleDuration);
-            _stateTimer = 0f;
-
-            OnStateChanged?.Invoke(ERagdollState.Stumble);
-        }
-
-        private void UpdateStumble()
-        {
-            _stateTimer += Time.deltaTime;
-
-            if (_stateTimer >= _stumbleDuration)
-            {
-                _currentState = ERagdollState.Animated;
-                _animation.ClearStumbleState();
-                OnStateChanged?.Invoke(ERagdollState.Animated);
-            }
+            OnStumblePlayed?.Invoke();
         }
 
         #endregion

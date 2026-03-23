@@ -23,9 +23,6 @@ namespace InGame.Player.Movement
         [Header("Air Control")]
         [SerializeField, Range(0f, 1f)] private float _airControlFactor = 0.6f;
 
-        [Header("Stumble")]
-        [SerializeField, Range(0f, 1f)] private float _stumbleSpeedMultiplier = 0.3f;
-
         [Header("Ground Check")]
         [SerializeField] private float _groundCheckRadius = 0.3f;
         [SerializeField] private LayerMask _groundLayer;
@@ -82,8 +79,7 @@ namespace InGame.Player.Movement
             _previousRagdollState = currentRagdollState;
 
             // 풀 래그돌/Dead 중에는 이동 불가.
-            bool isStumbling = currentRagdollState == ERagdollState.Stumble;
-            if (!isStumbling && currentRagdollState != ERagdollState.Animated)
+            if (currentRagdollState != ERagdollState.Animated)
                 return;
 
             _isGrounded = IsGrounded();
@@ -102,8 +98,7 @@ namespace InGame.Player.Movement
             // 다이브 중에는 입력 가속을 적용하지 않음.
             if (!_playerJump.IsDiving)
             {
-                float stumbleFactor = isStumbling ? _stumbleSpeedMultiplier : 1f;
-                float speedMultiplier = (_isGrounded ? 1f : _airControlFactor) * stumbleFactor;
+                float speedMultiplier = _isGrounded ? 1f : _airControlFactor;
                 Accelerate(_inputDirection * _moveSpeed * speedMultiplier);
             }
 
@@ -113,12 +108,7 @@ namespace InGame.Player.Movement
                 : _currentVelocity.magnitude;
             _anim.Locomotion(_isGrounded, speed);
 
-            // Stumble 중에는 점프/다이브 불가.
-            if (isStumbling)
-            {
-                _jumpRequested = false;
-            }
-            else if (_jumpRequested)
+            if (_jumpRequested)
             {
                 bool canJump = Time.time - _lastGroundedTime <= CoyoteTime;
                 if (canJump)
@@ -139,8 +129,7 @@ namespace InGame.Player.Movement
         {
             if (_rootBody.isKinematic) return;
 
-            ERagdollState state = _ragdollController.CurrentState;
-            if (state != ERagdollState.Animated && state != ERagdollState.Stumble)
+            if (_ragdollController.CurrentState != ERagdollState.Animated)
                 return;
 
             // 다이브 중에는 물리 임펄스가 수평 속도를 제어하도록 덮어쓰지 않음.

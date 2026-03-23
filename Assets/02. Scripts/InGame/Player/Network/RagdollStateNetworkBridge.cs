@@ -24,13 +24,19 @@ namespace InGame.Player.Network
         private void OnEnable()
         {
             if (_ragdollStateMachine != null)
+            {
                 _ragdollStateMachine.OnStateChanged += HandleStateChanged;
+                _ragdollStateMachine.OnStumblePlayed += HandleStumblePlayed;
+            }
         }
 
         private void OnDisable()
         {
             if (_ragdollStateMachine != null)
+            {
                 _ragdollStateMachine.OnStateChanged -= HandleStateChanged;
+                _ragdollStateMachine.OnStumblePlayed -= HandleStumblePlayed;
+            }
         }
 
         // 단일 계층: 물리/BoneReceiver가 본을 직접 구동하므로 LateUpdate 복사 불필요.
@@ -45,10 +51,6 @@ namespace InGame.Player.Network
             {
                 case ERagdollState.Ragdolled:
                     photonView.RPC(nameof(RpcEnterRagdolled), RpcTarget.Others);
-                    break;
-
-                case ERagdollState.Stumble:
-                    photonView.RPC(nameof(RpcEnterStumble), RpcTarget.Others);
                     break;
 
                 case ERagdollState.BlendToAnim:
@@ -70,6 +72,12 @@ namespace InGame.Player.Network
             }
         }
 
+        private void HandleStumblePlayed()
+        {
+            if (!_isAuthority) return;
+            photonView.RPC(nameof(RpcPlayStumble), RpcTarget.Others);
+        }
+
         #endregion
 
         #region Remote RPC 수신
@@ -85,12 +93,12 @@ namespace InGame.Player.Network
         }
 
         [PunRPC]
-        private void RpcEnterStumble()
+        private void RpcPlayStumble()
         {
             if (_isAuthority) return;
             if (!gameObject.activeInHierarchy) return;
 
-            _ragdollStateMachine.EnterStumbleRemote();
+            _ragdollStateMachine.PlayStumbleAnimation();
         }
 
         [PunRPC]
