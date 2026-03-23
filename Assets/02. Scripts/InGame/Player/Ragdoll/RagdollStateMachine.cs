@@ -27,8 +27,10 @@ namespace InGame.Player.Ragdoll
         [SerializeField] private float _minRagdollDuration = 0.3f;
         [SerializeField] private float _maxRagdollDuration = 3.0f;
         [SerializeField] private float _settleVelocity = 0.5f;
-        [SerializeField] private float _impactRadius = 2.0f;
-        [SerializeField] private float _impactForceScale = 0.3f;
+        [FormerlySerializedAs("_impactRadius")]
+        [SerializeField] private float _hitRadius = 2.0f;
+        [FormerlySerializedAs("_impactForceScale")]
+        [SerializeField] private float _hitForceScale = 0.3f;
 
         [Header("Blend")]
         [SerializeField] private float _ragdollToAnimBlendTime = 0.5f;
@@ -52,7 +54,7 @@ namespace InGame.Player.Ragdoll
 
         // State.
         private ERagdollState _currentState = ERagdollState.Animated;
-        private RagdollImpactTransfer _impactTransfer;
+        private RagdollHitApplier _hitApplier;
         private RagdollBlender _blender;
         private float _instability;
         private float _stateTimer;
@@ -92,7 +94,7 @@ namespace InGame.Player.Ragdoll
         private void Start()
         {
             _skeletonOriginalParent = _skeletonRoot.parent;
-            _impactTransfer = new RagdollImpactTransfer(_ragdollRig.Rigidbodies, _impactRadius, _impactForceScale);
+            _hitApplier = new RagdollHitApplier(_ragdollRig.Rigidbodies, _hitRadius, _hitForceScale);
             _blender = new RagdollBlender(_ragdollRig, _animator, _ragdollToAnimBlendTime, _groundCheckDistance, _groundLayer);
             _rootTransition = new RagdollRootTransition(_rootTransitionDuration);
         }
@@ -173,30 +175,29 @@ namespace InGame.Player.Ragdoll
 
         #region Public API (Authority)
 
-        public void OnHitImpact(Vector3 impulse, Vector3 hitPoint, Vector3 torqueVector)
+        public void ApplyHit(HitData hit)
         {
             if (!_isAuthority) return;
 
-            var impact = new ImpactData(impulse, hitPoint);
-            float effectiveMagnitude = impact.Magnitude + _instability;
+            float effectiveMagnitude = hit.Magnitude + _instability;
 
             switch (_currentState)
             {
                 case ERagdollState.BlendToAnim:
                     if (effectiveMagnitude >= _ragdollThreshold * _reImpactMultiplier)
-                        EnterRagdolled(impact, torqueVector);
+                        EnterRagdolled(hit);
                     break;
 
                 case ERagdollState.Ragdolled:
-                    _impactTransfer.ApplyAdditionalImpact(impact, torqueVector);
+                    _hitApplier.ApplyAdditionalHit(hit);
                     _stateTimer = 0f;
                     break;
 
                 case ERagdollState.Animated:
                     if (effectiveMagnitude >= _ragdollThreshold)
-                        EnterRagdolled(impact, torqueVector);
-                    else if (impact.Magnitude >= _stumbleThreshold)
-                        EnterStumble(impact);
+                        EnterRagdolled(hit);
+                    else if (hit.Magnitude >= _stumbleThreshold)
+                        EnterStumble(hit);
                     break;
             }
         }
@@ -209,10 +210,9 @@ namespace InGame.Player.Ragdoll
 
             Vector3 inheritedVelocity = _rootBody.linearVelocity;
             _ragdollRig.ActivatePhysics(inheritedVelocity);
-            _impactTransfer.TransferImpact(
-                new ImpactData(Vector3.zero, _rootBody.position),
-                inheritedVelocity,
-                Vector3.zero);
+            _hitApplier.ApplyInitialHit(
+                new HitData(Vector3.zero, _rootBody.position, Vector3.zero),
+                inheritedVelocity);
 
             _animator.enabled = false;
             _rootBody.isKinematic = true;
@@ -326,9 +326,9 @@ namespace InGame.Player.Ragdoll
 
         #region Stumble (Authority)
 
-        private void EnterStumble(ImpactData impact)
+        private void EnterStumble(HitData hit)
         {
-            _instability += impact.Magnitude;
+            _instability += hit.Magnitude;
             _animation.Stumble();
             OnStumblePlayed?.Invoke();
         }
@@ -337,7 +337,7 @@ namespace InGame.Player.Ragdoll
 
         #region Ragdolled (Authority) — 물리 래그돌
 
-        private void EnterRagdolled(ImpactData impact, Vector3 torqueVector)
+        private void EnterRagdolled(HitData hit)
         {
             _currentState = ERagdollState.Ragdolled;
             _instability = 0f;
@@ -348,7 +348,7 @@ namespace InGame.Player.Ragdoll
 
             Vector3 inheritedVelocity = _rootBody.linearVelocity;
             _ragdollRig.ActivatePhysics(inheritedVelocity);
-            _impactTransfer.TransferImpact(impact, inheritedVelocity, torqueVector);
+            _hitApplier.ApplyInitialHit(hit, inheritedVelocity);
 
             _animator.enabled = false;
             _rootBody.isKinematic = true;

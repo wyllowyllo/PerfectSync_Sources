@@ -1,4 +1,5 @@
 using System;
+using InGame.Player;
 using Photon.Pun;
 using UnityEngine;
 
@@ -19,7 +20,7 @@ namespace InGame.UserInput
             }
         }
 
-        public event Action<Vector3, Vector3, int, Vector3> OnImpactReceived;
+        public event Action<HitData, int> OnHitReceived;
         public event Action OnDeathReceived;
 
         private Vector2 _moveInput;
@@ -39,9 +40,9 @@ namespace InGame.UserInput
             _cameraForwardXZ = cameraForwardXZ;
         }
 
-        public void SendImpact(Vector3 impulse, Vector3 hitPoint, int hitViewID, Vector3 torqueVector)
+        public void SendHit(HitData hit, int hitViewID)
         {
-            OnImpactReceived?.Invoke(impulse, hitPoint, hitViewID, torqueVector);
+            OnHitReceived?.Invoke(hit, hitViewID);
         }
 
         public void SendDeath()

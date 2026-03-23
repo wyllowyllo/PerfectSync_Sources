@@ -1,6 +1,7 @@
 using InGame.UserInput;
 using Photon.Pun;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 namespace InGame.Player.Test
 {
@@ -8,9 +9,9 @@ namespace InGame.Player.Test
     /// 키 입력으로 래그돌 충격을 테스트하는 디버그 스크립트.
     /// TeamCharacter 루트에 부착하여 사용한다.
     /// </summary>
-    public class ImpactTestTrigger : MonoBehaviour
+    public class HitTestTrigger : MonoBehaviour
     {
-        public enum ImpactTarget
+        public enum HitTarget
         {
             Merged,
             AvatarA,
@@ -18,15 +19,16 @@ namespace InGame.Player.Test
         }
 
         [Header("Target")]
-        [SerializeField] private ImpactTarget _target = ImpactTarget.Merged;
+        [SerializeField] private HitTarget _target = HitTarget.Merged;
 
         [Header("Bodies")]
         [SerializeField] private GameObject _mergedBody;
         [SerializeField] private GameObject _avatarA;
         [SerializeField] private GameObject _avatarB;
 
-        [Header("Impulse")]
-        [SerializeField] private float _impulseMagnitude = 10f;
+        [Header("Knockback")]
+        [FormerlySerializedAs("_impulseMagnitude")]
+        [SerializeField] private float _knockbackMagnitude = 10f;
 
         [Header("Key")]
         [SerializeField] private KeyCode _triggerKey = KeyCode.T;
@@ -46,33 +48,33 @@ namespace InGame.Player.Test
             GameObject body = GetTargetBody();
             if (body == null || !body.activeInHierarchy)
             {
-                UnityEngine.Debug.LogWarning($"[ImpactTestTrigger] Target body '{_target}' is null or inactive.");
+                UnityEngine.Debug.LogWarning($"[HitTestTrigger] Target body '{_target}' is null or inactive.");
                 return;
             }
 
             var pv = body.GetComponentInChildren<PhotonView>();
             if (pv == null)
             {
-                UnityEngine.Debug.LogWarning($"[ImpactTestTrigger] No PhotonView on '{body.name}'.");
+                UnityEngine.Debug.LogWarning($"[HitTestTrigger] No PhotonView on '{body.name}'.");
                 return;
             }
 
-            Vector3 impulse = Random.onUnitSphere * _impulseMagnitude;
+            Vector3 knockback = Random.onUnitSphere * _knockbackMagnitude;
             Vector3 hitPoint = body.transform.position;
             int viewID = pv.ViewID;
 
-            Vector3 torque = Random.insideUnitSphere * impulse.magnitude * 0.15f;
-            _input.SendImpact(impulse, hitPoint, viewID, torque);
-            UnityEngine.Debug.Log($"[ImpactTestTrigger] Sent impact to '{_target}' (ViewID={viewID}), impulse={impulse}");
+            var hit = new HitData(knockback, hitPoint, HitData.ComputeRandomTorque(knockback.magnitude));
+            _input.SendHit(hit, viewID);
+            UnityEngine.Debug.Log($"[HitTestTrigger] Sent hit to '{_target}' (ViewID={viewID}), knockback={knockback}");
         }
 
         private GameObject GetTargetBody()
         {
             return _target switch
             {
-                ImpactTarget.Merged => _mergedBody,
-                ImpactTarget.AvatarA => _avatarA,
-                ImpactTarget.AvatarB => _avatarB,
+                HitTarget.Merged => _mergedBody,
+                HitTarget.AvatarA => _avatarA,
+                HitTarget.AvatarB => _avatarB,
                 _ => null
             };
         }

@@ -1,13 +1,12 @@
 using System.Collections.Generic;
 using InGame.Player;
-using InGame.Player.Ragdoll;
 using UnityEngine;
 
 namespace InGame.Obstacle
 {
-    public class ObstacleImpact : MonoBehaviour, IImpactSource
+    public class ObstacleHit : MonoBehaviour, IHitSource
     {
-        [SerializeField] private ObstacleImpactProfile _profile;
+        [SerializeField] private ObstacleHitProfile _profile;
 
         private Dictionary<int, float> _lastHitTimes;
 
@@ -18,9 +17,9 @@ namespace InGame.Obstacle
             _lastHitTimes = new Dictionary<int, float>();
         }
 
-        public bool TryComputeImpulse(Collision collision, out Vector3 impulse, out Vector3 torque)
+        public bool TryComputeKnockback(Collision collision, out Vector3 knockback, out Vector3 torque)
         {
-            impulse = Vector3.zero;
+            knockback = Vector3.zero;
             torque = Vector3.zero;
 
             if (_profile == null) return false;
@@ -34,8 +33,8 @@ namespace InGame.Obstacle
                 return false;
             }
 
-            impulse = _profile.ComputeImpulse(collision, transform);
-            torque = _profile.ComputeTorque(impulse.magnitude);
+            knockback = _profile.ComputeKnockback(collision, transform);
+            torque = _profile.ComputeTorque(knockback.magnitude);
 
             if (_profile.Cooldown > 0f)
             {

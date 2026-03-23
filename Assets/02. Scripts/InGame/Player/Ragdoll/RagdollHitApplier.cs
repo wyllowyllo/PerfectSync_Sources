@@ -3,59 +3,59 @@ using UnityEngine;
 
 namespace InGame.Player.Ragdoll
 {
-    public class RagdollImpactTransfer
+    public class RagdollHitApplier
     {
         private readonly IReadOnlyList<Rigidbody> _ragdollRbs;
-        private readonly float _impactRadius;
+        private readonly float _hitRadius;
         private readonly float _forceScale;
 
-        public RagdollImpactTransfer(IReadOnlyList<Rigidbody> ragdollRbs, float impactRadius, float forceScale)
+        public RagdollHitApplier(IReadOnlyList<Rigidbody> ragdollRbs, float hitRadius, float forceScale)
         {
             _ragdollRbs = ragdollRbs;
-            _impactRadius = impactRadius;
+            _hitRadius = hitRadius;
             _forceScale = forceScale;
         }
 
         /// <summary>
         /// 래그돌 진입 시 호출. 캡슐 속도를 상속한 뒤 충격을 거리 기반으로 분산 적용.
         /// </summary>
-        public void TransferImpact(ImpactData impact, Vector3 inheritedVelocity, Vector3 torqueImpulse)
+        public void ApplyInitialHit(HitData hit, Vector3 inheritedVelocity)
         {
             for (int i = 0; i < _ragdollRbs.Count; i++)
                 _ragdollRbs[i].linearVelocity = inheritedVelocity;
 
-            ApplyDistributedForce(impact, torqueImpulse);
+            ApplyDistributedForce(hit);
         }
 
         /// <summary>
         /// 래그돌 상태에서 추가 충격. 기존 속도는 유지하고 힘만 추가.
         /// </summary>
-        public void ApplyAdditionalImpact(ImpactData impact, Vector3 torqueImpulse)
+        public void ApplyAdditionalHit(HitData hit)
         {
-            ApplyDistributedForce(impact, torqueImpulse);
+            ApplyDistributedForce(hit);
         }
 
-        private void ApplyDistributedForce(ImpactData impact, Vector3 torqueImpulse)
+        private void ApplyDistributedForce(HitData hit)
         {
             bool anyHit = false;
 
             for (int i = 0; i < _ragdollRbs.Count; i++)
             {
-                float dist = Vector3.Distance(_ragdollRbs[i].position, impact.HitPoint);
-                float falloff = Mathf.Clamp01(1f - dist / _impactRadius);
+                float dist = Vector3.Distance(_ragdollRbs[i].position, hit.HitPoint);
+                float falloff = Mathf.Clamp01(1f - dist / _hitRadius);
                 if (falloff <= 0f) continue;
 
-                _ragdollRbs[i].AddForce(impact.Impulse * (falloff * _forceScale), ForceMode.Impulse);
-                _ragdollRbs[i].AddTorque(torqueImpulse * (falloff * _forceScale), ForceMode.Impulse);
+                _ragdollRbs[i].AddForce(hit.Knockback * (falloff * _forceScale), ForceMode.Impulse);
+                _ragdollRbs[i].AddTorque(hit.Torque * (falloff * _forceScale), ForceMode.Impulse);
                 anyHit = true;
             }
 
             // 반경 내 뼈가 없으면 가장 가까운 뼈에 전량 적용
             if (!anyHit)
             {
-                Rigidbody closest = GetClosestBoneRb(impact.HitPoint);
-                closest.AddForce(impact.Impulse * _forceScale, ForceMode.Impulse);
-                closest.AddTorque(torqueImpulse * _forceScale, ForceMode.Impulse);
+                Rigidbody closest = GetClosestBoneRb(hit.HitPoint);
+                closest.AddForce(hit.Knockback * _forceScale, ForceMode.Impulse);
+                closest.AddTorque(hit.Torque * _forceScale, ForceMode.Impulse);
             }
         }
 

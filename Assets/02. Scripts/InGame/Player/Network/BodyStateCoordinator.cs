@@ -28,14 +28,14 @@ namespace InGame.Player.Network
             _photonView = GetComponent<PhotonView>();
 
             _playerFormController.OnModeChanged += HandleModeChanged;
-            _localPlayerInput.OnImpactReceived += HandleImpact;
+            _localPlayerInput.OnHitReceived += HandleHit;
             _localPlayerInput.OnDeathReceived += HandleDeath;
 
             if (_photonView != null && _photonView.IsMine)
             {
-                WireImpactDetector(_mergedBody);
-                WireImpactDetector(_avatarA);
-                WireImpactDetector(_avatarB);
+                WireHitDetector(_mergedBody);
+                WireHitDetector(_avatarA);
+                WireHitDetector(_avatarB);
             }
         }
 
@@ -46,7 +46,7 @@ namespace InGame.Player.Network
 
             if (_localPlayerInput != null)
             {
-                _localPlayerInput.OnImpactReceived -= HandleImpact;
+                _localPlayerInput.OnHitReceived -= HandleHit;
                 _localPlayerInput.OnDeathReceived -= HandleDeath;
             }
         }
@@ -121,9 +121,9 @@ namespace InGame.Player.Network
             if (stateMachine != null)
                 stateMachine.SetAuthority(isAuthority);
 
-            var impactDetector = FindInBody<ImpactDetector>(body);
-            if (impactDetector != null)
-                impactDetector.SetAuthority(isAuthority);
+            var hitDetector = FindInBody<HitDetector>(body);
+            if (hitDetector != null)
+                hitDetector.SetAuthority(isAuthority);
         }
 
         private void SetRemoteOnBody(GameObject body, bool isRemote)
@@ -134,31 +134,30 @@ namespace InGame.Player.Network
                 toggle.SetRemote(isRemote);
         }
 
-        private void WireImpactDetector(GameObject body)
+        private void WireHitDetector(GameObject body)
         {
             if (body == null || _localPlayerInput == null) return;
 
-            var detector = FindInBody<ImpactDetector>(body);
+            var detector = FindInBody<HitDetector>(body);
             if (detector == null) return;
 
             var pv = body.GetComponentInChildren<PhotonView>();
             if (pv == null) return;
 
             int viewID = pv.ViewID;
-            detector.OnImpactDetected += (impulse, hitPoint, torque) =>
-                _localPlayerInput.SendImpact(impulse, hitPoint, viewID, torque);
+            detector.OnHitDetected += (hit) =>
+                _localPlayerInput.SendHit(hit, viewID);
         }
 
-        private void HandleImpact(
-            Vector3 impulse, Vector3 hitPoint, int hitViewID, Vector3 torqueVector)
+        private void HandleHit(HitData hit, int hitViewID)
         {
             var hitBody = ResolveBodyByViewID(hitViewID);
             if (hitBody == null) return;
 
-            // Authority만 impact 처리. Remote는 RagdollStateNetworkBridge RPC로 제어.
+            // Authority만 hit 처리. Remote는 RagdollStateNetworkBridge RPC로 제어.
             var stateMachine = FindInBody<RagdollStateMachine>(hitBody);
             if (stateMachine != null)
-                stateMachine.OnHitImpact(impulse, hitPoint, torqueVector);
+                stateMachine.ApplyHit(hit);
         }
 
         private void HandleDeath()
