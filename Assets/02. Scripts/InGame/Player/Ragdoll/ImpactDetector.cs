@@ -1,3 +1,4 @@
+using InGame.Obstacle;
 using InGame.Player.Network;
 using InGame.UserInput;
 using Photon.Pun;
@@ -29,11 +30,23 @@ namespace InGame.Player.Ragdoll
 
             if ((_hazardLayers & (1 << collision.gameObject.layer)) == 0) return;
 
-            Vector3 impulse = collision.relativeVelocity;
-            if (impulse.sqrMagnitude < _minImpulse * _minImpulse) return;
+            Vector3 impulse;
+            Vector3 torque;
+
+            var source = collision.gameObject.GetComponentInParent<ObstacleImpact>();
+            if (source != null)
+            {
+                if (!source.TryComputeImpulse(collision, out impulse, out torque))
+                    return;
+            }
+            else
+            {
+                impulse = collision.relativeVelocity;
+                if (impulse.sqrMagnitude < _minImpulse * _minImpulse) return;
+                torque = Random.insideUnitSphere * impulse.magnitude * TorqueScaleFactor;
+            }
 
             Vector3 hitPoint = collision.GetContact(0).point;
-            Vector3 torque = Random.insideUnitSphere * impulse.magnitude * TorqueScaleFactor;
             _localPlayerInput.SendImpact(impulse, hitPoint, _photonView.ViewID, torque);
         }
     }
