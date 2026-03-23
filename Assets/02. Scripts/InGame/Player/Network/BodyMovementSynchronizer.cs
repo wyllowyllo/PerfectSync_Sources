@@ -7,8 +7,8 @@ using UnityEngine;
 
 namespace InGame.Player.Network
 {
-    [DefaultExecutionOrder(ExecutionOrderConstants.BodyPositionSynchronizer)]
-    public class BodyPositionSynchronizer : MonoBehaviourPun, IPunObservable
+    [DefaultExecutionOrder(ExecutionOrderConstants.BodyMovementSynchronizer)]
+    public class BodyMovementSynchronizer : MonoBehaviourPun, IPunObservable
     {
         [SerializeField] private Rigidbody _rootBody;
         [SerializeField] private RagdollStateMachine _ragdollController;

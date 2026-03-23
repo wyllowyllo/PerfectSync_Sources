@@ -74,7 +74,7 @@ namespace InGame.Player.Ragdoll
 
         // 래그돌 시스템이 rootBody 위치를 관리 중인지 여부.
         // Ragdolled/Dead: pelvis 추적, BlendToAnim: root transition.
-        // 이 동안 외부 위치 보정(BodyPositionSynchronizer, PhotonTransformView)을 억제해야 함.
+        // 이 동안 외부 위치 보정(BodyMovementSynchronizer, PhotonTransformView)을 억제해야 함.
         public bool IsRootManagedByRagdoll => _currentState != ERagdollState.Animated;
 
         // 이벤트

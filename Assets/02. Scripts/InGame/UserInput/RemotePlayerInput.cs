@@ -24,22 +24,19 @@ namespace InGame.UserInput
 
         private Vector2 _moveInput;
         private bool _jumpPressed;
-        private Vector3 _cameraForwardXZ; // [InputViz]
+        private Vector3 _cameraForwardXZ;
 
-        // [InputViz]
         public Vector3 CameraForwardXZ => _cameraForwardXZ;
-        public bool IsJumpFlagSet => _jumpPressed;
-        // [/InputViz]
 
         /// <summary>
         /// Guest가 카메라 기준으로 변환한 월드 방향을 수신하여 저장한다.
         /// CameraRelativeConverter.Convert(_, null) 경로에서 (x, 0, z)로 복원된다.
         /// </summary>
-        public void SetWorldDirection(Vector3 worldDir, bool jumpPressed, Vector3 cameraForwardXZ) // [InputViz] cameraForwardXZ 추가
+        public void SetWorldDirection(Vector3 worldDir, bool jumpPressed, Vector3 cameraForwardXZ)
         {
             _moveInput = new Vector2(worldDir.x, worldDir.z);
             _jumpPressed |= jumpPressed;
-            _cameraForwardXZ = cameraForwardXZ; // [InputViz]
+            _cameraForwardXZ = cameraForwardXZ;
         }
 
         public void SendImpact(Vector3 impulse, Vector3 hitPoint, int hitViewID, Vector3 torqueVector)

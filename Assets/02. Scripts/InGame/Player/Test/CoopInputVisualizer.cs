@@ -1,11 +1,11 @@
-using InGame.Team._02._Domain;
+using InGame.Team;
 using InGame.UserInput;
 using UnityEngine;
 
 namespace InGame.Player.Test
 {
     /// <summary>
-    /// [InputViz] 합동 모드 입력 시각화. Red(Host)/Blue(Guest) 화살표로 카메라 방향과 입력 상태 표시.
+    /// 합동 모드 입력 시각화. Red(Host)/Blue(Guest) 화살표로 카메라 방향과 입력 상태 표시.
     /// 테스트용 - 이 파일 전체 삭제로 제거 가능.
     /// </summary>
     public class CoopInputVisualizer : MonoBehaviour
@@ -39,8 +39,6 @@ namespace InGame.Player.Test
         private float _guestAlpha;
         private float _hostJumpTimer;
         private float _guestJumpTimer;
-        private bool _hostHasInput;
-        private bool _guestHasInput;
         private bool _isActive;
 
         // ── Lifecycle ───────────────────────────────────────────
@@ -81,25 +79,17 @@ namespace InGame.Player.Test
                 _playerFormController.OnModeChanged -= HandleModeChanged;
         }
 
-        // ── Public API (InputRouter에서 호출) ───────────────────
-
-        public void UpdateInputState(Vector3 dirA, Vector3 dirB, bool jumpA, bool jumpB)
-        {
-            if (!_isActive) return;
-
-            // A = Host 입력, B = Guest 입력
-            _hostHasInput = dirA.sqrMagnitude > 0.001f;
-            _guestHasInput = dirB.sqrMagnitude > 0.001f;
-
-            if (jumpA) _hostJumpTimer = JumpMarkerDuration;
-            if (jumpB) _guestJumpTimer = JumpMarkerDuration;
-        }
-
         // ── LateUpdate ─────────────────────────────────────────
 
         private void LateUpdate()
         {
             if (!_isActive) return;
+
+            // InputRouter에서 라우팅된 입력 상태를 읽음
+            bool hostHasInput = _inputRouter.RoutedDirA.sqrMagnitude > 0.001f;
+            bool guestHasInput = _inputRouter.RoutedDirB.sqrMagnitude > 0.001f;
+            if (_inputRouter.RoutedJumpA) _hostJumpTimer = JumpMarkerDuration;
+            if (_inputRouter.RoutedJumpB) _guestJumpTimer = JumpMarkerDuration;
 
             GameObject mergedBody = _inputRouter.MergedBody;
             if (mergedBody == null || !mergedBody.activeInHierarchy) return;
@@ -140,8 +130,8 @@ namespace InGame.Player.Test
             UpdateArrow(_guestArrow, basePos, guestFwd);
 
             // 5. 알파 lerp
-            float targetHostAlpha = _hostHasInput ? ActiveAlpha : IdleAlpha;
-            float targetGuestAlpha = _guestHasInput ? ActiveAlpha : IdleAlpha;
+            float targetHostAlpha = hostHasInput ? ActiveAlpha : IdleAlpha;
+            float targetGuestAlpha = guestHasInput ? ActiveAlpha : IdleAlpha;
             _hostAlpha = Mathf.Lerp(_hostAlpha, targetHostAlpha, Time.deltaTime * AlphaLerpSpeed);
             _guestAlpha = Mathf.Lerp(_guestAlpha, targetGuestAlpha, Time.deltaTime * AlphaLerpSpeed);
 

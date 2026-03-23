@@ -1,6 +1,6 @@
 using Core;
 using InGame.Player.Ragdoll;
-using InGame.Team._02._Domain;
+using InGame.Team;
 using InGame.UserInput;
 using Photon.Pun;
 using Photon.Realtime;
@@ -69,9 +69,9 @@ namespace InGame.Player.Network
             SetRemoteOnBody(_avatarB, isMerged);
 
             // Position sync.
-            FindInBody<BodyPositionSynchronizer>(_mergedBody)?.SetSyncEnabled(isMerged);
-            FindInBody<BodyPositionSynchronizer>(_avatarA)?.SetSyncEnabled(false);
-            FindInBody<BodyPositionSynchronizer>(_avatarB)?.SetSyncEnabled(false);
+            FindInBody<BodyMovementSynchronizer>(_mergedBody)?.SetSyncEnabled(isMerged);
+            FindInBody<BodyMovementSynchronizer>(_avatarA)?.SetSyncEnabled(false);
+            FindInBody<BodyMovementSynchronizer>(_avatarB)?.SetSyncEnabled(false);
 
             // Ragdoll bone sync + authority 설정.
             if (isMerged)

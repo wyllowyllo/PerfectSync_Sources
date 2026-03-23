@@ -2,7 +2,7 @@ using System;
 using Core.Utilities;
 using InGame.Player.Movement;
 using InGame.Player.Ragdoll;
-using InGame.Team._02._Domain;
+using InGame.Team;
 using UnityEngine;
 
 namespace InGame.Player

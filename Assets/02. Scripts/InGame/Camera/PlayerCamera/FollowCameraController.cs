@@ -1,7 +1,7 @@
 using Core;
 using InGame.Player;
 using InGame.Player.Ragdoll;
-using InGame.Team._02._Domain;
+using InGame.Team;
 using Photon.Pun;
 using Unity.Cinemachine;
 using UnityEngine;
