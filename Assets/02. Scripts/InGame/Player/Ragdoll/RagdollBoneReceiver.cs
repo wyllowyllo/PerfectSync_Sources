@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace InGame.Player.Ragdoll
 {
-    public class RagdollBoneReceiver : MonoBehaviour, IRagdollBoneReceiver
+    public class RagdollBoneReceiver : MonoBehaviour
     {
         [SerializeField] private RagdollRig _ragdollRig;
         [SerializeField] private Rigidbody _rootBody;

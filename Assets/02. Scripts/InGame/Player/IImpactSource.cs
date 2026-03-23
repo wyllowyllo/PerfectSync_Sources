@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace InGame.Player.Ragdoll
+namespace InGame.Player
 {
     public interface IImpactSource
     {

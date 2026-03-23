@@ -1,7 +1,7 @@
 using System;
 using UnityEngine;
 
-namespace InGame.Player.Ragdoll
+namespace InGame.Player
 {
     public class ImpactDetector : MonoBehaviour
     {

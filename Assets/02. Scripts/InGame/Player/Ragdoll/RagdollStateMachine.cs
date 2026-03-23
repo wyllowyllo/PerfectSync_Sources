@@ -5,10 +5,12 @@ using UnityEngine.Serialization;
 
 namespace InGame.Player.Ragdoll
 {
+    public enum ERagdollState { Animated, Ragdolled, BlendToAnim, Dead }
+    
     // 단일 계층 래그돌 상태머신.
     // Animator가 제어하는 본 = Rigidbody가 달린 본. PoseTransfer 불필요.
     // 래그돌 진입 시 스켈레톤을 rootBody 자식에서 분리하여 물리 독립 보장.
-    public class RagdollStateMachine : MonoBehaviour, IRagdoll
+    public class RagdollStateMachine : MonoBehaviour
     {
         [Header("References")]
         [SerializeField] private Animator _animator;
