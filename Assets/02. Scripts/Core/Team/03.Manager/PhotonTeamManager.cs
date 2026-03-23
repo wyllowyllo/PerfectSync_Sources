@@ -22,6 +22,12 @@ public class PhotonTeamManager : SingletonPunCallbacks<PhotonTeamManager>
     private readonly PhotonTeamStateRepository _teamState = new();
     private static readonly PhotonTeamStateRepository SharedTeamRead = new();
 
+    /// <summary>
+    /// 전원 팀 배정 완료 시 로그/이벤트는 한 번만 올리기 위한 래치.
+    /// (같은 방에서 Team 프로퍼티가 여러 번 갱신되면 OnPlayerPropertiesUpdate가 중복 호출될 수 있음)
+    /// </summary>
+    private bool _allTeamsAssignedNotified;
+
     public static int GetTeamRaw(Player player)
     {
         if (player == null)
@@ -198,6 +204,18 @@ public class PhotonTeamManager : SingletonPunCallbacks<PhotonTeamManager>
         return PhotonNetwork.PlayerList.Length > 0;
     }
 
+    public override void OnJoinedRoom()
+    {
+        base.OnJoinedRoom();
+        _allTeamsAssignedNotified = false;
+    }
+
+    public override void OnLeftRoom()
+    {
+        base.OnLeftRoom();
+        _allTeamsAssignedNotified = false;
+    }
+
     public override void OnPlayerPropertiesUpdate(Player targetPlayer, Hashtable changedProps)
     {
         base.OnPlayerPropertiesUpdate(targetPlayer, changedProps);
@@ -208,16 +226,24 @@ public class PhotonTeamManager : SingletonPunCallbacks<PhotonTeamManager>
         Debug.Log($"[PhotonTeamManager] {targetPlayer.NickName} → 팀 {newTeam}");
         OnPlayerTeamChanged?.Invoke(targetPlayer, newTeam);
 
-        if (newTeam != TeamNone && AreAllTeamsAssigned())
+        if (!AreAllTeamsAssigned())
         {
-            Debug.Log("[PhotonTeamManager] 모든 플레이어 팀 배정 완료.");
-            OnAllTeamsAssigned?.Invoke();
+            _allTeamsAssignedNotified = false;
+            return;
         }
+
+        if (_allTeamsAssignedNotified)
+            return;
+
+        _allTeamsAssignedNotified = true;
+        Debug.Log("[PhotonTeamManager] 모든 플레이어 팀 배정 완료.");
+        OnAllTeamsAssigned?.Invoke();
     }
 
     public override void OnPlayerLeftRoom(Player otherPlayer)
     {
         base.OnPlayerLeftRoom(otherPlayer);
+        _allTeamsAssignedNotified = false;
         OnPlayerTeamChanged?.Invoke(otherPlayer, TeamNone);
     }
 

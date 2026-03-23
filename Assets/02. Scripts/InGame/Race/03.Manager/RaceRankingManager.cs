@@ -19,6 +19,16 @@ public class RaceRankingManager : SingletonMonoBehaviour<RaceRankingManager>
     private List<int> _finishOrder = new();
 
     public IReadOnlyList<TeamRankEntry> CurrentRankings => _currentRankings;
+
+    /// <summary>코스 상 마지막 체크포인트 인덱스(이 값 이상이면 완주로 간주).</summary>
+    public int LastCheckpointIndex => _lastCheckpointIndex;
+
+    /// <summary>완주 확정된 팀 수(결승 처리된 팀).</summary>
+    public int FinishedTeamCount => _finishOrder.Count;
+
+    /// <summary>완주 순서대로 팀 번호(1등, 2등, …).</summary>
+    public IReadOnlyList<int> FinishedTeamsInOrder => _finishOrder;
+
     public event Action<IReadOnlyList<TeamRankEntry>> OnRankingsUpdated;
     public static event Action<int> OnFirstPlaceFinished;
     public static event Action<int, int> OnTeamFinished;
@@ -55,6 +65,39 @@ public class RaceRankingManager : SingletonMonoBehaviour<RaceRankingManager>
         if (_segmentsByFrom != null && _segmentsByFrom.TryGetValue(fromCheckpoint, out var list))
             return list;
         return null;
+    }
+
+    /// <summary>
+    /// 등록된 트래커 기준 팀별 최대 통과 CP·최고 진행도·완주 여부.
+    /// (트래커가 여러 개인 팀은 CP/Progress 각각 최댓값)
+    /// </summary>
+    public List<RaceTeamProgressInfo> GetAllTeamsProgress()
+    {
+        var agg = new Dictionary<int, (int cp, float prog)>();
+
+        foreach (var tracker in _trackers)
+        {
+            int team = tracker.TeamNumber;
+            if (team == PhotonTeamManager.TeamNone) continue;
+
+            if (!agg.TryGetValue(team, out var cur))
+                cur = (0, 0f);
+
+            int cp = tracker.CheckpointsPassed > cur.cp ? tracker.CheckpointsPassed : cur.cp;
+            float p = tracker.Progress > cur.prog ? tracker.Progress : cur.prog;
+            agg[team] = (cp, p);
+        }
+
+        int last = _lastCheckpointIndex;
+        var list = new List<RaceTeamProgressInfo>(agg.Count);
+        foreach (var kv in agg)
+        {
+            bool finished = last >= 0 && kv.Value.cp >= last;
+            list.Add(new RaceTeamProgressInfo(kv.Key, kv.Value.cp, kv.Value.prog, finished));
+        }
+
+        list.Sort((a, b) => a.TeamNumber.CompareTo(b.TeamNumber));
+        return list;
     }
 
     private void Update()

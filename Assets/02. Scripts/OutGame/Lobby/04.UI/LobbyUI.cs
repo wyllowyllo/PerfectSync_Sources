@@ -26,17 +26,7 @@ public class LobbyUI : MonoBehaviour
             _matchingScreenUI.OnLeaveClicked += HandleLeave;
     }
 
-    private void OnDestroy()
-    {
-        if (_nicknameUI != null)
-            _nicknameUI.OnConfirmClicked -= HandleNicknameConfirm;
-        if (_matchButtonUI != null)
-            _matchButtonUI.OnMatchClicked -= HandleMatch;
-        if (_matchingScreenUI != null)
-            _matchingScreenUI.OnLeaveClicked -= HandleLeave;
-    }
-
-    private void OnEnable()
+    private void Start()
     {
         var m = LobbyManager.Instance;
         if (m == null) return;
@@ -51,8 +41,15 @@ public class LobbyUI : MonoBehaviour
         m.NicknameFieldSet += SetNicknameField;
     }
 
-    private void OnDisable()
+    private void OnDestroy()
     {
+        if (_nicknameUI != null)
+            _nicknameUI.OnConfirmClicked -= HandleNicknameConfirm;
+        if (_matchButtonUI != null)
+            _matchButtonUI.OnMatchClicked -= HandleMatch;
+        if (_matchingScreenUI != null)
+            _matchingScreenUI.OnLeaveClicked -= HandleLeave;
+
         var m = _subscribedManager;
         _subscribedManager = null;
         if (m == null) return;

@@ -6,12 +6,12 @@ public class AwardsUI : MonoBehaviour
 {
     [SerializeField] private TMP_Text _rankText;
 
-    private void OnEnable()
+    private void Start()
     {
         AwardsSceneManager.RefreshUiRequested += Refresh;
     }
 
-    private void OnDisable()
+    private void OnDestroy()
     {
         AwardsSceneManager.RefreshUiRequested -= Refresh;
     }

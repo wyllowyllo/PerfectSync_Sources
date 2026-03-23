@@ -41,6 +41,7 @@ public class LobbyManager : SingletonMonoBehaviour<LobbyManager>
     private IEnumerator DeferredInitialUi()
     {
         yield return null;
+        InGameLocalPlayerPropertyReset.ApplyForLobbyScene(clearTeamBecauseNotInRoom: !PhotonNetwork.InRoom);
         ShowMainScreenRequested?.Invoke();
         NicknameFieldSet?.Invoke(PhotonNetwork.NickName);
         RefreshUIFromNetworkState();
@@ -127,6 +128,7 @@ public class LobbyManager : SingletonMonoBehaviour<LobbyManager>
     {
         CancelCountdown();
         _isGameStarting = false;
+        InGameLocalPlayerPropertyReset.ApplyForLobbyScene(clearTeamBecauseNotInRoom: true);
         MatchButtonInteractableChanged?.Invoke(PhotonNetwork.IsConnectedAndReady);
         ShowMainScreenRequested?.Invoke();
     }

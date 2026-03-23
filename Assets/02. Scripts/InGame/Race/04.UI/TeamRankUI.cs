@@ -16,7 +16,7 @@ public class TeamRankUI : MonoBehaviour
         }
     }
 
-    private void OnDisable()
+    private void OnDestroy()
     {
         if (RaceRankingManager.Instance != null)
             RaceRankingManager.Instance.OnRankingsUpdated -= HandleRankingsUpdated;
