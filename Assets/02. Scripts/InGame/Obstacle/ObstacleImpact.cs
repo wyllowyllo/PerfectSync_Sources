@@ -1,9 +1,10 @@
 using System.Collections.Generic;
+using InGame.Player.Ragdoll;
 using UnityEngine;
 
 namespace InGame.Obstacle
 {
-    public class ObstacleImpact : MonoBehaviour
+    public class ObstacleImpact : MonoBehaviour, IImpactSource
     {
         [SerializeField] private ObstacleImpactProfile _profile;
 

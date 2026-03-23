@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace InGame.Player.Ragdoll
+namespace InGame.Player.Rendering
 {
     // SkeletonRoot보다 상위 오브젝트에 부착.
     // 하위의 모든 SkinnedMeshRenderer에 updateWhenOffscreen = true를 설정하여

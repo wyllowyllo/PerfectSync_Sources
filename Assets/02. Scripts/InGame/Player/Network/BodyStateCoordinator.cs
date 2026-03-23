@@ -30,6 +30,13 @@ namespace InGame.Player.Network
             _playerFormController.OnModeChanged += HandleModeChanged;
             _localPlayerInput.OnImpactReceived += HandleImpact;
             _localPlayerInput.OnDeathReceived += HandleDeath;
+
+            if (_photonView != null && _photonView.IsMine)
+            {
+                WireImpactDetector(_mergedBody);
+                WireImpactDetector(_avatarA);
+                WireImpactDetector(_avatarB);
+            }
         }
 
         private void OnDestroy()
@@ -113,6 +120,10 @@ namespace InGame.Player.Network
             var stateMachine = FindInBody<RagdollStateMachine>(body);
             if (stateMachine != null)
                 stateMachine.SetAuthority(isAuthority);
+
+            var impactDetector = FindInBody<ImpactDetector>(body);
+            if (impactDetector != null)
+                impactDetector.SetAuthority(isAuthority);
         }
 
         private void SetRemoteOnBody(GameObject body, bool isRemote)
@@ -121,6 +132,21 @@ namespace InGame.Player.Network
             var toggle = FindInBody<BodySimulationToggle>(body);
             if (toggle != null)
                 toggle.SetRemote(isRemote);
+        }
+
+        private void WireImpactDetector(GameObject body)
+        {
+            if (body == null || _localPlayerInput == null) return;
+
+            var detector = FindInBody<ImpactDetector>(body);
+            if (detector == null) return;
+
+            var pv = body.GetComponentInChildren<PhotonView>();
+            if (pv == null) return;
+
+            int viewID = pv.ViewID;
+            detector.OnImpactDetected += (impulse, hitPoint, torque) =>
+                _localPlayerInput.SendImpact(impulse, hitPoint, viewID, torque);
         }
 
         private void HandleImpact(

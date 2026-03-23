@@ -48,7 +48,7 @@ namespace InGame.Player.Network
             if (isRagdoll)
             {
                 RagdollBoneSnapshot snapshot = RagdollBoneSnapshot.Capture(_ragdollRig);
-                snapshot.WriteTo(stream);
+                RagdollBoneSnapshotSerializer.Write(snapshot, stream);
             }
         }
 
@@ -58,7 +58,7 @@ namespace InGame.Player.Network
 
             if (isRagdoll)
             {
-                RagdollBoneSnapshot snapshot = RagdollBoneSnapshot.ReadFrom(stream);
+                RagdollBoneSnapshot snapshot = RagdollBoneSnapshotSerializer.Read(stream);
 
                 if (_boneReceiver != null)
                     _boneReceiver.ApplySnapshot(snapshot);

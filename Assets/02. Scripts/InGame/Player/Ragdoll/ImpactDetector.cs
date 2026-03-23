@@ -1,7 +1,4 @@
-using InGame.Obstacle;
-using InGame.Player.Network;
-using InGame.UserInput;
-using Photon.Pun;
+using System;
 using UnityEngine;
 
 namespace InGame.Player.Ragdoll
@@ -12,28 +9,25 @@ namespace InGame.Player.Ragdoll
 
         [SerializeField] private LayerMask _hazardLayers;
         [SerializeField] private float _minImpulse = 3f;
-        [SerializeField] private PhotonView _photonView;
-        [SerializeField] private BodySimulationToggle _bodyToggle;
 
-        private LocalPlayerInput _localPlayerInput;
+        private bool _isAuthority;
 
-        private void Awake()
+        public event Action<Vector3, Vector3, Vector3> OnImpactDetected;
+
+        public void SetAuthority(bool isAuthority)
         {
-            _localPlayerInput = GetComponentInParent<LocalPlayerInput>();
+            _isAuthority = isAuthority;
         }
 
         private void OnCollisionEnter(Collision collision)
         {
-            if (_localPlayerInput == null) return;
-            if (_photonView != null && !_photonView.IsMine) return;
-            if (_bodyToggle != null && _bodyToggle.IsRemote) return;
-
+            if (!_isAuthority) return;
             if ((_hazardLayers & (1 << collision.gameObject.layer)) == 0) return;
 
             Vector3 impulse;
             Vector3 torque;
 
-            var source = collision.gameObject.GetComponentInParent<ObstacleImpact>();
+            var source = collision.gameObject.GetComponent<IImpactSource>();
             if (source != null)
             {
                 if (!source.TryComputeImpulse(collision, out impulse, out torque))
@@ -45,7 +39,7 @@ namespace InGame.Player.Ragdoll
             }
 
             Vector3 hitPoint = collision.GetContact(0).point;
-            _localPlayerInput.SendImpact(impulse, hitPoint, _photonView.ViewID, torque);
+            OnImpactDetected?.Invoke(impulse, hitPoint, torque);
         }
 
         private bool TryComputeFallbackImpulse(Collision collision, out Vector3 impulse, out Vector3 torque)
@@ -57,7 +51,7 @@ namespace InGame.Player.Ragdoll
                 return false;
             }
 
-            torque = Random.insideUnitSphere * impulse.magnitude * TorqueScaleFactor;
+            torque = UnityEngine.Random.insideUnitSphere * impulse.magnitude * TorqueScaleFactor;
             return true;
         }
     }
