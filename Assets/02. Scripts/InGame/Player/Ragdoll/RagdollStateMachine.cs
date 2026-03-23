@@ -128,7 +128,7 @@ namespace InGame.Player.Ragdoll
             // BlendToAnim 블렌드는 Authority와 Remote 모두 적용.
             // Remote에서도 래그돌 포즈→애니메이션 포즈 블렌딩이 필요함.
             if (_currentState == ERagdollState.BlendToAnim)
-                _blender.ApplyBlend(_isAuthority, _rootBody);
+                _blender.BlendToAnimation(_isAuthority, _rootBody);
         }
 
         #region Skeleton Detach / Reattach
@@ -206,7 +206,7 @@ namespace InGame.Player.Ragdoll
             DetachSkeleton();
 
             Vector3 inheritedVelocity = _rootBody.linearVelocity;
-            _ragdollRig.Activate(inheritedVelocity);
+            _ragdollRig.ActivatePhysics(inheritedVelocity);
             _impactTransfer.TransferImpact(
                 new ImpactData(Vector3.zero, _rootBody.position),
                 inheritedVelocity,
@@ -229,7 +229,7 @@ namespace InGame.Player.Ragdoll
             _stateTimer = 0f;
 
             if (_currentState == ERagdollState.Ragdolled || _currentState == ERagdollState.BlendToAnim)
-                _ragdollRig.Deactivate();
+                _ragdollRig.DeactivateRagdoll();
 
             ReattachSkeleton();
 
@@ -274,9 +274,9 @@ namespace InGame.Player.Ragdoll
 
             // BoneReceiver가 위치시킨 래그돌 포즈를 블렌드용으로 캡처.
             // Animator 활성화 전에 캡처해야 현재 래그돌 포즈를 유지할 수 있음.
-            _blender.CaptureBlendPoses();
+            _blender.SnapshotRagdollPoses();
 
-            _ragdollRig.Deactivate();
+            _ragdollRig.DeactivateRagdoll();
             ReattachSkeleton();
 
             _rootTransition.Begin(_rootBody, rootPos, rootRot);
@@ -345,7 +345,7 @@ namespace InGame.Player.Ragdoll
             DetachSkeleton();
 
             Vector3 inheritedVelocity = _rootBody.linearVelocity;
-            _ragdollRig.Activate(inheritedVelocity);
+            _ragdollRig.ActivatePhysics(inheritedVelocity);
             _impactTransfer.TransferImpact(impact, inheritedVelocity, torqueVector);
 
             _animator.enabled = false;
@@ -372,13 +372,13 @@ namespace InGame.Player.Ragdoll
 
         private void BeginBlendToAnim()
         {
-            _blender.CaptureBlendPoses();
-            _blender.CaptureRootMatchData();
+            _blender.SnapshotRagdollPoses();
+            _blender.SnapshotRootAlignment();
 
-            bool isFaceUp = GetIsFaceUp();
+            bool isFaceUp = IsFaceUp();
 
             // 래그돌 비활성화 + 스켈레톤 재결합.
-            _ragdollRig.Deactivate();
+            _ragdollRig.DeactivateRagdoll();
             ReattachSkeleton();
 
             // 루트 바디를 래그돌 최종 위치에 맞춤.
@@ -420,10 +420,10 @@ namespace InGame.Player.Ragdoll
             OnStateChanged?.Invoke(ERagdollState.Animated);
         }
 
-        public Vector3 GetRecoveryPosition() => _rootBody.position;
-        public Quaternion GetRecoveryRotation() => _rootBody.rotation;
+        public Vector3 RecoveryPosition => _rootBody.position;
+        public Quaternion RecoveryRotation => _rootBody.rotation;
 
-        public bool GetIsFaceUp()
+        public bool IsFaceUp()
         {
             Transform pelvis = _ragdollRig.PelvisTransform;
             return (pelvis.rotation * Vector3.forward).y > 0f;

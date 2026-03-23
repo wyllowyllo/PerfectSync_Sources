@@ -5,9 +5,9 @@ namespace InGame.Player.Ragdoll
 {
     public interface IRagdollRig
     {
-        void Activate(Vector3 inheritedVelocity);
+        void ActivatePhysics(Vector3 inheritedVelocity);
         void ActivateKinematic();
-        void Deactivate();
+        void DeactivateRagdoll();
         bool IsSettled(float settleVelocity);
         IReadOnlyList<Rigidbody> Rigidbodies { get; }
         IReadOnlyList<Transform> BoneTransforms { get; }

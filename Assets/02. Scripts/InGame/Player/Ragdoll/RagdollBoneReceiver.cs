@@ -12,7 +12,7 @@ namespace InGame.Player.Ragdoll
         private RagdollBoneSnapshot _currentSnapshot;
         private float _lastReceiveTime;
         private float _receiveInterval;
-        private bool _isActive;
+        private bool _isReceiving;
         private bool _hasSnapshot;
 
         private const float DefaultReceiveInterval = 0.1f;
@@ -20,11 +20,11 @@ namespace InGame.Player.Ragdoll
         private const float MinIntervalThreshold = 0.001f;
         private const float IntervalSmoothingFactor = 0.5f;
 
-        public bool IsActive => _isActive;
+        public bool IsReceiving => _isReceiving;
 
-        public void Activate()
+        public void StartReceiving()
         {
-            _isActive = true;
+            _isReceiving = true;
             _hasSnapshot = false;
             _receiveInterval = DefaultReceiveInterval;
 
@@ -33,15 +33,15 @@ namespace InGame.Player.Ragdoll
             _ragdollRig.ActivateKinematic();
         }
 
-        public void Deactivate()
+        public void StopReceiving()
         {
-            _isActive = false;
+            _isReceiving = false;
             _hasSnapshot = false;
         }
 
         public void ApplySnapshot(RagdollBoneSnapshot snapshot)
         {
-            if (!_isActive) return;
+            if (!_isReceiving) return;
 
             _previousSnapshot = _hasSnapshot ? _currentSnapshot : snapshot;
             _currentSnapshot = snapshot;
@@ -60,7 +60,7 @@ namespace InGame.Player.Ragdoll
 
         private void LateUpdate()
         {
-            if (!_isActive || !_hasSnapshot) return;
+            if (!_isReceiving || !_hasSnapshot) return;
 
             IReadOnlyList<Transform> bones = _ragdollRig.BoneTransforms;
 

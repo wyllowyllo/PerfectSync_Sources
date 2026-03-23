@@ -54,9 +54,9 @@ namespace InGame.Player.Network
                     break;
 
                 case ERagdollState.BlendToAnim:
-                    Vector3 pos = _ragdollStateMachine.GetRecoveryPosition();
-                    Quaternion rot = _ragdollStateMachine.GetRecoveryRotation();
-                    bool faceUp = _ragdollStateMachine.GetIsFaceUp();
+                    Vector3 pos = _ragdollStateMachine.RecoveryPosition;
+                    Quaternion rot = _ragdollStateMachine.RecoveryRotation;
+                    bool faceUp = _ragdollStateMachine.IsFaceUp();
                     photonView.RPC(
                         nameof(RpcEnterBlendToAnim), RpcTarget.Others,
                         pos, rot, faceUp);
@@ -88,7 +88,7 @@ namespace InGame.Player.Network
             if (_isAuthority) return;
             if (!gameObject.activeInHierarchy) return;
 
-            _boneReceiver.Activate();
+            _boneReceiver.StartReceiving();
             _ragdollStateMachine.EnterRagdolledRemote();
         }
 
@@ -107,7 +107,7 @@ namespace InGame.Player.Network
             if (_isAuthority) return;
             if (!gameObject.activeInHierarchy) return;
 
-            _boneReceiver.Deactivate();
+            _boneReceiver.StopReceiving();
             _ragdollStateMachine.EnterBlendToAnimRemote(rootPos, rootRot, isFaceUp);
         }
 
@@ -117,7 +117,7 @@ namespace InGame.Player.Network
             if (_isAuthority) return;
             if (!gameObject.activeInHierarchy) return;
 
-            _boneReceiver.Deactivate();
+            _boneReceiver.StopReceiving();
             _ragdollStateMachine.EnterAnimatedRemote();
         }
 
@@ -127,7 +127,7 @@ namespace InGame.Player.Network
             if (_isAuthority) return;
             if (!gameObject.activeInHierarchy) return;
 
-            _boneReceiver.Activate();
+            _boneReceiver.StartReceiving();
             _ragdollStateMachine.EnterDeadRemote();
         }
 

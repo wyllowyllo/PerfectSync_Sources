@@ -57,7 +57,7 @@ namespace InGame.Player.Ragdoll
             }
         }
 
-        public void CaptureBlendPoses()
+        public void SnapshotRagdollPoses()
         {
             for (int i = 0; i < _blendBones.Length; i++)
             {
@@ -67,7 +67,7 @@ namespace InGame.Player.Ragdoll
         }
 
         // BeginBlendToAnim 시 루트 매칭용 위치 저장.
-        public void CaptureRootMatchData()
+        public void SnapshotRootAlignment()
         {
             Transform hipBone = _animator.GetBoneTransform(HumanBodyBones.Hips);
             Transform headBone = _animator.GetBoneTransform(HumanBodyBones.Head);
@@ -92,7 +92,7 @@ namespace InGame.Player.Ragdoll
         }
 
         // LateUpdate에서 호출. Animator가 포즈를 적용한 후 래그돌 포즈와 보간.
-        public void ApplyBlend(bool isAuthority, Rigidbody rootBody)
+        public void BlendToAnimation(bool isAuthority, Rigidbody rootBody)
         {
             float elapsed = Time.time - _blendStartTime;
 

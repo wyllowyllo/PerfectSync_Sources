@@ -34,7 +34,7 @@ namespace InGame.Player.Ragdoll
         }
 
         // 물리 래그돌 활성화 (Authority).
-        public void Activate(Vector3 inheritedVelocity)
+        public void ActivatePhysics(Vector3 inheritedVelocity)
         {
             SetKinematic(false);
             SetCollidersEnabled(true);
@@ -51,7 +51,7 @@ namespace InGame.Player.Ragdoll
         }
 
         // 애니메이션 모드 복귀.
-        public void Deactivate()
+        public void DeactivateRagdoll()
         {
             SetKinematic(true);
             SetCollidersEnabled(false);
