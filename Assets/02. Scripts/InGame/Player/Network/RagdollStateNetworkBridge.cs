@@ -6,12 +6,19 @@ using UnityEngine;
 namespace InGame.Player.Network
 {
     [DefaultExecutionOrder(ExecutionOrderConstants.RagdollStateNetworkBridge)]
+    [RequireComponent(typeof(RagdollStateMachine))]
+    [RequireComponent(typeof(RagdollBoneReceiver))]
     public class RagdollStateNetworkBridge : MonoBehaviourPun
     {
-        [SerializeField] private RagdollStateMachine _ragdollStateMachine;
-        [SerializeField] private RagdollBoneReceiver _boneReceiver;
-
+        private RagdollStateMachine _ragdollStateMachine;
+        private RagdollBoneReceiver _boneReceiver;
         private bool _isAuthority = true;
+
+        private void Awake()
+        {
+            _ragdollStateMachine = GetComponent<RagdollStateMachine>();
+            _boneReceiver = GetComponent<RagdollBoneReceiver>();
+        }
 
         public void SetAuthority(bool isAuthority)
         {

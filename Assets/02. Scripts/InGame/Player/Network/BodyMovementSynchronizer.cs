@@ -8,12 +8,16 @@ using UnityEngine;
 namespace InGame.Player.Network
 {
     [DefaultExecutionOrder(ExecutionOrderConstants.BodyMovementSynchronizer)]
+    [RequireComponent(typeof(RagdollStateMachine))]
+    [RequireComponent(typeof(PlayerMovement))]
+    [RequireComponent(typeof(PlayerAnimation))]
     public class BodyMovementSynchronizer : MonoBehaviourPun, IPunObservable
     {
         [SerializeField] private Rigidbody _rootBody;
-        [SerializeField] private RagdollStateMachine _ragdollController;
-        [SerializeField] private PlayerMovement _movement;
-        [SerializeField] private PlayerAnimation _animation;
+
+        private RagdollStateMachine _ragdollController;
+        private PlayerMovement _movement;
+        private PlayerAnimation _animation;
 
         private PhotonTransformView _transformView;
         private bool _syncEnabled;
@@ -29,6 +33,9 @@ namespace InGame.Player.Network
         private void Awake()
         {
             _transformView = GetComponent<PhotonTransformView>();
+            _ragdollController = GetComponent<RagdollStateMachine>();
+            _movement = GetComponent<PlayerMovement>();
+            _animation = GetComponent<PlayerAnimation>();
         }
 
         private void Start()

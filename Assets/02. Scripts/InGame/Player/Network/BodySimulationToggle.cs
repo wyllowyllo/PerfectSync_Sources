@@ -5,11 +5,20 @@ using UnityEngine;
 namespace InGame.Player.Network
 {
     [DefaultExecutionOrder(ExecutionOrderConstants.BodySimulationToggle)]
+    [RequireComponent(typeof(PlayerMovement))]
+    [RequireComponent(typeof(PlayerJump))]
     public class BodySimulationToggle : MonoBehaviour
     {
         [SerializeField] private Rigidbody _rootBody;
-        [SerializeField] private PlayerMovement _playerMovement;
-        [SerializeField] private PlayerJump _playerJump;
+
+        private PlayerMovement _playerMovement;
+        private PlayerJump _playerJump;
+
+        private void Awake()
+        {
+            _playerMovement = GetComponent<PlayerMovement>();
+            _playerJump = GetComponent<PlayerJump>();
+        }
 
         private bool _isRemoteBody;
         public bool IsRemote => _isRemoteBody;

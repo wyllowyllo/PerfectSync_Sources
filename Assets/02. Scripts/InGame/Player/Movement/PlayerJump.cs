@@ -3,11 +3,13 @@ using UnityEngine;
 
 namespace InGame.Player.Movement
 {
+    [RequireComponent(typeof(PlayerAnimation))]
     public class PlayerJump : MonoBehaviour
     {
         [Header("References")]
         [SerializeField] private Rigidbody _rootBody;
-        [SerializeField] private PlayerAnimation _anim;
+
+        private PlayerAnimation _anim;
 
         [Header("Jump")]
         [SerializeField] private float _jumpForce = 10f;
@@ -15,6 +17,11 @@ namespace InGame.Player.Movement
         [Header("Dive")]
         [SerializeField] private float _diveForce = 8f;
         [SerializeField] private float _diveCooldown = 0.5f;
+
+        private void Awake()
+        {
+            _anim = GetComponent<PlayerAnimation>();
+        }
 
         private float _lastDiveTime = -Mathf.Infinity;
         private bool _isDiving;

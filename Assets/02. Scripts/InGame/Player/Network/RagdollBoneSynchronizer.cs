@@ -6,14 +6,22 @@ using UnityEngine;
 namespace InGame.Player.Network
 {
     [DefaultExecutionOrder(ExecutionOrderConstants.RagdollBoneSynchronizer)]
+    [RequireComponent(typeof(RagdollStateMachine))]
+    [RequireComponent(typeof(RagdollBoneReceiver))]
     public class RagdollBoneSynchronizer : MonoBehaviourPun, IPunObservable
     {
         [SerializeField] private RagdollRig _ragdollRig;
-        [SerializeField] private RagdollStateMachine _ragdollStateMachine;
-        [SerializeField] private RagdollBoneReceiver _boneReceiver;
 
+        private RagdollStateMachine _ragdollStateMachine;
+        private RagdollBoneReceiver _boneReceiver;
         private bool _syncEnabled;
         private bool _isAuthority = true;
+
+        private void Awake()
+        {
+            _ragdollStateMachine = GetComponent<RagdollStateMachine>();
+            _boneReceiver = GetComponent<RagdollBoneReceiver>();
+        }
 
         public void SetSyncEnabled(bool enabled)
         {

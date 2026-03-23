@@ -5,14 +5,18 @@ using UnityEngine;
 
 namespace InGame.Player.Movement
 {
+    [RequireComponent(typeof(RagdollStateMachine))]
+    [RequireComponent(typeof(PlayerJump))]
+    [RequireComponent(typeof(PlayerAnimation))]
     public class PlayerMovement : MonoBehaviour, IControllableBody
     {
         [Header("References")]
         [SerializeField] private Rigidbody _rootBody;
         [SerializeField] private Transform _groundCheckPoint;
-        [SerializeField] private RagdollStateMachine _ragdollController;
-        [SerializeField] private PlayerJump _playerJump;
-        [SerializeField] private PlayerAnimation _anim;
+
+        private RagdollStateMachine _ragdollController;
+        private PlayerJump _playerJump;
+        private PlayerAnimation _anim;
 
         [Header("Movement")]
         [SerializeField] private float _moveSpeed = 5f;
@@ -57,6 +61,9 @@ namespace InGame.Player.Movement
 
         private void Awake()
         {
+            _ragdollController = GetComponent<RagdollStateMachine>();
+            _playerJump = GetComponent<PlayerJump>();
+            _anim = GetComponent<PlayerAnimation>();
             _rootBody.constraints = RigidbodyConstraints.FreezeRotation;
         }
 
