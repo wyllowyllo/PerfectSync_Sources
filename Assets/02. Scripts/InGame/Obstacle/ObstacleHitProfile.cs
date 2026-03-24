@@ -1,6 +1,5 @@
 using InGame.Player;
 using UnityEngine;
-using UnityEngine.Serialization;
 
 namespace InGame.Obstacle
 {
@@ -18,19 +17,24 @@ namespace InGame.Obstacle
         Custom
     }
 
+    public enum EImpactLevel
+    {
+        Default,
+        Stumble,
+        Ragdoll,
+        PushOnly
+    }
+
     [CreateAssetMenu(fileName = "NewHitProfile", menuName = "InGame/Obstacle Hit Profile")]
     public class ObstacleHitProfile : ScriptableObject
     {
         [Header("Knockback")]
-        [FormerlySerializedAs("_forceMode")]
         [SerializeField] private EKnockbackMode _knockbackMode = EKnockbackMode.VelocityScaled;
 
         [Tooltip("VelocityScaled: 상대속도에 곱해지는 배율 / Fixed: 고정 넉백 크기")]
-        [FormerlySerializedAs("_forceValue")]
         [SerializeField] private float _knockbackStrength = 1f;
 
         [Header("Direction")]
-        [FormerlySerializedAs("_directionMode")]
         [SerializeField] private EKnockbackDirection _knockbackDirection = EKnockbackDirection.FromCollision;
 
         [Tooltip("KnockbackDirection이 Custom일 때 사용할 월드 방향")]
@@ -39,12 +43,14 @@ namespace InGame.Obstacle
         [Tooltip("밀림 방향에 상향 성분을 섞는 비율 (0 = 없음, 1 = 완전 위로)")]
         [SerializeField, Range(0f, 1f)] private float _upwardBias;
 
-        [Header("Ragdoll")]
-        [Tooltip("true면 항상 래그돌 임계치 이상의 magnitude를 보장")]
-        [SerializeField] private bool _alwaysRagdoll;
+        [Header("Impact")]
+        [SerializeField] private HitThresholdProfile _thresholdProfile;
 
-        [Tooltip("alwaysRagdoll 시 보장할 최소 magnitude (래그돌 임계치보다 높게 설정)")]
-        [SerializeField] private float _minRagdollMagnitude = 8f;
+        [Tooltip("Default: 속도 기반 자연스러운 결과 / Stumble·Ragdoll·PushOnly: _impactForce 직접 적용")]
+        [SerializeField] private EImpactLevel _impactLevel = EImpactLevel.Default;
+
+        [Tooltip("ImpactLevel이 Default가 아닐 때 적용할 넉백 크기")]
+        [SerializeField] private float _impactForce;
 
         [Header("Torque")]
         [SerializeField] private float _torqueScale = 0.15f;
@@ -68,12 +74,17 @@ namespace InGame.Obstacle
             if (_upwardBias > 0f)
                 direction = Vector3.Lerp(direction, Vector3.up, _upwardBias).normalized;
 
-            float magnitude = _knockbackMode == EKnockbackMode.Fixed
-                ? _knockbackStrength
-                : collision.relativeVelocity.magnitude * _knockbackStrength;
-
-            if (_alwaysRagdoll)
-                magnitude = Mathf.Max(magnitude, _minRagdollMagnitude);
+            float magnitude;
+            if (_impactLevel != EImpactLevel.Default)
+            {
+                magnitude = _impactForce;
+            }
+            else
+            {
+                magnitude = _knockbackMode == EKnockbackMode.Fixed
+                    ? _knockbackStrength
+                    : collision.relativeVelocity.magnitude * _knockbackStrength;
+            }
 
             return direction * magnitude;
         }
@@ -81,6 +92,22 @@ namespace InGame.Obstacle
         public Vector3 ComputeTorque(float knockbackMagnitude)
         {
             return HitData.ComputeRandomTorque(knockbackMagnitude, _torqueScale);
+        }
+
+        private void OnValidate()
+        {
+            if (_thresholdProfile == null || _impactLevel == EImpactLevel.Default) return;
+
+            float stumble = _thresholdProfile.StumbleThreshold;
+            float ragdoll = _thresholdProfile.RagdollThreshold;
+
+            _impactForce = _impactLevel switch
+            {
+                EImpactLevel.PushOnly => Mathf.Clamp(_impactForce, 0f, stumble - 0.01f),
+                EImpactLevel.Stumble => Mathf.Clamp(_impactForce, stumble, ragdoll - 0.01f),
+                EImpactLevel.Ragdoll => Mathf.Max(_impactForce, ragdoll),
+                _ => _impactForce
+            };
         }
     }
 }

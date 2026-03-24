@@ -2,8 +2,6 @@ using System;
 using Core;
 using InGame.Player.Animation;
 using UnityEngine;
-using UnityEngine.Serialization;
-
 namespace InGame.Player.Ragdoll
 {
     public enum ERagdollState { Animated, Ragdolled, BlendToAnim, Dead }
@@ -24,16 +22,13 @@ namespace InGame.Player.Ragdoll
         private PlayerAnimation _animation;
 
         [Header("Thresholds")]
-        [SerializeField] private float _stumbleThreshold = 3f;
-        [SerializeField] private float _ragdollThreshold = 7f;
+        [SerializeField] private HitThresholdProfile _thresholdProfile;
 
         [Header("Ragdoll")]
         [SerializeField] private float _minRagdollDuration = 0.3f;
         [SerializeField] private float _maxRagdollDuration = 3.0f;
         [SerializeField] private float _settleVelocity = 0.5f;
-        [FormerlySerializedAs("_impactRadius")]
         [SerializeField] private float _hitRadius = 2.0f;
-        [FormerlySerializedAs("_impactForceScale")]
         [SerializeField] private float _hitForceScale = 0.3f;
 
         [Header("Blend")]
@@ -53,7 +48,6 @@ namespace InGame.Player.Ragdoll
         [SerializeField] private float _rootBodyTrackingSpeed = 5f;
 
         [Header("Root Transition")]
-        [FormerlySerializedAs("_rootLerpDuration")]
         [SerializeField] private float _rootTransitionDuration = 0.4f;
 
         // State.
@@ -189,7 +183,7 @@ namespace InGame.Player.Ragdoll
             switch (_currentState)
             {
                 case ERagdollState.BlendToAnim:
-                    if (effectiveMagnitude >= _ragdollThreshold * _reImpactMultiplier)
+                    if (effectiveMagnitude >= _thresholdProfile.RagdollThreshold * _reImpactMultiplier)
                         EnterRagdolled(hit);
                     break;
 
@@ -199,9 +193,9 @@ namespace InGame.Player.Ragdoll
                     break;
 
                 case ERagdollState.Animated:
-                    if (effectiveMagnitude >= _ragdollThreshold)
+                    if (effectiveMagnitude >= _thresholdProfile.RagdollThreshold)
                         EnterRagdolled(hit);
-                    else if (hit.Magnitude >= _stumbleThreshold)
+                    else if (hit.Magnitude >= _thresholdProfile.StumbleThreshold)
                         EnterStumble(hit);
                     break;
             }
