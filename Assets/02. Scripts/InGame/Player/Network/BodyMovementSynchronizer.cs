@@ -25,9 +25,16 @@ namespace InGame.Player.Network
         private Quaternion _correctionRotation;
         private bool _hasCorrection;
 
+        // 예측 보간 상태 (합체/kinematic 모드).
+        private Vector3 _networkVelocity;
+        private double _lastReceiveServerTime;
+        private bool _firstSnapshot = true;
+
         private const float SnapThreshold = 2.0f;
         private const float CorrectionFactor = 0.15f;
         private const float InterpolationFactor = 0.3f;
+        private const float PredictiveInterpolationFactor = 0.3f;
+        private const float MaxExtrapolationTime = 0.2f;
         private const float VerticalVelocityThreshold = 0.5f;
 
         private void Awake()
@@ -64,6 +71,8 @@ namespace InGame.Player.Network
             if (_transformView != null)
                 _transformView.enabled = !enabled;
             _hasCorrection = false;
+            _firstSnapshot = true;
+            _networkVelocity = Vector3.zero;
         }
 
         private void LateUpdate()
@@ -97,11 +106,11 @@ namespace InGame.Player.Network
                 {
                     if (_rootBody.isKinematic)
                     {
-                        // Host-authoritative 합체 모드: MovePosition으로 부드러운 보간.
+                        // 예측 보간: _correctionTarget이 이미 네트워크 지연을 보상한 위치.
                         _rootBody.MovePosition(
-                            Vector3.Lerp(_rootBody.position, _correctionTarget, InterpolationFactor));
+                            Vector3.Lerp(_rootBody.position, _correctionTarget, PredictiveInterpolationFactor));
                         _rootBody.MoveRotation(
-                            Quaternion.Slerp(_rootBody.rotation, _correctionRotation, InterpolationFactor));
+                            Quaternion.Slerp(_rootBody.rotation, _correctionRotation, PredictiveInterpolationFactor));
                     }
                     else
                     {
@@ -177,6 +186,7 @@ namespace InGame.Player.Network
                 stream.SendNext(_rootBody.rotation);
                 stream.SendNext(_movement != null ? _movement.CurrentSpeed : 0f);
                 stream.SendNext(_movement != null && _movement.Grounded);
+                stream.SendNext(_rootBody.linearVelocity);
             }
             else
             {
@@ -184,12 +194,28 @@ namespace InGame.Player.Network
                 Quaternion rot = (Quaternion)stream.ReceiveNext();
                 float speed = (float)stream.ReceiveNext();
                 bool grounded = (bool)stream.ReceiveNext();
+                Vector3 velocity = (Vector3)stream.ReceiveNext();
 
                 if (_ragdollController != null && _ragdollController.IsRootManagedByRagdoll) return;
 
-                _correctionTarget = pos;
+                // 예측 위치 계산: 수신 위치 + 속도 × 네트워크 지연.
+                if (_rootBody.isKinematic && !_firstSnapshot)
+                {
+                    float lag = Mathf.Min(
+                        Mathf.Abs((float)(PhotonNetwork.Time - info.SentServerTime)),
+                        MaxExtrapolationTime);
+                    _correctionTarget = pos + velocity * lag;
+                }
+                else
+                {
+                    _correctionTarget = pos;
+                }
+
                 _correctionRotation = rot;
+                _networkVelocity = velocity;
+                _lastReceiveServerTime = info.SentServerTime;
                 _hasCorrection = true;
+                _firstSnapshot = false;
 
                 // Host-authoritative: kinematic 바디에 Host의 애니메이션 파라미터 직접 적용.
                 if (_rootBody.isKinematic && _animation != null)
