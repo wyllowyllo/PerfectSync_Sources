@@ -363,7 +363,14 @@ namespace InGame.Player.Ragdoll
             if (_stateTimer < _minRagdollDuration)
                 return;
 
-            if (IsReadyToRecover() || _stateTimer >= _maxRagdollDuration)
+            bool grounded = IsGrounded();
+            bool settled = _ragdollRig.IsSettled(_settleVelocity);
+            Debug.Log($"[Ragdoll] timer={_stateTimer:F2} grounded={grounded} settled={settled} pelvisY={_ragdollRig.PelvisTransform.position.y:F2}");
+
+            if (!grounded)
+                return;
+
+            if (settled || _stateTimer >= _maxRagdollDuration)
                 BeginBlendToAnim();
         }
 
@@ -436,14 +443,13 @@ namespace InGame.Player.Ragdoll
                 _instability = Mathf.Max(0f, _instability - _instabilityDecayRate * Time.deltaTime);
         }
 
-        private bool IsReadyToRecover()
+        private bool IsGrounded()
         {
-            if (!_ragdollRig.IsSettled(_settleVelocity))
-                return false;
-
             Vector3 pelvisPos = _ragdollRig.PelvisTransform.position;
             Vector3 rayOrigin = pelvisPos + Vector3.up * RayOriginUpOffset;
-            return Physics.Raycast(rayOrigin, Vector3.down, _groundCheckDistance, _groundLayer);
+            bool hit = Physics.Raycast(rayOrigin, Vector3.down, _groundCheckDistance, _groundLayer);
+            Debug.DrawRay(rayOrigin, Vector3.down * _groundCheckDistance, hit ? Color.green : Color.red);
+            return hit;
         }
 
         #endregion
