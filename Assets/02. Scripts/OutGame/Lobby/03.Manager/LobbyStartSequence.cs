@@ -43,8 +43,6 @@ public class LobbyStartSequence : MonoBehaviour
 
         if (SceneLoader.Instance != null)
             SceneLoader.Instance.LoadScenePhoton(_inGameSceneName);
-        else
-            Debug.LogError("[LobbyStartSequence] SceneLoader 싱글톤이 없습니다. 로비 씬에 SceneLoader를 배치하세요.");
 
         _countdownCoroutine = null;
     }

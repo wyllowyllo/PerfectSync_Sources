@@ -15,9 +15,6 @@ public class LobbyUI : MonoBehaviour
 
     private void Awake()
     {
-        if (LobbyManager.Instance == null)
-            Debug.LogError("[LobbyUI] LobbyManager.Instance가 없습니다. 씬에 LobbyManager가 있어야 합니다.");
-
         if (_nicknameUI != null)
             _nicknameUI.OnConfirmClicked += HandleNicknameConfirm;
         if (_matchButtonUI != null)

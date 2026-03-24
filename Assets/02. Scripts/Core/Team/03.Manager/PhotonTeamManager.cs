@@ -22,10 +22,6 @@ public class PhotonTeamManager : SingletonPunCallbacks<PhotonTeamManager>
     private readonly PhotonTeamStateRepository _teamState = new();
     private static readonly PhotonTeamStateRepository SharedTeamRead = new();
 
-    /// <summary>
-    /// 전원 팀 배정 완료 시 로그/이벤트는 한 번만 올리기 위한 래치.
-    /// (같은 방에서 Team 프로퍼티가 여러 번 갱신되면 OnPlayerPropertiesUpdate가 중복 호출될 수 있음)
-    /// </summary>
     private bool _allTeamsAssignedNotified;
 
     public static int GetTeamRaw(Player player)
@@ -45,25 +41,15 @@ public class PhotonTeamManager : SingletonPunCallbacks<PhotonTeamManager>
     public bool SetTeam(int teamNumber)
     {
         if (!PhotonNetwork.InRoom)
-        {
-            Debug.LogWarning("[PhotonTeamManager] 방에 입장해 있지 않습니다.");
             return false;
-        }
 
         if (!TeamRules.IsValidAssignedTeam(teamNumber))
-        {
-            Debug.LogWarning($"[PhotonTeamManager] 잘못된 팀 번호입니다: {teamNumber} (1~{TeamRules.MaxTeams})");
             return false;
-        }
 
         if (IsTeamFull(teamNumber))
-        {
-            Debug.LogWarning($"[PhotonTeamManager] 팀 {teamNumber}이(가) 이미 가득 찼습니다.");
             return false;
-        }
 
         PhotonNetwork.LocalPlayer.SetCustomProperties(new Hashtable { { TeamKey, teamNumber } });
-        Debug.Log($"[PhotonTeamManager] 팀 {teamNumber} 선택 완료.");
         return true;
     }
 
@@ -72,16 +58,12 @@ public class PhotonTeamManager : SingletonPunCallbacks<PhotonTeamManager>
         if (!PhotonNetwork.InRoom) return;
 
         PhotonNetwork.LocalPlayer.SetCustomProperties(new Hashtable { { TeamKey, TeamNone } });
-        Debug.Log("[PhotonTeamManager] 팀 해제 완료.");
     }
 
     public void AssignTeamsRandomly()
     {
         if (!PhotonNetwork.IsMasterClient)
-        {
-            Debug.LogWarning("[PhotonTeamManager] MasterClient만 팀을 자동 배정할 수 있습니다.");
             return;
-        }
 
         GroupPlayersByParty(out var partyGroups, out var soloPlayers);
 
@@ -89,9 +71,6 @@ public class PhotonTeamManager : SingletonPunCallbacks<PhotonTeamManager>
         soloPlayers.Shuffle();
 
         AssignToTeams(partyGroups, soloPlayers);
-
-        Debug.Log($"[PhotonTeamManager] 랜덤 팀 배정 완료. " +
-                  $"({PhotonNetwork.PlayerList.Length}명 → {MaxTeams}팀, 파티 그룹: {partyGroups.Count}개)");
     }
 
     private void GroupPlayersByParty(out List<List<Player>> partyGroups, out List<Player> soloPlayers)
@@ -223,7 +202,6 @@ public class PhotonTeamManager : SingletonPunCallbacks<PhotonTeamManager>
         if (!changedProps.ContainsKey(TeamKey)) return;
 
         int newTeam = (int)changedProps[TeamKey];
-        Debug.Log($"[PhotonTeamManager] {targetPlayer.NickName} → 팀 {newTeam}");
         OnPlayerTeamChanged?.Invoke(targetPlayer, newTeam);
 
         if (!AreAllTeamsAssigned())
@@ -236,7 +214,6 @@ public class PhotonTeamManager : SingletonPunCallbacks<PhotonTeamManager>
             return;
 
         _allTeamsAssignedNotified = true;
-        Debug.Log("[PhotonTeamManager] 모든 플레이어 팀 배정 완료.");
         OnAllTeamsAssigned?.Invoke();
     }
 

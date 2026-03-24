@@ -39,7 +39,6 @@ public class AwardsSceneManager : SingletonPunCallbacks<AwardsSceneManager>
 
         if (!PhotonNetwork.InRoom)
         {
-            Debug.LogWarning("[AwardsSceneManager] 방에 없습니다. 로비로 이동합니다.");
             NavigateToLobbyScene();
             yield break;
         }

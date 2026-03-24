@@ -30,7 +30,6 @@ public class PlayerController : MonoBehaviour
             return ability as T;
         }
 
-        Debug.LogError($"[PlayerController] 어빌리티 {type.Name}을 {gameObject.name}에서 찾을 수 없습니다.");
         return null;
     }
 }

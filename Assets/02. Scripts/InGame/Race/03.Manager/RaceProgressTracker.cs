@@ -40,7 +40,6 @@ public class RaceProgressTracker : MonoBehaviour
         if (index <= CheckpointsPassed) return;
 
         CheckpointsPassed = index;
-        Debug.Log($"[RaceProgressTracker] {gameObject.name} → CP {index} 통과");
     }
 
     private void Update()

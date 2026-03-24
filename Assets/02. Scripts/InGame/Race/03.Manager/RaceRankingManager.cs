@@ -8,10 +8,6 @@ public class RaceRankingManager : SingletonMonoBehaviour<RaceRankingManager>
 
     [SerializeField] private RaceSegment[] _segments;
 
-    [Header("Debug")]
-    [SerializeField] private bool _rankingDebugLog;
-    [SerializeField] private int _debugLogIntervalFrames = 60;
-
     private Dictionary<int, List<RaceSegment>> _segmentsByFrom;
     private int _lastCheckpointIndex;
     private List<RaceProgressTracker> _trackers = new();
@@ -20,13 +16,10 @@ public class RaceRankingManager : SingletonMonoBehaviour<RaceRankingManager>
 
     public IReadOnlyList<TeamRankEntry> CurrentRankings => _currentRankings;
 
-    /// <summary>코스 상 마지막 체크포인트 인덱스(이 값 이상이면 완주로 간주).</summary>
     public int LastCheckpointIndex => _lastCheckpointIndex;
 
-    /// <summary>완주 확정된 팀 수(결승 처리된 팀).</summary>
     public int FinishedTeamCount => _finishOrder.Count;
 
-    /// <summary>완주 순서대로 팀 번호(1등, 2등, …).</summary>
     public IReadOnlyList<int> FinishedTeamsInOrder => _finishOrder;
 
     public event Action<IReadOnlyList<TeamRankEntry>> OnRankingsUpdated;
@@ -40,13 +33,6 @@ public class RaceRankingManager : SingletonMonoBehaviour<RaceRankingManager>
             return;
 
         BuildSegmentLookup();
-
-        if (_rankingDebugLog)
-        {
-            int segCount = _segments != null ? _segments.Length : 0;
-            Debug.Log($"[RaceRankingManager] Awake: segments={segCount}, lastCheckpointIndex={_lastCheckpointIndex}, " +
-                      $"fromKeys={(_segmentsByFrom != null ? _segmentsByFrom.Count : 0)}");
-        }
     }
 
     public void RegisterTracker(RaceProgressTracker tracker)
@@ -67,10 +53,6 @@ public class RaceRankingManager : SingletonMonoBehaviour<RaceRankingManager>
         return null;
     }
 
-    /// <summary>
-    /// 등록된 트래커 기준 팀별 최대 통과 CP·최고 진행도·완주 여부.
-    /// (트래커가 여러 개인 팀은 CP/Progress 각각 최댓값)
-    /// </summary>
     public List<RaceTeamProgressInfo> GetAllTeamsProgress()
     {
         var agg = new Dictionary<int, (int cp, float prog)>();
@@ -160,28 +142,6 @@ public class RaceRankingManager : SingletonMonoBehaviour<RaceRankingManager>
         _currentRankings.Clear();
         _currentRankings.AddRange(result.Rankings);
 
-        if (_rankingDebugLog && _debugLogIntervalFrames > 0 && Time.frameCount % _debugLogIntervalFrames == 0)
-            LogRankingDebugSnapshot();
-
         OnRankingsUpdated?.Invoke(_currentRankings);
-    }
-
-    private void LogRankingDebugSnapshot()
-    {
-        Debug.Log($"[RaceRankingManager] trackers={_trackers.Count}, lastCP={_lastCheckpointIndex}, finishOrder={_finishOrder.Count}");
-
-        foreach (var t in _trackers)
-        {
-            var segs = GetSegments(t.CheckpointsPassed);
-            int segCount = segs != null ? segs.Count : 0;
-            Debug.Log($"  tracker '{t.gameObject.name}' team={t.TeamNumber} progress={t.Progress:F3} cp={t.CheckpointsPassed} segmentsForFrom={segCount}");
-        }
-
-        Debug.Log($"  rankings count={_currentRankings.Count}");
-        foreach (var e in _currentRankings)
-            Debug.Log($"    team={e.TeamNumber} rank={e.Rank} progress={e.BestProgress:F3}");
-
-        int myTeam = PhotonTeamManager.GetLocalTeamRaw();
-        Debug.Log($"  localPlayerTeam={myTeam}");
     }
 }

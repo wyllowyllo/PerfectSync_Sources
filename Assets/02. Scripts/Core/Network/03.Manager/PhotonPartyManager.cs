@@ -36,16 +36,10 @@ public class PhotonPartyManager : SingletonPunCallbacks<PhotonPartyManager>
     public void CreateParty()
     {
         if (!PhotonNetwork.IsConnectedAndReady)
-        {
-            Debug.LogWarning("[PhotonPartyManager] 마스터 서버에 연결되어 있지 않습니다.");
             return;
-        }
 
         if (PhotonNetwork.InRoom)
-        {
-            Debug.LogWarning("[PhotonPartyManager] 이미 방에 입장해 있습니다.");
             return;
-        }
 
         string code = GeneratePartyCode();
 
@@ -57,37 +51,25 @@ public class PhotonPartyManager : SingletonPunCallbacks<PhotonPartyManager>
             CustomRoomPropertiesForLobby = new[] { PhotonRoomTypes.Key }
         };
 
-        Debug.Log($"[PhotonPartyManager] 파티 생성 시도... (Code: {code})");
         PhotonNetwork.CreateRoom(code, roomOptions);
     }
 
     public void JoinParty(string code)
     {
         if (!PhotonNetwork.IsConnectedAndReady)
-        {
-            Debug.LogWarning("[PhotonPartyManager] 마스터 서버에 연결되어 있지 않습니다.");
             return;
-        }
 
         if (PhotonNetwork.InRoom)
-        {
-            Debug.LogWarning("[PhotonPartyManager] 이미 방에 입장해 있습니다.");
             return;
-        }
 
-        Debug.Log($"[PhotonPartyManager] 파티 참가 시도... (Code: {code})");
         PhotonNetwork.JoinRoom(code);
     }
 
     public void LeaveParty()
     {
         if (!IsInParty)
-        {
-            Debug.LogWarning("[PhotonPartyManager] 파티에 입장해 있지 않습니다.");
             return;
-        }
 
-        Debug.Log("[PhotonPartyManager] 파티 퇴장 시도...");
         PartyCode = null;
         PhotonNetwork.LeaveRoom();
     }
@@ -101,7 +83,6 @@ public class PhotonPartyManager : SingletonPunCallbacks<PhotonPartyManager>
         if (!IsInParty) return;
 
         PhotonNetwork.LocalPlayer.SetCustomProperties(new Hashtable { { ReadyKey, ready } });
-        Debug.Log($"[PhotonPartyManager] 준비 상태: {ready}");
     }
 
     public bool IsPlayerReady(Player player)
@@ -132,19 +113,12 @@ public class PhotonPartyManager : SingletonPunCallbacks<PhotonPartyManager>
     public void StartMatchmaking()
     {
         if (!IsPartyLeader)
-        {
-            Debug.LogWarning("[PhotonPartyManager] 파티장만 매칭을 시작할 수 있습니다.");
             return;
-        }
 
         if (!AreAllReady())
-        {
-            Debug.LogWarning("[PhotonPartyManager] 모든 파티원이 준비되지 않았습니다.");
             return;
-        }
 
         string targetRoom = "R-" + Guid.NewGuid().ToString("N").Substring(0, 8);
-        Debug.Log($"[PhotonPartyManager] 매칭 시작. 대상 방: {targetRoom}");
 
         var props = new Hashtable { { TargetRoomKey, targetRoom } };
         PhotonNetwork.CurrentRoom.SetCustomProperties(props);
@@ -165,13 +139,11 @@ public class PhotonPartyManager : SingletonPunCallbacks<PhotonPartyManager>
         if (PhotonNetwork.IsMasterClient)
         {
             SetReady(false);
-            Debug.Log($"[PhotonPartyManager] 파티 생성 완료. (Code: {PartyCode})");
             OnPartyCreated?.Invoke(PartyCode);
         }
         else
         {
             SetReady(false);
-            Debug.Log($"[PhotonPartyManager] 파티 참가 완료. (Code: {PartyCode})");
         }
 
         SetPartyId(PartyCode);
@@ -191,7 +163,6 @@ public class PhotonPartyManager : SingletonPunCallbacks<PhotonPartyManager>
 
             if (isLeader)
             {
-                Debug.Log($"[PhotonPartyManager] 파티장: 랜덤 매칭 방 생성 → {room}");
                 var roomOptions = new RoomOptions
                 {
                     MaxPlayers = 8,
@@ -202,14 +173,12 @@ public class PhotonPartyManager : SingletonPunCallbacks<PhotonPartyManager>
             }
             else
             {
-                Debug.Log($"[PhotonPartyManager] 파티원: 랜덤 매칭 방 입장 → {room}");
                 PhotonNetwork.JoinRoom(room);
             }
             return;
         }
 
         PartyCode = null;
-        Debug.Log("[PhotonPartyManager] 파티 퇴장 완료.");
         OnPartyLeft?.Invoke();
     }
 
@@ -222,7 +191,6 @@ public class PhotonPartyManager : SingletonPunCallbacks<PhotonPartyManager>
         if (changedProps.ContainsKey(ReadyKey))
         {
             bool ready = (bool)changedProps[ReadyKey];
-            Debug.Log($"[PhotonPartyManager] {targetPlayer.NickName} 준비 상태: {ready}");
             OnPlayerReadyChanged?.Invoke(targetPlayer, ready);
         }
     }
@@ -236,7 +204,6 @@ public class PhotonPartyManager : SingletonPunCallbacks<PhotonPartyManager>
         if (propertiesThatChanged.ContainsKey(TargetRoomKey))
         {
             string targetRoom = (string)propertiesThatChanged[TargetRoomKey];
-            Debug.Log($"[PhotonPartyManager] 매칭 방 확인: {targetRoom}. 파티 방을 퇴장합니다.");
 
             _targetRoom = targetRoom;
             _wasPartyLeader = PhotonNetwork.IsMasterClient;
@@ -250,7 +217,6 @@ public class PhotonPartyManager : SingletonPunCallbacks<PhotonPartyManager>
         base.OnPlayerEnteredRoom(newPlayer);
 
         if (!IsInParty) return;
-        Debug.Log($"[PhotonPartyManager] 파티원 입장: {newPlayer.NickName}");
     }
 
     public override void OnPlayerLeftRoom(Player otherPlayer)
@@ -258,7 +224,6 @@ public class PhotonPartyManager : SingletonPunCallbacks<PhotonPartyManager>
         base.OnPlayerLeftRoom(otherPlayer);
 
         if (!IsInParty) return;
-        Debug.Log($"[PhotonPartyManager] 파티원 퇴장: {otherPlayer.NickName}");
     }
 
     #endregion

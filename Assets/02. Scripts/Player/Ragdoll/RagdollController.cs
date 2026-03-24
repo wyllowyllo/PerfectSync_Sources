@@ -182,14 +182,11 @@ public class RagdollController : MonoBehaviour, IRagdollInput
         if (hipsForward.sqrMagnitude > 0.001f)
             capsuleRb.rotation = Quaternion.LookRotation(hipsForward);
 
-        // 이제 물리 모드 전환
         SetRagdollActive(false);
 
-        // 잔여 속도 제거
         capsuleRb.linearVelocity = Vector3.zero;
         capsuleRb.angularVelocity = Vector3.zero;
 
-        // BlendToAnim 동안 UpperBodyPhysics 비활성화
         if (upperBodyPhysics != null)
             upperBodyPhysics.SetActive(false);
 
@@ -214,7 +211,6 @@ public class RagdollController : MonoBehaviour, IRagdollInput
         blendTimer += Time.deltaTime;
         float t = Mathf.Clamp01(blendTimer / blendDuration);
 
-        // Phase 1: 본 블렌드
         if (t < 1f)
         {
             for (int i = 0; i < ragdollBones.Length; i++)

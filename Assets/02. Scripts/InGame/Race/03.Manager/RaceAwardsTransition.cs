@@ -8,7 +8,6 @@ public class RaceAwardsTransition : MonoBehaviourPunCallbacks
 {
     [SerializeField] private string _awardsSceneName = "Awards";
     [SerializeField] private float _delayBeforeLoadSeconds = 3f;
-    [Tooltip("방에 첫 raceDone이 올라온 뒤, 전원이 안 모여도 이 시간이 지나면 Awards로 진행.")]
     [SerializeField] private float _maxWaitAfterFirstRaceDoneSeconds = 45f;
 
     private bool _awardsLoadScheduled;
@@ -81,17 +80,13 @@ public class RaceAwardsTransition : MonoBehaviourPunCallbacks
     {
         if (AreAllCurrentPlayersRaceDone())
         {
-            Debug.Log("[RaceAwardsTransition] 전원 raceDone → Awards 스케줄");
             ScheduleAwardsLoad();
             return;
         }
 
         if (_firstRaceDoneRecorded &&
             Time.realtimeSinceStartup - _firstRaceDoneRealtime >= _maxWaitAfterFirstRaceDoneSeconds)
-        {
-            Debug.LogWarning("[RaceAwardsTransition] 첫 raceDone 이후 최대 대기 초과 → Awards 스케줄");
             ScheduleAwardsLoad();
-        }
     }
 
     private void ScheduleAwardsLoad()
@@ -110,16 +105,10 @@ public class RaceAwardsTransition : MonoBehaviourPunCallbacks
         yield return new WaitForSeconds(_delayBeforeLoadSeconds);
 
         if (SceneLoader.Instance == null)
-        {
-            Debug.LogError("[RaceAwardsTransition] SceneLoader.Instance가 없습니다.");
             yield break;
-        }
 
         if (string.IsNullOrWhiteSpace(_awardsSceneName))
-        {
-            Debug.LogError("[RaceAwardsTransition] Awards 씬 이름이 비어 있습니다.");
             yield break;
-        }
 
         SceneLoader.Instance.LoadScenePhoton(_awardsSceneName);
     }

@@ -27,13 +27,9 @@ public class PhotonRoomManager : SingletonPunCallbacks<PhotonRoomManager>
     public void JoinRandomRoom()
     {
         if (!PhotonNetwork.IsConnectedAndReady)
-        {
-            Debug.LogWarning("[PhotonRoomManager] 마스터 서버에 연결되어 있지 않습니다.");
             return;
-        }
 
         var filter = new Hashtable { { PhotonRoomTypes.Key, PhotonRoomTypes.Random } };
-        Debug.Log("[PhotonRoomManager] 랜덤 방 입장 시도...");
         PhotonNetwork.JoinRandomRoom(filter, 0);
     }
 
@@ -44,10 +40,7 @@ public class PhotonRoomManager : SingletonPunCallbacks<PhotonRoomManager>
     public void CreateRoom(string roomName, byte maxPlayers, Hashtable customProperties = null, string[] lobbyProperties = null)
     {
         if (!PhotonNetwork.IsConnectedAndReady)
-        {
-            Debug.LogWarning("[PhotonRoomManager] 마스터 서버에 연결되어 있지 않습니다.");
             return;
-        }
 
         if (customProperties == null)
             customProperties = new Hashtable();
@@ -65,19 +58,14 @@ public class PhotonRoomManager : SingletonPunCallbacks<PhotonRoomManager>
             CustomRoomPropertiesForLobby = allLobbyProps.ToArray()
         };
 
-        Debug.Log($"[PhotonRoomManager] 방 생성 시도... (Name: {roomName}, MaxPlayers: {maxPlayers})");
         PhotonNetwork.CreateRoom(roomName, roomOptions);
     }
 
     public void JoinRoom(string roomName)
     {
         if (!PhotonNetwork.IsConnectedAndReady)
-        {
-            Debug.LogWarning("[PhotonRoomManager] 마스터 서버에 연결되어 있지 않습니다.");
             return;
-        }
 
-        Debug.Log($"[PhotonRoomManager] 방 입장 시도... (Name: {roomName})");
         PhotonNetwork.JoinRoom(roomName);
     }
 
@@ -88,12 +76,8 @@ public class PhotonRoomManager : SingletonPunCallbacks<PhotonRoomManager>
     public void LeaveRoom()
     {
         if (!PhotonNetwork.InRoom)
-        {
-            Debug.LogWarning("[PhotonRoomManager] 현재 방에 있지 않습니다.");
             return;
-        }
 
-        Debug.Log("[PhotonRoomManager] 방 퇴장 시도...");
         PhotonNetwork.LeaveRoom();
     }
 
@@ -104,7 +88,6 @@ public class PhotonRoomManager : SingletonPunCallbacks<PhotonRoomManager>
     public override void OnJoinRandomFailed(short returnCode, string message)
     {
         base.OnJoinRandomFailed(returnCode, message);
-        Debug.Log($"[PhotonRoomManager] 랜덤 방 입장 실패 (빈 방 없음). 새 방을 생성합니다.");
 
         var roomOptions = new RoomOptions
         {
@@ -118,22 +101,18 @@ public class PhotonRoomManager : SingletonPunCallbacks<PhotonRoomManager>
     public override void OnCreateRoomFailed(short returnCode, string message)
     {
         base.OnCreateRoomFailed(returnCode, message);
-        Debug.LogError($"[PhotonRoomManager] 방 생성 실패: [{returnCode}] {message}");
         OnRoomJoinFailed?.Invoke(returnCode, message);
     }
 
     public override void OnJoinRoomFailed(short returnCode, string message)
     {
         base.OnJoinRoomFailed(returnCode, message);
-        Debug.LogError($"[PhotonRoomManager] 방 입장 실패: [{returnCode}] {message}");
         OnRoomJoinFailed?.Invoke(returnCode, message);
     }
 
     public override void OnJoinedRoom()
     {
         base.OnJoinedRoom();
-        var room = PhotonNetwork.CurrentRoom;
-        Debug.Log($"[PhotonRoomManager] 방 입장 완료. (Name: {room.Name}, Players: {room.PlayerCount}/{room.MaxPlayers}, IsMasterClient: {PhotonNetwork.IsMasterClient})");
 
         InitializeTeamForRoomType();
         OnRoomJoined?.Invoke();
@@ -154,16 +133,12 @@ public class PhotonRoomManager : SingletonPunCallbacks<PhotonRoomManager>
     public override void OnPlayerEnteredRoom(Player newPlayer)
     {
         base.OnPlayerEnteredRoom(newPlayer);
-        Debug.Log($"[PhotonRoomManager] 플레이어 입장: {newPlayer.NickName} (현재 {PhotonNetwork.CurrentRoom.PlayerCount}/{PhotonNetwork.CurrentRoom.MaxPlayers})");
         OnOtherPlayerEntered?.Invoke(newPlayer);
 
         if (PhotonNetwork.IsMasterClient && GetCurrentRoomType() == PhotonRoomTypes.Random)
         {
             if (PhotonNetwork.CurrentRoom.PlayerCount >= PhotonNetwork.CurrentRoom.MaxPlayers)
-            {
-                Debug.Log("[PhotonRoomManager] 인원이 모두 찼습니다. 랜덤 팀 배정을 시작합니다.");
                 PhotonTeamManager.Instance?.AssignTeamsRandomly();
-            }
         }
     }
 
@@ -181,14 +156,12 @@ public class PhotonRoomManager : SingletonPunCallbacks<PhotonRoomManager>
     public override void OnLeftRoom()
     {
         base.OnLeftRoom();
-        Debug.Log("[PhotonRoomManager] 방 퇴장 완료.");
         OnRoomLeft?.Invoke();
     }
 
     public override void OnPlayerLeftRoom(Player otherPlayer)
     {
         base.OnPlayerLeftRoom(otherPlayer);
-        Debug.Log($"[PhotonRoomManager] 플레이어 퇴장: {otherPlayer.NickName} (현재 {PhotonNetwork.CurrentRoom.PlayerCount}/{PhotonNetwork.CurrentRoom.MaxPlayers})");
         OnOtherPlayerLeft?.Invoke(otherPlayer);
     }
 

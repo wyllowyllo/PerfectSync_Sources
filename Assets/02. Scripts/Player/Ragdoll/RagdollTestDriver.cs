@@ -1,10 +1,6 @@
 using UnityEngine;
 using UnityEngine.Serialization;
 
-/// <summary>
-/// 독립 씬 테스트용 드라이버.
-/// T키: Light Hit 임펄스, R키: Ragdoll 임펄스, K키: 사망 처리.
-/// </summary>
 public class RagdollTestDriver : MonoBehaviour
 {
     [FormerlySerializedAs("ragdoll")] [SerializeField] private RagdollController ragdollController;

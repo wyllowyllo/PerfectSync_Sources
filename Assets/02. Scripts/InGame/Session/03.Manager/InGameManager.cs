@@ -1,8 +1,6 @@
 using System;
 using System.Collections;
-using System.Text;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 using Photon.Pun;
 using Photon.Realtime;
 using Hashtable = ExitGames.Client.Photon.Hashtable;
@@ -19,10 +17,6 @@ public class InGameManager : SingletonPunCallbacks<InGameManager>
     [Header("References")]
     [SerializeField] private PlayerSpawner _playerSpawner;
 
-    [Header("Debug")]
-    [Tooltip("InGame 진입 직후(팀 배정 완료 시점) 방/파티/플레이어/게임 상태 로그")]
-    [SerializeField] private bool _logRoomAndPartyOnEnter = true;
-
     public GameState CurrentState { get; private set; } = GameState.Loading;
     public event Action<GameState> OnGameStateChanged;
     public event Action<int> OnRaceCountdownTick;
@@ -33,6 +27,14 @@ public class InGameManager : SingletonPunCallbacks<InGameManager>
     {
         base.Awake();
         InGameLocalPlayerPropertyReset.ApplyForLobbyScene(clearTeamBecauseNotInRoom: false);
+        CloseRoomToNewJoiners();
+    }
+
+    private static void CloseRoomToNewJoiners()
+    {
+        if (!PhotonNetwork.IsMasterClient) return;
+        if (!PhotonNetwork.InRoom || PhotonNetwork.CurrentRoom == null) return;
+        PhotonNetwork.CurrentRoom.IsOpen = false;
     }
 
     private IEnumerator Start()
@@ -42,22 +44,12 @@ public class InGameManager : SingletonPunCallbacks<InGameManager>
             PhotonTeamManager.GetLocalTeamRaw() != PhotonTeamManager.TeamNone
         );
 
-        if (_logRoomAndPartyOnEnter)
-            LogInGameEnterContext();
-
-        Debug.Log($"[InGameManager] 팀 확인 완료: {PhotonTeamManager.GetLocalTeamRaw()}");
+        CloseRoomToNewJoiners();
 
         _localPlayer = _playerSpawner.SpawnByTeam();
 
         if (_localPlayer != null)
-        {
-            Debug.Log("[InGameManager] 로컬 플레이어 스폰 완료. Ready 전송.");
             PhotonNetwork.LocalPlayer.SetCustomProperties(new Hashtable { { InGameRaceKeys.ReadyKey, true } });
-        }
-        else
-        {
-            Debug.LogError("[InGameManager] 로컬 플레이어 스폰 실패.");
-        }
     }
 
     public override void OnPlayerPropertiesUpdate(Player targetPlayer, Hashtable changedProps)
@@ -65,13 +57,8 @@ public class InGameManager : SingletonPunCallbacks<InGameManager>
         if (!changedProps.ContainsKey(InGameRaceKeys.ReadyKey)) return;
         if (CurrentState != GameState.Loading) return;
 
-        Debug.Log($"[InGameManager] OnPlayerPropertiesUpdate: {targetPlayer.NickName} - {changedProps[InGameRaceKeys.ReadyKey]}");
-
         if (AreAllPlayersReady() && PhotonNetwork.IsMasterClient)
-        {
-            Debug.Log("[InGameManager] 모든 플레이어 Ready. Intro 시작 RPC 전송.");
             photonView.RPC(nameof(RPC_StartIntro), RpcTarget.All);
-        }
     }
 
     [PunRPC]
@@ -83,19 +70,16 @@ public class InGameManager : SingletonPunCallbacks<InGameManager>
     private IEnumerator GameFlowRoutine()
     {
         SetState(GameState.Intro);
-        Debug.Log("[InGameManager] Intro 시작");
         yield return new WaitForSeconds(_introDuration);
 
         SetState(GameState.Countdown);
         for (int i = _countdownSeconds; i > 0; i--)
         {
             OnRaceCountdownTick?.Invoke(i);
-            Debug.Log($"[InGameManager] {i}...");
             yield return new WaitForSeconds(1f);
         }
 
         SetState(GameState.Playing);
-        Debug.Log("[InGameManager] 게임 시작!");
     }
 
     private void SetState(GameState newState)
@@ -154,77 +138,6 @@ public class InGameManager : SingletonPunCallbacks<InGameManager>
                 return false;
         }
         return PhotonNetwork.PlayerList.Length > 0;
-    }
-
-    private void LogInGameEnterContext()
-    {
-        var sb = new StringBuilder();
-        sb.AppendLine("[InGameManager] ========== InGame 입장 (방·파티·상태) ==========");
-        sb.AppendLine($"  GameState={CurrentState}");
-        sb.AppendLine($"  Scene={SceneManager.GetActiveScene().name}");
-        sb.AppendLine($"  Photon connected={PhotonNetwork.IsConnected} inRoom={PhotonNetwork.InRoom} masterClient={PhotonNetwork.IsMasterClient} syncScene={PhotonNetwork.AutomaticallySyncScene} region={PhotonNetwork.CloudRegion}");
-
-        if (PhotonNetwork.LocalPlayer != null)
-        {
-            var lp = PhotonNetwork.LocalPlayer;
-            sb.AppendLine($"  Local actorNr={lp.ActorNumber} nick={lp.NickName} team={PhotonTeamManager.GetLocalTeamRaw()}");
-        }
-        else
-            sb.AppendLine("  LocalPlayer=null");
-
-        if (!PhotonNetwork.InRoom || PhotonNetwork.CurrentRoom == null)
-        {
-            sb.AppendLine("  CurrentRoom=null");
-            sb.AppendLine("=====================================================");
-            Debug.Log(sb.ToString());
-            return;
-        }
-
-        var room = PhotonNetwork.CurrentRoom;
-        sb.AppendLine($"  Room name={room.Name} players={room.PlayerCount}/{room.MaxPlayers} open={room.IsOpen} visible={room.IsVisible}");
-
-        if (PhotonRoomSnapshotReader.TryGetCurrent(out var snap) && snap.IsValid)
-            sb.AppendLine($"  RoomSnapshot kind={snap.Kind} count={snap.PlayerCount}/{snap.MaxPlayers}");
-        else
-            sb.AppendLine("  RoomSnapshot invalid/unknown kind");
-
-        sb.AppendLine("  Room.CustomProperties:");
-        if (room.CustomProperties != null && room.CustomProperties.Count > 0)
-        {
-            foreach (System.Collections.DictionaryEntry kv in room.CustomProperties)
-                sb.AppendLine($"    {kv.Key} = {kv.Value}");
-        }
-        else
-            sb.AppendLine("    (없음)");
-
-        if (PhotonPartyManager.Instance != null)
-        {
-            var pm = PhotonPartyManager.Instance;
-            sb.AppendLine($"  PhotonPartyManager PartyCode={pm.PartyCode ?? "(null)"} IsInParty={pm.IsInParty} IsPartyLeader={pm.IsPartyLeader}");
-        }
-        else
-            sb.AppendLine("  PhotonPartyManager.Instance=null");
-
-        sb.AppendLine("  PlayerList:");
-        var list = PhotonNetwork.PlayerList;
-        if (list == null || list.Length == 0)
-            sb.AppendLine("    (없음)");
-        else
-        {
-            foreach (var p in list)
-            {
-                int team = PhotonTeamManager.GetTeamRaw(p);
-                sb.AppendLine($"    [{p.ActorNumber}] nick={p.NickName} isLocal={p.IsLocal} team={team}");
-                if (p.CustomProperties == null || p.CustomProperties.Count == 0) continue;
-                var props = new StringBuilder();
-                foreach (System.Collections.DictionaryEntry kv in p.CustomProperties)
-                    props.Append($"{kv.Key}={kv.Value} ");
-                sb.AppendLine($"      CustomProperties: {props}");
-            }
-        }
-
-        sb.AppendLine("=====================================================");
-        Debug.Log(sb.ToString());
     }
 
 }

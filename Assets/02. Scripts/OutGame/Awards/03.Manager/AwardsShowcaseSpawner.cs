@@ -18,24 +18,15 @@ public sealed class AwardsShowcaseSpawner
     public bool TrySpawnShowcasePlayer()
     {
         if (_spawnFirstSlotInTeam == null || _spawnSecondSlotInTeam == null)
-        {
-            Debug.LogError("[AwardsShowcaseSpawner] 스폰 포인트가 비어 있습니다.");
             return false;
-        }
 
         int team = PhotonTeamManager.GetTeamRaw(PhotonNetwork.LocalPlayer);
         if (team == PhotonTeamManager.TeamNone)
-        {
-            Debug.LogWarning("[AwardsShowcaseSpawner] 팀 정보가 없습니다.");
             return false;
-        }
 
         int slot = GetSlotIndexInTeam(team);
         if (slot < 0)
-        {
-            Debug.LogWarning("[AwardsShowcaseSpawner] 팀 슬롯을 찾지 못했습니다.");
             return false;
-        }
 
         Transform spawn = slot == 0 ? _spawnFirstSlotInTeam : _spawnSecondSlotInTeam;
         GameObject player = PhotonNetwork.Instantiate(_playerPrefabResourceName, spawn.position, spawn.rotation);

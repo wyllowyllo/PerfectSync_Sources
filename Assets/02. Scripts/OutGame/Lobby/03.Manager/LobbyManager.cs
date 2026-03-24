@@ -61,7 +61,6 @@ public class LobbyManager : SingletonMonoBehaviour<LobbyManager>
     public void OnNicknameConfirmed(string nickname)
     {
         PhotonNetwork.NickName = nickname;
-        Debug.Log($"[LobbyManager] 닉네임 변경: {nickname}");
     }
 
     public void RequestMatch(string nicknameTrimmed)

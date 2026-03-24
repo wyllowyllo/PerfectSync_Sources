@@ -1,9 +1,5 @@
 using UnityEngine;
 
-/// <summary>
-/// Spine 본에 수동 스프링 시뮬레이션으로 상체 물리 반응을 적용.
-/// Animator와 충돌 없이 LateUpdate에서 회전 오프셋만 덧씌움.
-/// </summary>
 public class UpperBodyPhysics : MonoBehaviour
 {
     [SerializeField] private Transform spineTransform;

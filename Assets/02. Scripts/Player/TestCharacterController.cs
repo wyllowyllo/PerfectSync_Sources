@@ -30,7 +30,6 @@ public class TestCharacterController : MonoBehaviour
     {
         ERagdollState currentRagdollState = ragdollController.CurrentState;
 
-        // 래그돌 복귀 감지 → 속도 초기화 (Fix 5)
         if (previousRagdollState != ERagdollState.Animated
             && currentRagdollState == ERagdollState.Animated)
         {

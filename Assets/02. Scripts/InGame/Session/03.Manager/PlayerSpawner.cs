@@ -32,20 +32,14 @@ public class PlayerSpawner : MonoBehaviour
 
         int team = _teamState.GetTeamRaw(PhotonNetwork.LocalPlayer);
         if (team == PhotonTeamManager.TeamNone)
-        {
-            Debug.LogWarning("[PlayerSpawner] 팀이 배정되지 않은 플레이어입니다.");
             return null;
-        }
 
         int teamIndex = team - 1;
         Transform[] points = _teamSpawnPoints[teamIndex];
 
         int slotIndex = GetSlotIndexInTeam(team);
         if (slotIndex < 0 || slotIndex >= points.Length)
-        {
-            Debug.LogWarning($"[PlayerSpawner] 팀 {team}에 유효한 스폰 포인트가 없습니다. (slot: {slotIndex})");
             return null;
-        }
 
         Transform spawnPoint = points[slotIndex];
         GameObject player = PhotonNetwork.Instantiate(_playerPrefabName, spawnPoint.position, spawnPoint.rotation);
