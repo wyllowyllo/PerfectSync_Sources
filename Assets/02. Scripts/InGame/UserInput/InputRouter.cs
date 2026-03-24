@@ -120,8 +120,8 @@ namespace InGame.UserInput
             RoutedJumpA = jumpA;
             RoutedJumpB = jumpB;
 
-            // Host-authoritative: Guest는 합체 모드에서 로컬 물리 입력 적용 안 함.
-            if (_currentMode == ETeamMode.Merged && !_isHost)
+            // Host-authoritative: Guest는 로컬 물리 입력 적용 안 함.
+            if (!_isHost)
                 return;
 
             _playerFormController.ApplyInput(worldDirA, worldDirB, jumpA, jumpB);

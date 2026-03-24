@@ -3,7 +3,6 @@ using InGame.Player.Ragdoll;
 using InGame.Team;
 using InGame.UserInput;
 using Photon.Pun;
-using Photon.Realtime;
 using UnityEngine;
 
 namespace InGame.Player.Network
@@ -15,6 +14,9 @@ namespace InGame.Player.Network
         [SerializeField] private GameObject _mergedBody;
         [SerializeField] private GameObject _avatarA;
         [SerializeField] private GameObject _avatarB;
+
+        [Header("Rubber Band")]
+        [SerializeField] private RubberBandCoordinator _rubberBandCoordinator;
 
         private PlayerFormController _playerFormController;
         private LocalPlayerInput _localPlayerInput;
@@ -65,13 +67,13 @@ namespace InGame.Player.Network
             // Merged + Host → local (물리 시뮬), Merged + Guest → remote (kinematic).
             SetRemoteOnBody(_mergedBody, !isMerged || !isHost);
 
-            SetRemoteOnBody(_avatarA, isMerged);
-            SetRemoteOnBody(_avatarB, isMerged);
+            SetRemoteOnBody(_avatarA, isMerged || !isHost);
+            SetRemoteOnBody(_avatarB, isMerged || !isHost);
 
             // Position sync.
             FindInBody<BodyMovementSynchronizer>(_mergedBody)?.SetSyncEnabled(isMerged);
-            FindInBody<BodyMovementSynchronizer>(_avatarA)?.SetSyncEnabled(false);
-            FindInBody<BodyMovementSynchronizer>(_avatarB)?.SetSyncEnabled(false);
+            FindInBody<BodyMovementSynchronizer>(_avatarA)?.SetSyncEnabled(!isMerged);
+            FindInBody<BodyMovementSynchronizer>(_avatarB)?.SetSyncEnabled(!isMerged);
 
             // Ragdoll bone sync + authority 설정.
             if (isMerged)
@@ -79,26 +81,26 @@ namespace InGame.Player.Network
                 ConfigureRagdollAuthority(_mergedBody, true, isHost);
                 ConfigureRagdollAuthority(_avatarA, false, false);
                 ConfigureRagdollAuthority(_avatarB, false, false);
-
-                // 합체 복귀: AvatarB 소유권을 호스트에게 반환.
-                if (isHost)
-                    TransferBodyOwnership(_avatarB, PhotonNetwork.LocalPlayer);
             }
             else
             {
                 ConfigureRagdollAuthority(_mergedBody, false, false);
-                // 분리 모드: 호스트가 AvatarA, 게스트가 AvatarB 제어.
+                // 분리 모드: 호스트가 양쪽 아바타 모두 제어.
                 ConfigureRagdollAuthority(_avatarA, true, isHost);
-                ConfigureRagdollAuthority(_avatarB, true, !isHost);
-
-                // 분리 진입: AvatarB 소유권을 게스트에게 이전.
-                if (isHost)
-                {
-                    Photon.Realtime.Player teammate = FindTeammate();
-                    if (teammate != null)
-                        TransferBodyOwnership(_avatarB, teammate);
-                }
+                ConfigureRagdollAuthority(_avatarB, true, isHost);
             }
+
+            HandleRubberBandMode(isMerged, isHost);
+        }
+
+        private void HandleRubberBandMode(bool isMerged, bool isHost)
+        {
+            if (_rubberBandCoordinator == null) return;
+
+            if (!isMerged)
+                _rubberBandCoordinator.Activate(_avatarA, _avatarB, isHost);
+            else
+                _rubberBandCoordinator.Deactivate();
         }
 
         private void ConfigureRagdollAuthority(
@@ -187,31 +189,6 @@ namespace InGame.Player.Network
             if (body == null) return false;
             var pv = body.GetComponentInChildren<PhotonView>();
             return pv != null && pv.ViewID == viewID;
-        }
-
-        private Photon.Realtime.Player FindTeammate()
-        {
-            if (PhotonTeamManager.Instance == null) return null;
-
-            int myTeam = PhotonTeamManager.Instance.GetPlayerTeam(PhotonNetwork.LocalPlayer);
-            var members = PhotonTeamManager.Instance.GetTeamMembers(myTeam);
-
-            foreach (var member in members)
-            {
-                if (member.ActorNumber != PhotonNetwork.LocalPlayer.ActorNumber)
-                    return member;
-            }
-
-            return null;
-        }
-
-        private static void TransferBodyOwnership(GameObject body, Photon.Realtime.Player newOwner)
-        {
-            if (body == null || newOwner == null) return;
-
-            var pv = body.GetComponentInChildren<PhotonView>();
-            if (pv != null && pv.Owner != newOwner)
-                pv.TransferOwnership(newOwner);
         }
 
         private static T FindInBody<T>(GameObject body) where T : Component
