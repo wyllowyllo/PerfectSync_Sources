@@ -3,11 +3,12 @@ using System.Collections.Generic;
 
 public static class RaceRankingCalculator
 {
+    /// <summary>미완주 팀은 Progress(실시간 코스 거리) 내림차순. 같은 스플라인이면 길이·t에 의해 같은 스칼라로 비교됨.</summary>
     private static readonly Comparison<(int team, float progress)> NotFinishedByProgressDesc =
         (a, b) => b.progress.CompareTo(a.progress);
         
     public static void Compute(
-        IReadOnlyDictionary<int, float> teamBest,
+        IReadOnlyDictionary<int, float> teamProgress,
         IReadOnlyDictionary<int, int> teamMaxCheckpoint,
         int lastCheckpointIndex,
         List<int> finishOrder,
@@ -41,7 +42,7 @@ public static class RaceRankingCalculator
 
         foreach (int team in finishOrder)
         {
-            float progress = teamBest.TryGetValue(team, out float p) ? p : 0f;
+            float progress = teamProgress.TryGetValue(team, out float p) ? p : 0f;
             rankings.Add(new TeamRankEntry
             {
                 TeamNumber = team,
@@ -51,7 +52,7 @@ public static class RaceRankingCalculator
         }
 
         notFinishedBuffer.Clear();
-        foreach (var kvp in teamBest)
+        foreach (var kvp in teamProgress)
         {
             if (finishOrder.Contains(kvp.Key))
                 continue;

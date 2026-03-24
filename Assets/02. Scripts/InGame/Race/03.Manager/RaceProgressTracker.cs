@@ -42,12 +42,16 @@ public class RaceProgressTracker : MonoBehaviour
         CheckpointsPassed = index;
     }
 
+    /// <summary>
+    /// 전 세그먼트 중 가장 가까운 스플라인을 고르고, 코스 입구부터 그 투영점까지 호장 거리를 Progress로 씁니다.
+    /// 체크포인트는 PassCheckpoint로만 올라가며 리스폰/완주 판정용입니다.
+    /// </summary>
     private void Update()
     {
         if (RaceRankingManager.Instance == null) return;
 
-        var segments = RaceRankingManager.Instance.GetSegments(CheckpointsPassed);
-        if (segments == null || segments.Count == 0)
+        var allSegments = RaceRankingManager.Instance.RaceSegments;
+        if (allSegments == null || allSegments.Length == 0)
         {
             Progress = CheckpointsPassed;
             return;
@@ -55,11 +59,14 @@ public class RaceProgressTracker : MonoBehaviour
 
         float bestT = 0f;
         float bestDist = float.MaxValue;
+        RaceSegment bestSegment = null;
 
         float3 worldPos = transform.position;
 
-        foreach (var segment in segments)
+        foreach (var segment in allSegments)
         {
+            if (segment == null) continue;
+
             var container = segment.SplineContainer;
             if (container == null || container.Spline == null) continue;
 
@@ -80,9 +87,16 @@ public class RaceProgressTracker : MonoBehaviour
             {
                 bestDist = dist;
                 bestT = t;
+                bestSegment = segment;
             }
         }
 
-        Progress = CheckpointsPassed + bestT;
+        if (bestSegment == null)
+        {
+            Progress = CheckpointsPassed;
+            return;
+        }
+
+        Progress = RaceRankingManager.Instance.GetDistanceAlongRace(bestSegment, bestT);
     }
 }
