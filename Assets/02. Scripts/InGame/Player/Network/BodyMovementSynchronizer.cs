@@ -35,7 +35,7 @@ namespace InGame.Player.Network
 
         private const float SnapThreshold = 2.0f;
         private const float InterpolationFactor = 0.3f;
-        private const float SmoothTime = 0.08f;
+        private const float SmoothTime = 0.055f;
         private const float MaxExtrapolationTime = 0.2f;
 
         private void Awake()

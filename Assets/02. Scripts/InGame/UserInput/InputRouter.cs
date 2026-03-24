@@ -30,7 +30,7 @@ namespace InGame.UserInput
         // 입력 RPC 쓰로틀링
         private bool _pendingJump;
         private float _lastSendTime;
-        private const float MinSendInterval = 0.05f; // 최대 20Hz
+        private const float MinSendInterval = 0.033f; // 최대 30Hz
 
         // 프레임당 1회 읽기 캐시
         private Vector3 _cachedLocalWorldDir;
