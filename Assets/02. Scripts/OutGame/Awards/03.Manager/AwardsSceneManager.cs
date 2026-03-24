@@ -5,25 +5,31 @@ using Photon.Pun;
 
 public class AwardsSceneManager : SingletonPunCallbacks<AwardsSceneManager>
 {
+    private const string DefaultPlayerPrefabResourceName = "PlayerPrefab";
+    private const float DefaultReturnToLobbyDelaySeconds = 10f;
+    private const string DefaultLobbySceneName = "Lobby";
+
     protected override bool PersistAcrossScenes => false;
 
     [Header("Spawn")]
     [SerializeField] private Transform _spawnFirstSlotInTeam;
     [SerializeField] private Transform _spawnSecondSlotInTeam;
-    [SerializeField] private string _playerPrefabResourceName = "PlayerPrefab";
+    [SerializeField] private string _playerPrefabResourceName = DefaultPlayerPrefabResourceName;
 
     public static event Action RefreshUiRequested;
 
     [Header("Return")]
-    [SerializeField] private float _returnToLobbyDelaySeconds = 10f;
-    [SerializeField] private string _lobbySceneName = "Lobby";
+    [SerializeField] private float _returnToLobbyDelaySeconds = DefaultReturnToLobbyDelaySeconds;
+    [SerializeField] private string _lobbySceneName = DefaultLobbySceneName;
 
     private AwardsShowcaseSpawner _showcaseSpawner;
     private Coroutine _returnCoroutine;
+    private WaitForSeconds _waitReturnToLobby;
 
     protected override void Awake()
     {
         base.Awake();
+        _waitReturnToLobby = new WaitForSeconds(_returnToLobbyDelaySeconds);
         _showcaseSpawner = new AwardsShowcaseSpawner(_spawnFirstSlotInTeam, _spawnSecondSlotInTeam, _playerPrefabResourceName);
     }
 
@@ -63,7 +69,7 @@ public class AwardsSceneManager : SingletonPunCallbacks<AwardsSceneManager>
 
     private IEnumerator ReturnToLobbyRoutine()
     {
-        yield return new WaitForSeconds(_returnToLobbyDelaySeconds);
+        yield return _waitReturnToLobby;
 
         if (PhotonNetwork.InRoom)
             PhotonNetwork.LeaveRoom();

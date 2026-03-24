@@ -3,8 +3,10 @@ using UnityEngine;
 
 public class RaceInfoPresenter : MonoBehaviour
 {
+    private const int DefaultFinishWindowSeconds = 10;
+
     [SerializeField] private RaceInfoUI _raceInfoUI;
-    [SerializeField] private int _finishWindowSeconds = 10;
+    [SerializeField] private int _finishWindowSeconds = DefaultFinishWindowSeconds;
 
     private LocalPlayerRaceFinishRules _rules;
     private Coroutine _finishWindowRoutine;
@@ -104,7 +106,7 @@ public class RaceInfoPresenter : MonoBehaviour
     {
         while (InGameManager.Instance != null && InGameManager.Instance.CurrentState == GameState.Playing)
         {
-            yield return new WaitForSeconds(1f);
+            yield return CoroutineWaitCache.OneSecond;
 
             bool playing = InGameManager.Instance != null && InGameManager.Instance.CurrentState == GameState.Playing;
             var d = _rules.OnFinishWindowSecondElapsed(playing);

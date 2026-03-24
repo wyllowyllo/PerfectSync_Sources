@@ -6,14 +6,24 @@ using Hashtable = ExitGames.Client.Photon.Hashtable;
 
 public class RaceAwardsTransition : MonoBehaviourPunCallbacks
 {
-    [SerializeField] private string _awardsSceneName = "Awards";
-    [SerializeField] private float _delayBeforeLoadSeconds = 3f;
-    [SerializeField] private float _maxWaitAfterFirstRaceDoneSeconds = 45f;
+    private const string DefaultAwardsSceneName = "Awards";
+    private const float DefaultDelayBeforeLoadSeconds = 3f;
+    private const float DefaultMaxWaitAfterFirstRaceDoneSeconds = 45f;
+
+    [SerializeField] private string _awardsSceneName = DefaultAwardsSceneName;
+    [SerializeField] private float _delayBeforeLoadSeconds = DefaultDelayBeforeLoadSeconds;
+    [SerializeField] private float _maxWaitAfterFirstRaceDoneSeconds = DefaultMaxWaitAfterFirstRaceDoneSeconds;
 
     private bool _awardsLoadScheduled;
     private bool _firstRaceDoneRecorded;
     private float _firstRaceDoneRealtime;
     private Coroutine _loadCoroutine;
+    private WaitForSeconds _waitDelayBeforeLoad;
+
+    private void Awake()
+    {
+        _waitDelayBeforeLoad = new WaitForSeconds(_delayBeforeLoadSeconds);
+    }
 
     private void Update()
     {
@@ -102,7 +112,7 @@ public class RaceAwardsTransition : MonoBehaviourPunCallbacks
 
     private IEnumerator LoadAwardsAfterDelay()
     {
-        yield return new WaitForSeconds(_delayBeforeLoadSeconds);
+        yield return _waitDelayBeforeLoad;
 
         if (SceneLoader.Instance == null)
             yield break;

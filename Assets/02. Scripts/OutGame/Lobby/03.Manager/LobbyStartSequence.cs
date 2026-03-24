@@ -5,11 +5,15 @@ using UnityEngine;
 [DisallowMultipleComponent]
 public class LobbyStartSequence : MonoBehaviour
 {
+    private const string DefaultInGameSceneName = "InGame";
+    private const float DefaultLobbyCountdownSeconds = 3f;
+    private const float CountdownTickSeconds = 1f;
+
     [Header("Scene")]
-    [SerializeField] private string _inGameSceneName = "InGame";
+    [SerializeField] private string _inGameSceneName = DefaultInGameSceneName;
 
     [Header("Settings")]
-    [SerializeField] private float _countdownSeconds = 3f;
+    [SerializeField] private float _countdownSeconds = DefaultLobbyCountdownSeconds;
 
     private Coroutine _countdownCoroutine;
 
@@ -35,8 +39,8 @@ public class LobbyStartSequence : MonoBehaviour
         while (remaining > 0f)
         {
             onStatusLine?.Invoke($"{Mathf.CeilToInt(remaining)}초 후에 게임을 시작합니다.");
-            yield return new WaitForSeconds(1f);
-            remaining -= 1f;
+            yield return CoroutineWaitCache.OneSecond;
+            remaining -= CountdownTickSeconds;
         }
 
         onStatusLine?.Invoke("게임을 시작합니다...");

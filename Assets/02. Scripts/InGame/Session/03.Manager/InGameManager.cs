@@ -8,11 +8,14 @@ using Hashtable = ExitGames.Client.Photon.Hashtable;
 [RequireComponent(typeof(PhotonView))]
 public class InGameManager : SingletonPunCallbacks<InGameManager>
 {
+    private const int DefaultCountdownSeconds = 3;
+    private const float DefaultIntroDurationSeconds = 2f;
+
     protected override bool PersistAcrossScenes => false;
 
     [Header("Settings")]
-    [SerializeField] private float _introDuration = 2f;
-    [SerializeField] private int _countdownSeconds = 3;
+    [SerializeField] private float _introDuration = DefaultIntroDurationSeconds;
+    [SerializeField] private int _countdownSeconds = DefaultCountdownSeconds;
 
     [Header("References")]
     [SerializeField] private PlayerSpawner _playerSpawner;
@@ -22,10 +25,12 @@ public class InGameManager : SingletonPunCallbacks<InGameManager>
     public event Action<int> OnRaceCountdownTick;
 
     private GameObject _localPlayer;
+    private WaitForSeconds _waitIntro;
 
     protected override void Awake()
     {
         base.Awake();
+        _waitIntro = new WaitForSeconds(_introDuration);
         InGameLocalPlayerPropertyReset.ApplyForLobbyScene(clearTeamBecauseNotInRoom: false);
         CloseRoomToNewJoiners();
     }
@@ -70,13 +75,13 @@ public class InGameManager : SingletonPunCallbacks<InGameManager>
     private IEnumerator GameFlowRoutine()
     {
         SetState(GameState.Intro);
-        yield return new WaitForSeconds(_introDuration);
+        yield return _waitIntro;
 
         SetState(GameState.Countdown);
         for (int i = _countdownSeconds; i > 0; i--)
         {
             OnRaceCountdownTick?.Invoke(i);
-            yield return new WaitForSeconds(1f);
+            yield return CoroutineWaitCache.OneSecond;
         }
 
         SetState(GameState.Playing);
