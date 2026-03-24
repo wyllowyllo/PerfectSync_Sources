@@ -2,7 +2,7 @@ using System.Collections;
 using UnityEngine;
 
 [RequireComponent(typeof(Rigidbody))]
-public class PopupObstacleAction : MonoBehaviour, ITrapAction
+public class PopupObstacle : MonoBehaviour, ITrap
 {
     [Header("Movement Settings")]
     [Tooltip("장애물이 도달할 목표 지점")]

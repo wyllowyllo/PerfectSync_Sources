@@ -1,6 +1,6 @@
 using UnityEngine;
 
-public interface ITrapAction
+public interface ITrap
 {
     /// <summary>
     /// 함정을 발동시킵니다.

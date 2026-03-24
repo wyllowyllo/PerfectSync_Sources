@@ -6,7 +6,7 @@ public class LaserTrap : MonoBehaviour
     [SerializeField] private LaserTrigger _laserTrigger;
     
     [SerializeField] private GameObject _obstacleObject; 
-    private ITrapAction _trapAction;
+    private ITrap _trap;
 
     [Header("Trap Settings")]
     [Tooltip("감지 후 장애물 발동까지 딜레이")]
@@ -20,7 +20,7 @@ public class LaserTrap : MonoBehaviour
 
     private void Awake()
     {
-        _trapAction = _obstacleObject.GetComponent<ITrapAction>();
+        _trap = _obstacleObject.GetComponent<ITrap>();
     }
 
     private void OnEnable()
@@ -46,7 +46,7 @@ public class LaserTrap : MonoBehaviour
 
     private void ActivateObstacle()
     {
-        _trapAction.Activate();
+        _trap.Activate();
 
         // 3. 자동 초기화 세팅
         if (_autoReset)
@@ -58,7 +58,7 @@ public class LaserTrap : MonoBehaviour
     private void ResetTrap()
     {
         Debug.Log("🔄 TrapController: 함정 재장전.");
-        _trapAction.Reset();
+        _trap.Reset();
         _laserTrigger.SetLaserActive(true);
     }
 }
