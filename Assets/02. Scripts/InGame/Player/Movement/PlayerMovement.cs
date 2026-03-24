@@ -29,6 +29,9 @@ namespace InGame.Player.Movement
         [Header("Air Control")]
         [SerializeField, Range(0f, 1f)] private float _airControlFactor = 0.6f;
 
+        [Header("Gravity")]
+        [SerializeField] private float _gravity = 9.81f;
+
         [Header("Ground Check")]
         [SerializeField] private float _groundCheckRadius = 0.3f;
         [SerializeField] private LayerMask _groundLayer;
@@ -148,6 +151,7 @@ namespace InGame.Player.Movement
             Vector3 velocity = _rootBody.linearVelocity;
             velocity.x = _currentVelocity.x;
             velocity.z = _currentVelocity.z;
+            velocity.y += (-_gravity - Physics.gravity.y) * Time.fixedDeltaTime;
             _rootBody.linearVelocity = velocity;
 
             if (_currentVelocity.sqrMagnitude > 0.01f)
