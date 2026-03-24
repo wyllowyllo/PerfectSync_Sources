@@ -14,6 +14,11 @@ public class RaceRankingManager : SingletonMonoBehaviour<RaceRankingManager>
     private List<TeamRankEntry> _currentRankings = new();
     private List<int> _finishOrder = new();
 
+    private readonly Dictionary<int, float> _calcTeamBest = new(PhotonTeamManager.MaxTeams);
+    private readonly Dictionary<int, int> _calcTeamMaxCheckpoint = new(PhotonTeamManager.MaxTeams);
+    private readonly List<RaceFinishEvent> _calcNewFinishes = new(PhotonTeamManager.MaxTeams);
+    private readonly List<(int team, float progress)> _calcNotFinished = new(PhotonTeamManager.MaxTeams);
+
     public IReadOnlyList<TeamRankEntry> CurrentRankings => _currentRankings;
 
     public int LastCheckpointIndex => _lastCheckpointIndex;
@@ -109,38 +114,36 @@ public class RaceRankingManager : SingletonMonoBehaviour<RaceRankingManager>
 
     private void CalculateRankings()
     {
-        var teamBest = new Dictionary<int, float>();
-        var teamMaxCheckpoint = new Dictionary<int, int>();
+        _calcTeamBest.Clear();
+        _calcTeamMaxCheckpoint.Clear();
 
         foreach (var tracker in _trackers)
         {
             int team = tracker.TeamNumber;
             if (team == PhotonTeamManager.TeamNone) continue;
 
-            if (!teamBest.ContainsKey(team) || tracker.Progress > teamBest[team])
-                teamBest[team] = tracker.Progress;
+            if (!_calcTeamBest.TryGetValue(team, out float best) || tracker.Progress > best)
+                _calcTeamBest[team] = tracker.Progress;
 
-            if (!teamMaxCheckpoint.ContainsKey(team) || tracker.CheckpointsPassed > teamMaxCheckpoint[team])
-                teamMaxCheckpoint[team] = tracker.CheckpointsPassed;
+            if (!_calcTeamMaxCheckpoint.TryGetValue(team, out int maxCp) || tracker.CheckpointsPassed > maxCp)
+                _calcTeamMaxCheckpoint[team] = tracker.CheckpointsPassed;
         }
 
         int previousFinishCount = _finishOrder.Count;
-        var result = RaceRankingCalculator.Compute(
-            teamBest,
-            teamMaxCheckpoint,
+        RaceRankingCalculator.Compute(
+            _calcTeamBest,
+            _calcTeamMaxCheckpoint,
             _lastCheckpointIndex,
-            _finishOrder);
+            _finishOrder,
+            _calcNewFinishes,
+            _currentRankings,
+            _calcNotFinished);
 
-        _finishOrder = result.FinishOrder;
+        if (_calcNewFinishes.Count > 0 && previousFinishCount == 0)
+            OnFirstPlaceFinished?.Invoke(_calcNewFinishes[0].TeamNumber);
 
-        if (result.NewFinishes.Count > 0 && previousFinishCount == 0)
-            OnFirstPlaceFinished?.Invoke(result.NewFinishes[0].TeamNumber);
-
-        foreach (var ev in result.NewFinishes)
+        foreach (var ev in _calcNewFinishes)
             OnTeamFinished?.Invoke(ev.TeamNumber, ev.FinishPlace);
-
-        _currentRankings.Clear();
-        _currentRankings.AddRange(result.Rankings);
 
         OnRankingsUpdated?.Invoke(_currentRankings);
     }

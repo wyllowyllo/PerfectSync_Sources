@@ -1,15 +1,22 @@
+using System;
 using System.Collections.Generic;
 
 public static class RaceRankingCalculator
 {
-    public static RaceRankingComputationResult Compute(
+    private static readonly Comparison<(int team, float progress)> NotFinishedByProgressDesc =
+        (a, b) => b.progress.CompareTo(a.progress);
+        
+    public static void Compute(
         IReadOnlyDictionary<int, float> teamBest,
         IReadOnlyDictionary<int, int> teamMaxCheckpoint,
         int lastCheckpointIndex,
-        IReadOnlyList<int> previousFinishOrder)
+        List<int> finishOrder,
+        List<RaceFinishEvent> newFinishes,
+        List<TeamRankEntry> rankings,
+        List<(int team, float progress)> notFinishedBuffer)
     {
-        var finishOrder = new List<int>(previousFinishOrder);
-        var newFinishes = new List<RaceFinishEvent>();
+        newFinishes.Clear();
+        rankings.Clear();
 
         if (lastCheckpointIndex >= 0)
         {
@@ -30,7 +37,6 @@ public static class RaceRankingCalculator
             }
         }
 
-        var rankings = new List<TeamRankEntry>();
         int rank = 1;
 
         foreach (int team in finishOrder)
@@ -44,17 +50,17 @@ public static class RaceRankingCalculator
             });
         }
 
-        var notFinished = new List<(int team, float progress)>();
+        notFinishedBuffer.Clear();
         foreach (var kvp in teamBest)
         {
             if (finishOrder.Contains(kvp.Key))
                 continue;
-            notFinished.Add((kvp.Key, kvp.Value));
+            notFinishedBuffer.Add((kvp.Key, kvp.Value));
         }
 
-        notFinished.Sort((a, b) => b.progress.CompareTo(a.progress));
+        notFinishedBuffer.Sort(NotFinishedByProgressDesc);
 
-        foreach (var (team, progress) in notFinished)
+        foreach (var (team, progress) in notFinishedBuffer)
         {
             rankings.Add(new TeamRankEntry
             {
@@ -63,12 +69,5 @@ public static class RaceRankingCalculator
                 Rank = rank++
             });
         }
-
-        return new RaceRankingComputationResult
-        {
-            Rankings = rankings,
-            FinishOrder = finishOrder,
-            NewFinishes = newFinishes
-        };
     }
 }

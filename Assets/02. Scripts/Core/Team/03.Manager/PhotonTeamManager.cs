@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using UnityEngine;
+using System.Linq;
 using Photon.Pun;
 using Photon.Realtime;
 using Hashtable = ExitGames.Client.Photon.Hashtable;
@@ -98,9 +98,7 @@ public class PhotonTeamManager : SingletonPunCallbacks<PhotonTeamManager>
 
     private void AssignToTeams(List<List<Player>> partyGroups, List<Player> soloPlayers)
     {
-        var teams = new List<Player>[MaxTeams];
-        for (int i = 0; i < MaxTeams; i++)
-            teams[i] = new List<Player>();
+        var teams = Enumerable.Range(0, MaxTeams).Select(_ => new List<Player>()).ToArray();
 
         foreach (var party in partyGroups)
         {
