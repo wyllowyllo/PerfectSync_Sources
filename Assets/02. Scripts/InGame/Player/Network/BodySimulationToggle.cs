@@ -10,7 +10,6 @@ namespace InGame.Player.Network
     public class BodySimulationToggle : MonoBehaviour
     {
         [SerializeField] private Rigidbody _rootBody;
-        [SerializeField] private Collider _rootCollider;
 
         private PlayerMovement _playerMovement;
         private PlayerJump _playerJump;
@@ -50,9 +49,6 @@ namespace InGame.Player.Network
 
             if (_rootBody != null)
                 _rootBody.isKinematic = true;
-
-            if (_rootCollider != null)
-                _rootCollider.enabled = false;
         }
 
         private void ApplyLocalState()
@@ -65,9 +61,6 @@ namespace InGame.Player.Network
 
             if (_rootBody != null)
                 _rootBody.isKinematic = false;
-
-            if (_rootCollider != null)
-                _rootCollider.enabled = true;
         }
 
     }
