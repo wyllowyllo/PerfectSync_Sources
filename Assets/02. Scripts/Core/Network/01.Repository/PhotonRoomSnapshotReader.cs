@@ -29,9 +29,12 @@ public static class PhotonRoomSnapshotReader
         var s = v as string;
         if (s == null) return RoomKind.Unknown;
 
-        if (s == PhotonRoomTypes.Random) return RoomKind.Random;
-        if (s == PhotonRoomTypes.Custom) return RoomKind.Custom;
-        if (s == PhotonRoomTypes.Party) return RoomKind.Party;
-        return RoomKind.Unknown;
+        return s switch
+        {
+            PhotonRoomTypes.Random => RoomKind.Random,
+            PhotonRoomTypes.Custom => RoomKind.Custom,
+            PhotonRoomTypes.Party => RoomKind.Party,
+            _ => RoomKind.Unknown
+        };
     }
 }
