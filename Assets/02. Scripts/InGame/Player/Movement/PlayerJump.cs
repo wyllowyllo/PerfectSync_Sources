@@ -3,8 +3,14 @@ using UnityEngine;
 
 namespace InGame.Player.Movement
 {
+    [RequireComponent(typeof(PlayerAnimation))]
     public class PlayerJump : MonoBehaviour
     {
+        [Header("References")]
+        [SerializeField] private Rigidbody _rootBody;
+
+        private PlayerAnimation _anim;
+
         [Header("Jump")]
         [SerializeField] private float _jumpForce = 10f;
 
@@ -12,8 +18,11 @@ namespace InGame.Player.Movement
         [SerializeField] private float _diveForce = 8f;
         [SerializeField] private float _diveCooldown = 0.5f;
 
-        private PlayerAnimation _anim;
-        private Rigidbody _rb;
+        private void Awake()
+        {
+            _anim = GetComponent<PlayerAnimation>();
+        }
+
         private float _lastDiveTime = -Mathf.Infinity;
         private bool _isDiving;
 
@@ -24,20 +33,14 @@ namespace InGame.Player.Movement
             _isDiving = false;
         }
 
-        private void Awake()
-        {
-            _anim = GetComponent<PlayerAnimation>();
-            _rb = GetComponent<Rigidbody>();
-        }
-
         public void Jump()
         {
             // 기존 수직 속도 제거 후 점프 임펄스 적용.
-            Vector3 velocity = _rb.linearVelocity;
+            Vector3 velocity = _rootBody.linearVelocity;
             velocity.y = 0f;
-            _rb.linearVelocity = velocity;
+            _rootBody.linearVelocity = velocity;
 
-            _rb.AddForce(Vector3.up * _jumpForce, ForceMode.Impulse);
+            _rootBody.AddForce(Vector3.up * _jumpForce, ForceMode.Impulse);
             _anim.Jump();
         }
 
@@ -48,18 +51,17 @@ namespace InGame.Player.Movement
 
             Vector3 forward = inputDirection.sqrMagnitude > 0.01f
                 ? inputDirection.normalized
-                : transform.forward;
+                : _rootBody.transform.forward;
 
-            transform.rotation = Quaternion.LookRotation(forward);
+            _rootBody.rotation = Quaternion.LookRotation(forward);
 
             Vector3 diveDirection = forward + Vector3.down * 0.2f;
-            _rb.AddForce(diveDirection.normalized * _diveForce, ForceMode.Impulse);
+            _rootBody.AddForce(diveDirection.normalized * _diveForce, ForceMode.Impulse);
             _lastDiveTime = Time.time;
             _isDiving = true;
             _anim.Dive();
 
             return true;
         }
-
     }
 }

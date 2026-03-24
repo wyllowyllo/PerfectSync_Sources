@@ -1,4 +1,4 @@
-namespace InGame.Team._02._Domain
+namespace InGame.Team
 {
     public enum ETeamMode { Separated, Merged }
 }
