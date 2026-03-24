@@ -1,10 +1,12 @@
 using System;
+using Core;
 using InGame.Player.Animation;
 using InGame.Player.Ragdoll;
 using UnityEngine;
 
 namespace InGame.Player.Movement
 {
+    [DefaultExecutionOrder(ExecutionOrderConstants.PlayerMovement)]
     [RequireComponent(typeof(RagdollStateMachine))]
     [RequireComponent(typeof(PlayerJump))]
     [RequireComponent(typeof(PlayerAnimation))]

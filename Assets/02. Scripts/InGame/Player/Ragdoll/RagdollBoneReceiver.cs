@@ -1,8 +1,10 @@
 using System.Collections.Generic;
+using Core;
 using UnityEngine;
 
 namespace InGame.Player.Ragdoll
 {
+    [DefaultExecutionOrder(ExecutionOrderConstants.RagdollBoneReceiver)]
     public class RagdollBoneReceiver : MonoBehaviour
     {
         [SerializeField] private RagdollRig _ragdollRig;
