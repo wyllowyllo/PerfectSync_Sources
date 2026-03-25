@@ -31,7 +31,7 @@ namespace InGame.Camera.PlayerCamera
         [SerializeField] private Vector3 _ragdollPositionDamping = new Vector3(2f, 2.5f, 2f);
 
         private CinemachineCamera _ragdollCamera;
-        private Transform _animatedProxy;
+        private Rigidbody _animatedProxyRb;
         private Rigidbody _ragdollProxyRb;
         private PlayerFormController _playerFormController;
         private Transform _activeTarget;
@@ -44,7 +44,7 @@ namespace InGame.Camera.PlayerCamera
 
         private void Awake()
         {
-            _animatedProxy = new GameObject("AnimatedCameraProxy").transform;
+            _animatedProxyRb = CreateInterpolatedProxy("AnimatedCameraProxy");
             _ragdollProxyRb = CreateInterpolatedProxy("RagdollCameraProxy");
         }
 
@@ -68,7 +68,7 @@ namespace InGame.Camera.PlayerCamera
             if (_activeTarget != null)
             {
                 Vector3 initPos = _activeTarget.position + _targetOffset;
-                _animatedProxy.position = initPos;
+                _animatedProxyRb.position = initPos;
                 _ragdollProxyRb.position = initPos;
             }
         }
@@ -78,8 +78,8 @@ namespace InGame.Camera.PlayerCamera
             if (_playerFormController != null)
                 _playerFormController.OnModeChanged -= HandleModeChanged;
 
-            if (_animatedProxy != null)
-                Destroy(_animatedProxy.gameObject);
+            if (_animatedProxyRb != null)
+                Destroy(_animatedProxyRb.gameObject);
 
             if (_ragdollProxyRb != null)
                 Destroy(_ragdollProxyRb.gameObject);
@@ -92,13 +92,13 @@ namespace InGame.Camera.PlayerCamera
         {
             if (_activeTarget == null) return;
 
-            _ragdollProxyRb.MovePosition(_activeTarget.position + _targetOffset);
+            Vector3 targetPos = _activeTarget.position + _targetOffset;
+            _animatedProxyRb.MovePosition(targetPos);
+            _ragdollProxyRb.MovePosition(targetPos);
         }
 
         private void LateUpdate()
         {
-            if (_activeTarget != null)
-                _animatedProxy.position = _activeTarget.position + _targetOffset;
 
             if (_activeRagdoll == null) return;
 
@@ -139,8 +139,8 @@ namespace InGame.Camera.PlayerCamera
 
         private void SetupCameraTargets()
         {
-            _animatedCamera.Follow = _animatedProxy;
-            _animatedCamera.LookAt = _animatedProxy;
+            _animatedCamera.Follow = _animatedProxyRb.transform;
+            _animatedCamera.LookAt = _animatedProxyRb.transform;
             _ragdollCamera.Follow = _ragdollProxyRb.transform;
             _ragdollCamera.LookAt = _ragdollProxyRb.transform;
 

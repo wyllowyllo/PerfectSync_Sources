@@ -35,8 +35,9 @@ namespace InGame.Player.Network
 
         private const float SnapThreshold = 2.0f;
         private const float InterpolationFactor = 0.3f;
-        private const float SmoothTime = 0.055f;
+        private const float SmoothTime = 0.08f;
         private const float MaxExtrapolationTime = 0.2f;
+        private const float VelocityBlendFactor = 0.5f;
 
         private void Awake()
         {
@@ -199,7 +200,9 @@ namespace InGame.Player.Network
                 if (_ragdollController != null && _ragdollController.IsRootManagedByRagdoll) return;
 
                 _networkPosition = pos;
-                _networkVelocity = velocity;
+                _networkVelocity = _firstSnapshot
+                    ? velocity
+                    : Vector3.Lerp(_networkVelocity, velocity, VelocityBlendFactor);
                 _networkGrounded = grounded;
                 _correctionTarget = pos;
                 _correctionRotation = rot;

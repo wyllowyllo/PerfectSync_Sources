@@ -48,7 +48,10 @@ namespace InGame.Player.Network
                 _playerJump.enabled = false;
 
             if (_rootBody != null)
+            {
                 _rootBody.isKinematic = true;
+                _rootBody.interpolation = RigidbodyInterpolation.Interpolate;
+            }
         }
 
         private void ApplyLocalState()
@@ -60,7 +63,10 @@ namespace InGame.Player.Network
                 _playerJump.enabled = true;
 
             if (_rootBody != null)
+            {
                 _rootBody.isKinematic = false;
+                _rootBody.interpolation = RigidbodyInterpolation.Interpolate;
+            }
         }
 
     }
