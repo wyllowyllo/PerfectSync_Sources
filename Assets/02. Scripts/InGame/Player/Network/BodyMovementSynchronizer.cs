@@ -102,32 +102,31 @@ namespace InGame.Player.Network
 
             if (!photonView.IsMine && _syncEnabled && _hasCorrection)
             {
-                float dist = Vector3.Distance(_rootBody.position, _correctionTarget);
+                // 외삽 타깃을 snap 판정 전에 계산: 낙하 중 stale _correctionTarget 비교로 인한 역방향 snap 방지.
+                Vector3 target;
+                if (!_firstSnapshot)
+                {
+                    float elapsed = Mathf.Min(
+                        Mathf.Abs((float)(PhotonNetwork.Time - _lastReceiveServerTime)),
+                        MaxExtrapolationTime);
+                    target = _networkPosition + _networkVelocity * elapsed;
+                    if (!_networkGrounded)
+                        target += 0.5f * Physics.gravity * (elapsed * elapsed);
+                }
+                else
+                {
+                    target = _correctionTarget;
+                }
+
+                float dist = Vector3.Distance(_rootBody.position, target);
                 if (dist > SnapThreshold)
                 {
-                    _rootBody.MovePosition(_correctionTarget);
+                    _rootBody.MovePosition(target);
                     _rootBody.MoveRotation(_correctionRotation);
                     _smoothVelocity = Vector3.zero;
                 }
                 else if (dist > 0.01f)
                 {
-                    // 매 FixedUpdate마다 연속 외삽: 스냅샷 경계 타깃 점프 최소화.
-                    Vector3 target;
-                    if (!_firstSnapshot)
-                    {
-                        float elapsed = Mathf.Min(
-                            Mathf.Abs((float)(PhotonNetwork.Time - _lastReceiveServerTime)),
-                            MaxExtrapolationTime);
-                        target = _networkPosition + _networkVelocity * elapsed;
-                        // 공중일 때만 중력 가속도 반영 (포물선 예측).
-                        if (!_networkGrounded)
-                            target += 0.5f * Physics.gravity * (elapsed * elapsed);
-                    }
-                    else
-                    {
-                        target = _correctionTarget;
-                    }
-
                     _rootBody.MovePosition(
                         Vector3.SmoothDamp(_rootBody.position, target,
                             ref _smoothVelocity, SmoothTime, Mathf.Infinity, Time.fixedDeltaTime));
