@@ -2,7 +2,7 @@ using System;
 using Core.Utilities;
 using InGame.Player.Movement;
 using InGame.Player.Ragdoll;
-using InGame.Team._02._Domain;
+using InGame.Team;
 using UnityEngine;
 
 namespace InGame.Player
@@ -15,7 +15,7 @@ namespace InGame.Player
         [SerializeField] private GameObject _avatarB;
 
         [Header("Settings")]
-        [SerializeField] private float _separationOffset = 1.0f;
+        [SerializeField] private float _separationOffset = 1.0f; // 분리모드 전환 시 두 명 사이 거리
 
         private IControllableBody _mergedControllable;
         private IControllableBody _avatarAControllable;
@@ -26,6 +26,9 @@ namespace InGame.Player
         public event Action<ETeamMode> OnModeChanged;
         
         // 프로퍼티
+        public ETeamMode CurrentMode => _currentMode;
+        /// 래그돌 활성 중에는 폼 전환 불가 (요청 단계 가드용)
+        public bool CanChangeForm() => !IsAnyRagdollActive();
         public Transform PrimaryBodyTransform => _currentMode switch
         {
             ETeamMode.Merged => _mergedControllable.BodyTransform,
@@ -39,24 +42,11 @@ namespace InGame.Player
             _ => _mergedControllable.BodyTransform
         };
 
-        public Transform PrimaryCameraFollowPoint => _currentMode switch
-        {
-            ETeamMode.Merged => _mergedControllable.CameraFollowPoint,
-            ETeamMode.Separated => _avatarAControllable.CameraFollowPoint,
-            _ => _mergedControllable.CameraFollowPoint
-        };
-
-        public Transform SecondaryCameraFollowPoint => _currentMode switch
-        {
-            ETeamMode.Separated => _avatarBControllable.CameraFollowPoint,
-            _ => _mergedControllable.CameraFollowPoint
-        };
-
         private void Awake()
         {
-            _mergedControllable = _mergedBody.GetComponent<IControllableBody>();
-            _avatarAControllable = _avatarA.GetComponent<IControllableBody>();
-            _avatarBControllable = _avatarB.GetComponent<IControllableBody>();
+            _mergedControllable = _mergedBody.GetComponentInChildren<IControllableBody>();
+            _avatarAControllable = _avatarA.GetComponentInChildren<IControllableBody>();
+            _avatarBControllable = _avatarB.GetComponentInChildren<IControllableBody>();
         }
 
         public void Initialize(ETeamMode startMode)
@@ -65,10 +55,7 @@ namespace InGame.Player
             ApplyMode(startMode);
         }
 
-        public ETeamMode CurrentMode => _currentMode;
-
-        /// 래그돌 활성 중에는 폼 전환 불가 (요청 단계 가드용)
-        public bool CanChangeForm() => !IsAnyRagdollActive();
+       
 
         /// 네트워크 확정 폼 전환 — 래그돌 활성 시 강제 회복 후 전환 실행
         public void ExecuteFormToggle()
@@ -100,10 +87,6 @@ namespace InGame.Player
             }
         }
 
-        public void Tick()
-        {
-        }
-
         private void ExecuteSwitch(ETeamMode targetMode)
         {
             switch (targetMode)
@@ -122,11 +105,18 @@ namespace InGame.Player
 
         private void SwitchToMerged()
         {
-            // 위치/속도 평균 계산.
-            Vector3 avgPosition = (_avatarA.transform.position + _avatarB.transform.position) * 0.5f;
+            Transform bodyA = _avatarAControllable.BodyTransform;
+            Transform bodyB = _avatarBControllable.BodyTransform;
+            Transform mergedBodyT = _mergedControllable.BodyTransform;
+
+            Vector3 avgPosition = (bodyA.position + bodyB.position) * 0.5f;
             Vector3 avgVelocity = (_avatarAControllable.Velocity + _avatarBControllable.Velocity) * 0.5f;
 
-            _mergedBody.transform.position = avgPosition;
+            Vector3 avgForward = (bodyA.forward + bodyB.forward) * 0.5f;
+            if (avgForward.sqrMagnitude > 0.001f)
+                mergedBodyT.rotation = Quaternion.LookRotation(avgForward);
+
+            mergedBodyT.position = avgPosition;
             _mergedBody.SetActive(true);
             _mergedControllable.Velocity = avgVelocity;
 
@@ -136,15 +126,16 @@ namespace InGame.Player
 
         private void SwitchToSeparated()
         {
-            Vector3 basePosition = _mergedBody.transform.position;
+            Transform mergedBodyT = _mergedControllable.BodyTransform;
+            Vector3 basePosition = mergedBodyT.position;
             Vector3 velocity = _mergedControllable.Velocity;
 
-            Vector3 right = _mergedBody.transform.right;
+            Vector3 right = mergedBodyT.right;
             Vector3 posA = basePosition - right * _separationOffset;
             Vector3 posB = basePosition + right * _separationOffset;
 
-            _avatarA.transform.position = posA;
-            _avatarB.transform.position = posB;
+            _avatarAControllable.BodyTransform.position = posA;
+            _avatarBControllable.BodyTransform.position = posB;
             _avatarA.SetActive(true);
             _avatarB.SetActive(true);
             _avatarAControllable.Velocity = velocity;
@@ -183,7 +174,7 @@ namespace InGame.Player
         private void ForceRecoverBody(GameObject body)
         {
             if (body == null) return;
-            var ragdoll = body.GetComponent<RagdollController>();
+            var ragdoll = body.GetComponentInChildren<RagdollStateMachine>();
             if (ragdoll != null && ragdoll.IsRagdollActive)
                 ragdoll.ForceRecover();
         }

@@ -1,14 +1,25 @@
-using InGame.Camera.PlayerCamera;
+using System;
+using Core;
 using InGame.Player.Animation;
 using InGame.Player.Ragdoll;
 using UnityEngine;
 
 namespace InGame.Player.Movement
 {
-    [RequireComponent(typeof(Animator), typeof(Rigidbody), typeof(RagdollController))]
-    [RequireComponent(typeof(PlayerJump), typeof(PlayerAnimation), typeof(CameraTarget))]
+    [DefaultExecutionOrder(ExecutionOrderConstants.PlayerMovement)]
+    [RequireComponent(typeof(RagdollStateMachine))]
+    [RequireComponent(typeof(PlayerJump))]
+    [RequireComponent(typeof(PlayerAnimation))]
     public class PlayerMovement : MonoBehaviour, IControllableBody
     {
+        [Header("References")]
+        [SerializeField] private Rigidbody _rootBody;
+        [SerializeField] private Transform _groundCheckPoint;
+
+        private RagdollStateMachine _ragdollController;
+        private PlayerJump _playerJump;
+        private PlayerAnimation _anim;
+
         [Header("Movement")]
         [SerializeField] private float _moveSpeed = 5f;
         [SerializeField] private float _accelerationTime = 0.15f;
@@ -18,41 +29,48 @@ namespace InGame.Player.Movement
         [Header("Air Control")]
         [SerializeField, Range(0f, 1f)] private float _airControlFactor = 0.6f;
 
+        [Header("Gravity")]
+        [SerializeField] private float _gravity = 9.81f;
+
         [Header("Ground Check")]
         [SerializeField] private float _groundCheckRadius = 0.3f;
-        [SerializeField] private Vector3 _groundCheckOffset = new Vector3(0f, 0.1f, 0f);
         [SerializeField] private LayerMask _groundLayer;
 
-        private Rigidbody _capsuleRb;
-        private IRagdoll _ragdoll;
-        private PlayerJump _playerJump;
-        private PlayerAnimation _anim;
-        private CameraTarget _cameraTarget;
         private Vector3 _currentVelocity;
         private ERagdollState _previousRagdollState;
         private float _lastGroundedTime;
         private bool _jumpRequested;
         private bool _isGrounded;
-        private bool _initialized;
         private Vector3 _inputDirection;
 
-        // 상수
         private const float CoyoteTime = 0.1f;
+
+        // Host-authoritative 합체 모드: 애니메이션 트리거 동기화용.
+        public event Action OnJumped;
+        public event Action OnDived;
+        public event Action<bool> OnDiveLanded;
 
         public Vector3 Velocity
         {
-            get => _capsuleRb.linearVelocity;
+            get => _rootBody.linearVelocity;
             set
             {
-                _capsuleRb.linearVelocity = value;
+                _rootBody.linearVelocity = value;
                 _currentVelocity = new Vector3(value.x, 0f, value.z);
             }
         }
-        public Transform BodyTransform => transform;
-        public Transform CameraFollowPoint => _cameraTarget.FollowPoint;
-        public bool IsRagdollActive => _ragdoll.IsRagdollActive;
+        public Transform BodyTransform => _rootBody.transform;
+        public bool IsRagdollActive => _ragdollController.IsRagdollActive;
         public bool Grounded => _isGrounded;
         public float CurrentSpeed => _currentVelocity.magnitude;
+
+        private void Awake()
+        {
+            _ragdollController = GetComponent<RagdollStateMachine>();
+            _playerJump = GetComponent<PlayerJump>();
+            _anim = GetComponent<PlayerAnimation>();
+            _rootBody.constraints = RigidbodyConstraints.FreezeRotation;
+        }
 
         private void Start()
         {
@@ -61,16 +79,18 @@ namespace InGame.Player.Movement
 
         private void Update()
         {
-            ERagdollState currentRagdollState = _ragdoll.CurrentState;
+            ERagdollState currentRagdollState = _ragdollController.CurrentState;
 
-            // 래그돌 복귀 감지 → 속도 초기화.
-            if (_previousRagdollState != ERagdollState.Animated && currentRagdollState == ERagdollState.Animated)
+            // 풀 래그돌에서 복귀 시에만 속도 초기화 (Stumble 복귀는 속도 유지).
+            if ((_previousRagdollState == ERagdollState.BlendToAnim || _previousRagdollState == ERagdollState.Ragdolled)
+                && currentRagdollState == ERagdollState.Animated)
             {
                 _currentVelocity = Vector3.zero;
             }
 
             _previousRagdollState = currentRagdollState;
 
+            // 풀 래그돌/Dead 중에는 이동 불가.
             if (currentRagdollState != ERagdollState.Animated)
                 return;
 
@@ -83,6 +103,7 @@ namespace InGame.Player.Movement
             {
                 _playerJump.ClearDiving();
                 _anim.Land(true);
+                OnDiveLanded?.Invoke(true);
                 _currentVelocity = Vector3.zero;
             }
 
@@ -91,12 +112,11 @@ namespace InGame.Player.Movement
             {
                 float speedMultiplier = _isGrounded ? 1f : _airControlFactor;
                 Accelerate(_inputDirection * _moveSpeed * speedMultiplier);
-                RotateToVelocity();
             }
 
             // 애니메이션 파라미터 갱신.
             float speed = _playerJump.IsDiving
-                ? new Vector3(_capsuleRb.linearVelocity.x, 0f, _capsuleRb.linearVelocity.z).magnitude
+                ? new Vector3(_rootBody.linearVelocity.x, 0f, _rootBody.linearVelocity.z).magnitude
                 : _currentVelocity.magnitude;
             _anim.Locomotion(_isGrounded, speed);
 
@@ -106,10 +126,12 @@ namespace InGame.Player.Movement
                 if (canJump)
                 {
                     _playerJump.Jump();
+                    OnJumped?.Invoke();
                 }
                 else if (_playerJump.TryDive(_inputDirection))
                 {
                     _currentVelocity = Vector3.zero;
+                    OnDived?.Invoke();
                 }
                 _jumpRequested = false;
             }
@@ -117,17 +139,28 @@ namespace InGame.Player.Movement
 
         private void FixedUpdate()
         {
-            if (_ragdoll.CurrentState != ERagdollState.Animated)
+            if (_rootBody.isKinematic) return;
+
+            if (_ragdollController.CurrentState != ERagdollState.Animated)
                 return;
 
             // 다이브 중에는 물리 임펄스가 수평 속도를 제어하도록 덮어쓰지 않음.
             if (_playerJump.IsDiving)
                 return;
 
-            Vector3 velocity = _capsuleRb.linearVelocity;
+            Vector3 velocity = _rootBody.linearVelocity;
             velocity.x = _currentVelocity.x;
             velocity.z = _currentVelocity.z;
-            _capsuleRb.linearVelocity = velocity;
+            velocity.y += (-_gravity - Physics.gravity.y) * Time.fixedDeltaTime;
+            _rootBody.linearVelocity = velocity;
+
+            if (_currentVelocity.sqrMagnitude > 0.01f)
+            {
+                Quaternion targetRot = Quaternion.LookRotation(_currentVelocity);
+                _rootBody.MoveRotation(Quaternion.Slerp(
+                    _rootBody.rotation, targetRot,
+                    Time.fixedDeltaTime * _rotationSpeed));
+            }
         }
 
         public void ApplyInput(Vector3 worldDirection, bool jump)
@@ -148,48 +181,30 @@ namespace InGame.Player.Movement
                 _currentVelocity = Vector3.Lerp(_currentVelocity, targetVelocity, t);
             }
             else
-                _currentVelocity = targetVelocity;
-        }
-
-        private void RotateToVelocity()
-        {
-            if (_currentVelocity.sqrMagnitude > 0.01f)
             {
-                transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(_currentVelocity), Time.deltaTime * _rotationSpeed);
+                _currentVelocity = targetVelocity;
             }
         }
 
         private bool IsGrounded()
         {
-            Vector3 origin = transform.position + _groundCheckOffset;
-            return Physics.CheckSphere(origin, _groundCheckRadius, _groundLayer);
-        }
-
-        private void Awake()
-        {
-            _capsuleRb = GetComponent<Rigidbody>();
-            _ragdoll = GetComponent<IRagdoll>();
-            _playerJump = GetComponent<PlayerJump>();
-            _anim = GetComponent<PlayerAnimation>();
-            _cameraTarget = GetComponent<CameraTarget>();
-            _initialized = true;
+            return Physics.CheckSphere(_groundCheckPoint.position, _groundCheckRadius, _groundLayer);
         }
 
         private void OnEnable()
         {
-            if (!_initialized) return;
-
-            _capsuleRb.isKinematic = false;
+            if (_rootBody != null)
+                _rootBody.isKinematic = false;
         }
 
         private void OnDisable()
         {
-            if (!_initialized)
-                return;
-
-            _capsuleRb.isKinematic = true;
-            _currentVelocity = Vector3.zero;
-            _jumpRequested = false;
+            if (_rootBody != null)
+            {
+                _rootBody.isKinematic = true;
+                _currentVelocity = Vector3.zero;
+                _jumpRequested = false;
+            }
         }
     }
 }

@@ -1,5 +1,6 @@
 using System;
 using Core;
+using InGame.Player;
 using Photon.Pun;
 using UnityEngine;
 
@@ -21,7 +22,7 @@ namespace InGame.UserInput
             }
         }
 
-        public event Action<Vector3, Vector3, int> OnImpactReceived;
+        public event Action<HitData, int> OnHitReceived;
         public event Action OnDeathReceived;
 
         private Vector2 _moveInput;
@@ -33,10 +34,11 @@ namespace InGame.UserInput
             _jumpPressed |= Input.GetButtonDown("Jump");
         }
 
-        public void SendImpact(Vector3 impulse, Vector3 hitPoint, int hitViewID)
+        public void SendHit(HitData hit, int hitViewID)
         {
-            OnImpactReceived?.Invoke(impulse, hitPoint, hitViewID);
-            photonView.RPC(nameof(RpcReceiveImpact), RpcTarget.Others, impulse, hitPoint, hitViewID);
+            OnHitReceived?.Invoke(hit, hitViewID);
+            photonView.RPC(nameof(RpcReceiveHit), RpcTarget.Others,
+                hit.Knockback, hit.HitPoint, hitViewID, hit.Torque);
         }
 
         public void SendDeath()
@@ -46,9 +48,10 @@ namespace InGame.UserInput
         }
 
         [PunRPC]
-        private void RpcReceiveImpact(Vector3 impulse, Vector3 hitPoint, int hitViewID)
+        private void RpcReceiveHit(Vector3 knockback, Vector3 hitPoint, int hitViewID, Vector3 torque)
         {
-            OnImpactReceived?.Invoke(impulse, hitPoint, hitViewID);
+            var hit = new HitData(knockback, hitPoint, torque);
+            OnHitReceived?.Invoke(hit, hitViewID);
         }
 
         [PunRPC]

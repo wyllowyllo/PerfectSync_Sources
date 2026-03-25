@@ -1,4 +1,5 @@
 using System;
+using InGame.Player;
 using UnityEngine;
 
 namespace InGame.UserInput
@@ -10,9 +11,9 @@ namespace InGame.UserInput
         bool JumpPressed { get; }
 
         // 래그돌 네트워크 경계. 로컬 = 즉시 invoke, PUN2 = RPC → invoke.
-        event Action<Vector3, Vector3, int> OnImpactReceived;
+        event Action<HitData, int> OnHitReceived;
         event Action OnDeathReceived;
-        void SendImpact(Vector3 impulse, Vector3 hitPoint, int hitViewID);
+        void SendHit(HitData hit, int hitViewID);
         void SendDeath();
     }
 }
