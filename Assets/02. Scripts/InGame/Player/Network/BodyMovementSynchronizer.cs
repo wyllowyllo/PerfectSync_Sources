@@ -34,11 +34,10 @@ namespace InGame.Player.Network
         private Vector3 _smoothVelocity;
 
         private const float SnapThreshold = 2.0f;
-        private const float CorrectionFactor = 0.15f;
         private const float InterpolationFactor = 0.3f;
         private const float SmoothTime = 0.08f;
         private const float MaxExtrapolationTime = 0.2f;
-        private const float VerticalVelocityThreshold = 0.5f;
+        private const float VelocityBlendFactor = 0.5f;
 
         private void Awake()
         {
@@ -103,65 +102,41 @@ namespace InGame.Player.Network
 
             if (!photonView.IsMine && _syncEnabled && _hasCorrection)
             {
-                float dist = Vector3.Distance(_rootBody.position, _correctionTarget);
+                // 외삽 타깃을 snap 판정 전에 계산: 낙하 중 stale _correctionTarget 비교로 인한 역방향 snap 방지.
+                Vector3 target;
+                if (!_firstSnapshot)
+                {
+                    float elapsed = Mathf.Min(
+                        Mathf.Abs((float)(PhotonNetwork.Time - _lastReceiveServerTime)),
+                        MaxExtrapolationTime);
+                    target = _networkPosition + _networkVelocity * elapsed;
+                    if (!_networkGrounded)
+                        target += 0.5f * Physics.gravity * (elapsed * elapsed);
+                }
+                else
+                {
+                    target = _correctionTarget;
+                }
+
+                float dist = Vector3.Distance(_rootBody.position, target);
                 if (dist > SnapThreshold)
                 {
-                    _rootBody.MovePosition(_correctionTarget);
+                    _rootBody.MovePosition(target);
                     _rootBody.MoveRotation(_correctionRotation);
                     _smoothVelocity = Vector3.zero;
                 }
                 else if (dist > 0.01f)
                 {
-                    if (_rootBody.isKinematic)
-                    {
-                        // 매 FixedUpdate마다 연속 외삽: 스냅샷 경계 타깃 점프 최소화.
-                        Vector3 target;
-                        if (!_firstSnapshot)
-                        {
-                            float elapsed = Mathf.Min(
-                                Mathf.Abs((float)(PhotonNetwork.Time - _lastReceiveServerTime)),
-                                MaxExtrapolationTime);
-                            target = _networkPosition + _networkVelocity * elapsed;
-                            // 공중일 때만 중력 가속도 반영 (포물선 예측).
-                            if (!_networkGrounded)
-                                target += 0.5f * Physics.gravity * (elapsed * elapsed);
-                        }
-                        else
-                        {
-                            target = _correctionTarget;
-                        }
-
-                        _rootBody.MovePosition(
-                            Vector3.SmoothDamp(_rootBody.position, target,
-                                ref _smoothVelocity, SmoothTime, Mathf.Infinity, Time.fixedDeltaTime));
-                        _rootBody.MoveRotation(
-                            Quaternion.Slerp(_rootBody.rotation, _correctionRotation, InterpolationFactor));
-                    }
-                    else
-                    {
-                        // 분리 모드: 로컬 물리와 공존하는 보정.
-                        bool skipVerticalCorrection = (_movement != null && !_movement.Grounded)
-                            || Mathf.Abs(_rootBody.linearVelocity.y) > VerticalVelocityThreshold;
-                        if (skipVerticalCorrection)
-                        {
-                            Vector3 corrected = Vector3.Lerp(
-                                _rootBody.position, _correctionTarget, CorrectionFactor);
-                            corrected.y = _rootBody.position.y;
-                            _rootBody.position = corrected;
-                        }
-                        else
-                        {
-                            _rootBody.position = Vector3.Lerp(
-                                _rootBody.position, _correctionTarget, CorrectionFactor);
-                        }
-                        _rootBody.rotation = Quaternion.Slerp(
-                            _rootBody.rotation, _correctionRotation, CorrectionFactor);
-                    }
+                    _rootBody.MovePosition(
+                        Vector3.SmoothDamp(_rootBody.position, target,
+                            ref _smoothVelocity, SmoothTime, Mathf.Infinity, Time.fixedDeltaTime));
+                    _rootBody.MoveRotation(
+                        Quaternion.Slerp(_rootBody.rotation, _correctionRotation, InterpolationFactor));
                 }
             }
         }
 
-        #region Animation RPC (Host-authoritative 합체 모드)
+        #region Animation RPC (Host-authoritative)
 
         private void HandleJumped()
         {
@@ -224,9 +199,11 @@ namespace InGame.Player.Network
                 if (_ragdollController != null && _ragdollController.IsRootManagedByRagdoll) return;
 
                 _networkPosition = pos;
-                _networkVelocity = velocity;
+                _networkVelocity = _firstSnapshot
+                    ? velocity
+                    : Vector3.Lerp(_networkVelocity, velocity, VelocityBlendFactor);
                 _networkGrounded = grounded;
-                _correctionTarget = pos; // dynamic 모드용 (kinematic은 FixedUpdate에서 연속 외삽).
+                _correctionTarget = pos;
                 _correctionRotation = rot;
                 _lastReceiveServerTime = info.SentServerTime;
                 _hasCorrection = true;

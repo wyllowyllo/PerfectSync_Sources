@@ -31,6 +31,7 @@ namespace InGame.Player.Movement
 
         [Header("Gravity")]
         [SerializeField] private float _gravity = 9.81f;
+        [SerializeField] private float _maxFallSpeed = 15f;
 
         [Header("Ground Check")]
         [SerializeField] private float _groundCheckRadius = 0.3f;
@@ -152,6 +153,7 @@ namespace InGame.Player.Movement
             velocity.x = _currentVelocity.x;
             velocity.z = _currentVelocity.z;
             velocity.y += (-_gravity - Physics.gravity.y) * Time.fixedDeltaTime;
+            velocity.y = Mathf.Max(velocity.y, -_maxFallSpeed);
             _rootBody.linearVelocity = velocity;
 
             if (_currentVelocity.sqrMagnitude > 0.01f)
