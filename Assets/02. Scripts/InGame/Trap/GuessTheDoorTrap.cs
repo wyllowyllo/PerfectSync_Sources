@@ -15,8 +15,8 @@ public class GuessTheDoorTrap : MonoBehaviour
     [SerializeField] private float _spawnInterval = 1f;
     [SerializeField] private float _sequenceWaitTime = 3f;
     
-    // TODO: 추후 구현될 팻말 클래스 연결
-    // [SerializeField] private Signboard _signboard;
+    [Header("팻말 연결")]
+    [SerializeField] private Signboard _signboard;
 
     private GuessTheDoorObstacle[] _obstacles;
     private EDoorColor[] _currentSequence;
@@ -96,7 +96,7 @@ public class GuessTheDoorTrap : MonoBehaviour
             (_currentSequence[i], _currentSequence[randomIndex]) = (_currentSequence[randomIndex], _currentSequence[i]);
         }
 
-        // TODO: 팻말에 생성된 시퀀스 전달하여 UI 업데이트
-        // _signboard.UpdateSignboard(_currentSequence);
+        // 팻말에 생성된 시퀀스 전달하여 UI 업데이트
+         _signboard.UpdateSignboard(_currentSequence);
     }
 }
