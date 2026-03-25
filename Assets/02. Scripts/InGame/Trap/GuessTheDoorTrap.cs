@@ -10,6 +10,7 @@ public class GuessTheDoorTrap : MonoBehaviour
     [SerializeField] private GuessTheDoorObstacle _obstaclePrefab;
     [SerializeField] private int _obstacleCount = 3;
     [SerializeField] private Transform _spawnPoint;
+    [SerializeField] private Transform _signboardSpawnPoint;
 
     [Header("스폰 및 대기 시간 설정")]
     [SerializeField] private float _spawnInterval = 1f;
@@ -42,6 +43,8 @@ public class GuessTheDoorTrap : MonoBehaviour
         _obstacles = new GuessTheDoorObstacle[_obstacleCount];
         _currentSequence = new EDoorColor[_obstacleCount];
         
+        _signboard.SetActive(false);
+        
         for (int i = 0; i < _obstacleCount; i++)
         {
             var instance = Instantiate(_obstaclePrefab, transform);
@@ -57,6 +60,13 @@ public class GuessTheDoorTrap : MonoBehaviour
             // 새로운 시퀀스 생성 및 섞기
             GenerateNewSequence();
 
+            // 팻말 스폰
+            _signboard.transform.position = _signboardSpawnPoint.position;
+            _signboard.transform.rotation = _signboardSpawnPoint.rotation;
+            _signboard.SetActive(true);
+            
+            yield return _intervalWait;
+            
             // 준비된 장애물을 배열의 인덱스 순서대로 순회하며 스폰
             for (int i = 0; i < _obstacleCount; i++)
             {
