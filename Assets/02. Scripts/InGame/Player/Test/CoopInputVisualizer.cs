@@ -1,5 +1,6 @@
 using InGame.Team;
 using InGame.UserInput;
+using Photon.Pun;
 using UnityEngine;
 
 namespace InGame.Player.Test
@@ -55,6 +56,19 @@ namespace InGame.Player.Test
             {
                 enabled = false;
                 return;
+            }
+
+            // 내 팀 캐릭터에서만 화살표 생성
+            var pv = GetComponent<PhotonView>();
+            if (pv != null && pv.Owner != null)
+            {
+                int ownerTeam = PhotonTeamManager.GetTeamRaw(pv.Owner);
+                int myTeam = PhotonTeamManager.GetLocalTeamRaw();
+                if (ownerTeam != myTeam || myTeam == PhotonTeamManager.TeamNone)
+                {
+                    enabled = false;
+                    return;
+                }
             }
 
             // MergedBody Transform 캐싱

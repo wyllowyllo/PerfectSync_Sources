@@ -3,6 +3,7 @@ using InGame.Player;
 using InGame.Player.Network;
 using InGame.Team;
 using Photon.Pun;
+using Photon.Realtime;
 using UnityEngine;
 
 namespace InGame.UserInput
@@ -28,6 +29,10 @@ namespace InGame.UserInput
         private bool? _isMyTeam;
         private bool _initialized;
         private ETeamMode _currentMode;
+
+        // Host → Guest 1:1 RPC 전송용 캐시
+        private Photon.Realtime.Player _guestPlayer;
+        private bool _guestPlayerResolved;
 
         // 입력 RPC 쓰로틀링
         private bool _pendingJump;
@@ -155,12 +160,46 @@ namespace InGame.UserInput
             if (Time.time - _lastSendTime < MinSendInterval) return;
 
             if (_isHost)
-                photonView.RPC(nameof(RpcRemoteInput), RpcTarget.Others, _cachedLocalWorldDir, _pendingJump, _cachedLocalCameraForwardXZ);
+            {
+                var guest = ResolveGuestPlayer();
+                if (guest != null)
+                    photonView.RPC(nameof(RpcRemoteInput), guest, _cachedLocalWorldDir, _pendingJump, _cachedLocalCameraForwardXZ);
+            }
             else
+            {
                 photonView.RPC(nameof(RpcRemoteInput), photonView.Owner, _cachedLocalWorldDir, _pendingJump, _cachedLocalCameraForwardXZ);
+            }
 
             _pendingJump = false;
             _lastSendTime = Time.time;
+        }
+
+        private Photon.Realtime.Player ResolveGuestPlayer()
+        {
+            if (_guestPlayerResolved) return _guestPlayer;
+
+            if (photonView.Owner == null) return null;
+
+            int ownerTeam = PhotonTeamManager.GetTeamRaw(photonView.Owner);
+            if (ownerTeam == PhotonTeamManager.TeamNone) return null;
+
+            var members = PhotonTeamManager.Instance?.GetTeamMembers(ownerTeam);
+            if (members == null) return null;
+
+            foreach (var member in members)
+            {
+                if (member.ActorNumber != photonView.Owner.ActorNumber)
+                {
+                    _guestPlayer = member;
+                    break;
+                }
+            }
+
+            // Guest가 있을 때만 캐시 확정 (없으면 다음 프레임에 재탐색)
+            if (_guestPlayer != null)
+                _guestPlayerResolved = true;
+
+            return _guestPlayer;
         }
 
         [PunRPC]
