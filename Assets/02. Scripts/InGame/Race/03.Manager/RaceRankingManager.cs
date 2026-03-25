@@ -13,6 +13,7 @@ public class RaceRankingManager : SingletonMonoBehaviour<RaceRankingManager>
     private Dictionary<int, List<RaceSegment>> _segmentsByFrom;
     private Dictionary<RaceSegment, float> _raceDistanceAtSegmentStart;
     private Dictionary<RaceSegment, float> _segmentWorldLength;
+    private int _distanceCacheRebuildFrame = -1;
     private int _lastCheckpointIndex;
     private List<RaceProgressTracker> _trackers = new();
     private List<TeamRankEntry> _currentRankings = new();
@@ -43,6 +44,18 @@ public class RaceRankingManager : SingletonMonoBehaviour<RaceRankingManager>
             return;
 
         BuildSegmentLookup();
+    }
+
+    private void Start()
+    {
+        if (Instance != this)
+            return;
+        RebuildRaceDistanceCaches();
+    }
+
+    public void RefreshRaceDistanceCaches()
+    {
+        RebuildRaceDistanceCaches();
     }
 
     public void RegisterTracker(RaceProgressTracker tracker)
@@ -78,11 +91,13 @@ public class RaceRankingManager : SingletonMonoBehaviour<RaceRankingManager>
         if (container == null || container.Spline == null)
             return _raceDistanceAtSegmentStart.TryGetValue(segment, out float bOnly) ? bOnly : 0f;
 
+        MaybeRebuildRaceDistanceCachesIfSegmentStale(segment, container);
+
         var spline = container.Spline;
         float alongLocal = spline.ConvertIndexUnit(normalizedSplineT, PathIndexUnit.Normalized, PathIndexUnit.Distance);
         float localFull = spline.ConvertIndexUnit(1f, PathIndexUnit.Normalized, PathIndexUnit.Distance);
 
-        if (!_segmentWorldLength.TryGetValue(segment, out float worldLen))
+        if (!_segmentWorldLength.TryGetValue(segment, out float worldLen) || worldLen < 1e-4f)
             worldLen = SplineUtility.CalculateLength(spline, (float4x4)container.transform.localToWorldMatrix);
 
         float alongWorld = localFull > 1e-5f ? alongLocal * (worldLen / localFull) : 0f;
@@ -145,6 +160,26 @@ public class RaceRankingManager : SingletonMonoBehaviour<RaceRankingManager>
         }
 
         _lastCheckpointIndex = RaceCourseTopology.ComputeLastCheckpointIndex(edges);
+        RebuildRaceDistanceCaches();
+    }
+
+    private void MaybeRebuildRaceDistanceCachesIfSegmentStale(RaceSegment segment, SplineContainer container)
+    {
+        if (_segmentWorldLength == null || _segments == null)
+            return;
+
+        float freshLen = SplineUtility.CalculateLength(container.Spline, (float4x4)container.transform.localToWorldMatrix);
+        if (freshLen < 1e-4f)
+            return;
+
+        bool lenMissingOrZero = !_segmentWorldLength.TryGetValue(segment, out float cachedLen) || cachedLen < 1e-4f;
+        bool startMissing = !_raceDistanceAtSegmentStart.TryGetValue(segment, out _);
+        if (!lenMissingOrZero && !startMissing)
+            return;
+
+        if (_distanceCacheRebuildFrame == Time.frameCount)
+            return;
+        _distanceCacheRebuildFrame = Time.frameCount;
         RebuildRaceDistanceCaches();
     }
 
