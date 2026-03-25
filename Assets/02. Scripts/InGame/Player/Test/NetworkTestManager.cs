@@ -60,14 +60,14 @@ namespace InGame.Player.Test
             Debug.Log($"[NetworkTestManager] Joined room: {PhotonNetwork.CurrentRoom.Name} " +
                       $"(Players: {PhotonNetwork.CurrentRoom.PlayerCount})");
 
-            // 테스트용: 팀 미배정 시 자동으로 팀 1에 배정
+            // 테스트용: 팀 미배정 시 빈 자리가 있는 첫 번째 팀에 자동 배정 (1~4팀)
             // SetCustomProperties는 비동기 — OnPlayerPropertiesUpdate 콜백에서 TrySpawnTeamCharacter 재호출됨
             if (PhotonTeamManager.Instance != null)
             {
                 int myTeam = PhotonTeamManager.Instance.GetPlayerTeam(PhotonNetwork.LocalPlayer);
                 if (myTeam == PhotonTeamManager.TeamNone)
                 {
-                    PhotonTeamManager.Instance.SetTeam(1);
+                    AssignToAvailableTeam();
                 }
             }
 
@@ -169,6 +169,20 @@ namespace InGame.Player.Test
             }
 
             return -1;
+        }
+
+        private void AssignToAvailableTeam()
+        {
+            for (int team = 1; team <= PhotonTeamManager.MaxTeams; team++)
+            {
+                if (PhotonTeamManager.Instance.SetTeam(team))
+                {
+                    Debug.Log($"[NetworkTestManager] Assigned to team {team}");
+                    return;
+                }
+            }
+
+            Debug.LogWarning("[NetworkTestManager] All teams are full!");
         }
 
         private void SpawnTeamCharacter(int teamNumber)

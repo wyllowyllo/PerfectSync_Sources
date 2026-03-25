@@ -25,6 +25,8 @@ namespace InGame.UserInput
         private Transform _cameraTransformA;
         private UnityEngine.Camera _mainCamera;
         private bool _isHost;
+        private bool? _isMyTeam;
+        private bool _initialized;
         private ETeamMode _currentMode;
 
         // 입력 RPC 쓰로틀링
@@ -63,20 +65,37 @@ namespace InGame.UserInput
             _isHost = photonView.IsMine;
             _currentMode = _startMode;
 
-            _mainCamera = UnityEngine.Camera.main;
-            _cameraTransformA = _mainCamera != null ? _mainCamera.transform : null;
-
+            // body 활성화·모드 전환은 모든 인스턴스에서 필요 (시각 동기화)
             _playerFormController.OnModeChanged += HandleModeChanged;
             _playerFormController.Initialize(_startMode);
 
             if (_teamModeSynchronizer != null)
                 _teamModeSynchronizer.OnSwitchRequested += HandleSwitchRequested;
+
+            TryInitialize();
+        }
+
+        private void TryInitialize()
+        {
+            if (_initialized) return;
+            if (!CheckIsMyTeam()) return;
+
+            _initialized = true;
+
+            _mainCamera = UnityEngine.Camera.main;
+            _cameraTransformA = _mainCamera != null ? _mainCamera.transform : null;
         }
 
         // ── Update Loop ─────────────────────────────────────────────
 
         private void Update()
         {
+            if (!_initialized)
+            {
+                TryInitialize();
+                if (!_initialized) return;
+            }
+
             ReadLocalInput();
             RouteInput();
             SendLocalInput();
@@ -160,6 +179,23 @@ namespace InGame.UserInput
         private void HandleModeChanged(ETeamMode newMode)
         {
             _currentMode = newMode;
+        }
+
+        private bool CheckIsMyTeam()
+        {
+            if (_isMyTeam.HasValue) return _isMyTeam.Value;
+
+            var owner = photonView.Owner;
+            if (owner == null) return false;
+
+            int ownerTeam = PhotonTeamManager.GetTeamRaw(owner);
+            int myTeam = PhotonTeamManager.GetLocalTeamRaw();
+
+            if (ownerTeam == PhotonTeamManager.TeamNone || myTeam == PhotonTeamManager.TeamNone)
+                return false;
+
+            _isMyTeam = (ownerTeam == myTeam);
+            return _isMyTeam.Value;
         }
 
         private void OnDestroy()
