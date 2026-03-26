@@ -12,6 +12,7 @@ public class RaceCheckpoint : MonoBehaviour
         var tracker = other.GetComponentInParent<RaceProgressTracker>();
         if (tracker == null) return;
 
+       
         tracker.PassCheckpoint(_checkpointIndex);
     }
 }
