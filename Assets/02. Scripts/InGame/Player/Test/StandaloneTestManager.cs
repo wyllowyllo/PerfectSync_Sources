@@ -103,7 +103,7 @@ namespace InGame.Player.Test
             int myTeam = PhotonTeamManager.Instance.GetPlayerTeam(PhotonNetwork.LocalPlayer);
             if (myTeam == PhotonTeamManager.TeamNone) return;
 
-            if (!IsHostOfTeam(myTeam)) return;
+            if (!InGameManager.IsHostOfTeam(myTeam)) return;
 
             _hasSpawned = true;
             SpawnTeamCharacter(myTeam);
@@ -116,47 +116,7 @@ namespace InGame.Player.Test
             int myTeam = PhotonTeamManager.Instance.GetPlayerTeam(PhotonNetwork.LocalPlayer);
             if (myTeam == PhotonTeamManager.TeamNone) return false;
 
-            return IsHostOfTeam(myTeam);
-        }
-
-        public bool IsHostOfTeam(int teamNumber)
-        {
-            if (PhotonTeamManager.Instance == null) return false;
-
-            var members = PhotonTeamManager.Instance.GetTeamMembers(teamNumber);
-            if (members.Count == 0) return false;
-
-            int minActor = int.MaxValue;
-            foreach (var member in members)
-            {
-                if (member.ActorNumber < minActor)
-                    minActor = member.ActorNumber;
-            }
-
-            return PhotonNetwork.LocalPlayer.ActorNumber == minActor;
-        }
-
-        public int GetGuestActorNumber(int teamNumber)
-        {
-            if (PhotonTeamManager.Instance == null) return -1;
-
-            var members = PhotonTeamManager.Instance.GetTeamMembers(teamNumber);
-            if (members.Count < 2) return -1;
-
-            int minActor = int.MaxValue;
-            foreach (var member in members)
-            {
-                if (member.ActorNumber < minActor)
-                    minActor = member.ActorNumber;
-            }
-
-            foreach (var member in members)
-            {
-                if (member.ActorNumber != minActor)
-                    return member.ActorNumber;
-            }
-
-            return -1;
+            return InGameManager.IsHostOfTeam(myTeam);
         }
 
         private void AssignToAvailableTeam()

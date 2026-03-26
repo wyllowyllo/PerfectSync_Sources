@@ -16,6 +16,12 @@ public class PlayerSpawner : MonoBehaviour
     [SerializeField] private Transform[] _team3Points;
     [SerializeField] private Transform[] _team4Points;
 
+    [Header("TeamCharacter Spawn")]
+    [SerializeField] private string _teamCharacterPrefabName = "TeamCharacter";
+    [SerializeField] private Transform[] _teamCharacterSpawnPoints = new Transform[4];
+    [SerializeField] private Vector3 _fallbackBasePosition = Vector3.zero;
+    [SerializeField] private float _fallbackSpacing = 5f;
+
     [Header("Camera")]
     [SerializeField] private CinemachineCamera _followCamera;
 
@@ -64,6 +70,40 @@ public class PlayerSpawner : MonoBehaviour
         var rotateAbility = player.GetComponent<PlayerRotateAbility>();
         if (rotateAbility != null)
             rotateAbility.SetFollowCamera(_followCamera);
+    }
+
+    public GameObject SpawnTeamCharacter(int teamNumber)
+    {
+        if (!PhotonNetwork.InRoom) return null;
+
+        int index = teamNumber - 1;
+        if (index < 0 || index >= PhotonTeamManager.MaxTeams)
+        {
+            Debug.LogWarning($"[PlayerSpawner] Invalid team number: {teamNumber}");
+            return null;
+        }
+
+        Vector3 position;
+        Quaternion rotation;
+
+        if (index < _teamCharacterSpawnPoints.Length && _teamCharacterSpawnPoints[index] != null)
+        {
+            position = _teamCharacterSpawnPoints[index].position;
+            rotation = _teamCharacterSpawnPoints[index].rotation;
+        }
+        else
+        {
+            position = _fallbackBasePosition + Vector3.right * index * _fallbackSpacing;
+            rotation = Quaternion.identity;
+        }
+
+        GameObject character = PhotonNetwork.Instantiate(_teamCharacterPrefabName, position, rotation);
+
+        var tracker = character.GetComponent<RaceProgressTracker>();
+        if (tracker != null)
+            tracker.SetTeam(teamNumber);
+
+        return character;
     }
 
     private int GetSlotIndexInTeam(int teamNumber)
