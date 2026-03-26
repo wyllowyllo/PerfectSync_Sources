@@ -65,14 +65,8 @@ namespace InGame.Player.Test
             Debug.Log($"[StandaloneTestManager] Joined room: {PhotonNetwork.CurrentRoom.Name} " +
                       $"(Players: {PhotonNetwork.CurrentRoom.PlayerCount})");
 
-            if (PhotonTeamManager.Instance != null)
-            {
-                int myTeam = PhotonTeamManager.Instance.GetPlayerTeam(PhotonNetwork.LocalPlayer);
-                if (myTeam == PhotonTeamManager.TeamNone)
-                {
-                    AssignToAvailableTeam();
-                }
-            }
+            if (PhotonTeamManager.GetLocalTeamRaw() == PhotonTeamManager.TeamNone)
+                AssignToAvailableTeam();
 
             TrySpawnTeamCharacter();
         }
@@ -98,9 +92,8 @@ namespace InGame.Player.Test
         private void TrySpawnTeamCharacter()
         {
             if (_hasSpawned) return;
-            if (PhotonTeamManager.Instance == null) return;
 
-            int myTeam = PhotonTeamManager.Instance.GetPlayerTeam(PhotonNetwork.LocalPlayer);
+            int myTeam = PhotonTeamManager.GetLocalTeamRaw();
             if (myTeam == PhotonTeamManager.TeamNone) return;
 
             if (!InGameManager.IsHostOfTeam(myTeam)) return;
@@ -111,16 +104,21 @@ namespace InGame.Player.Test
 
         public bool IsHostOfMyTeam()
         {
-            if (PhotonTeamManager.Instance == null) return PhotonNetwork.IsMasterClient;
-
-            int myTeam = PhotonTeamManager.Instance.GetPlayerTeam(PhotonNetwork.LocalPlayer);
-            if (myTeam == PhotonTeamManager.TeamNone) return false;
+            int myTeam = PhotonTeamManager.GetLocalTeamRaw();
+            if (myTeam == PhotonTeamManager.TeamNone)
+                return PhotonNetwork.IsMasterClient;
 
             return InGameManager.IsHostOfTeam(myTeam);
         }
 
         private void AssignToAvailableTeam()
         {
+            if (PhotonTeamManager.Instance == null)
+            {
+                Debug.LogWarning("[StandaloneTestManager] PhotonTeamManager.Instance is null — cannot assign team");
+                return;
+            }
+
             for (int team = 1; team <= PhotonTeamManager.MaxTeams; team++)
             {
                 if (PhotonTeamManager.Instance.SetTeam(team))

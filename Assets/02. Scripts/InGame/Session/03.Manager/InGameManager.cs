@@ -14,7 +14,6 @@ public class InGameManager : SingletonPunCallbacks<InGameManager>
     protected override bool PersistAcrossScenes => false;
 
     [Header("Settings")]
-    [SerializeField] private SpawnMode _spawnMode = SpawnMode.Individual;
     [SerializeField] private float _introDuration = DefaultIntroDurationSeconds;
     [SerializeField] private int _countdownSeconds = DefaultCountdownSeconds;
 
@@ -25,7 +24,6 @@ public class InGameManager : SingletonPunCallbacks<InGameManager>
     public event Action<GameState> OnGameStateChanged;
     public event Action<int> OnRaceCountdownTick;
 
-    private GameObject _localPlayer;
     private WaitForSeconds _waitIntro;
 
     protected override void Awake()
@@ -52,21 +50,10 @@ public class InGameManager : SingletonPunCallbacks<InGameManager>
 
         CloseRoomToNewJoiners();
 
-        switch (_spawnMode)
-        {
-            case SpawnMode.Individual:
-                _localPlayer = _playerSpawner.SpawnByTeam();
-                if (_localPlayer != null)
-                    SetLocalReady();
-                break;
-
-            case SpawnMode.TeamCharacter:
-                int myTeam = PhotonTeamManager.GetLocalTeamRaw();
-                if (IsHostOfTeam(myTeam))
-                    _localPlayer = _playerSpawner.SpawnTeamCharacter(myTeam);
-                SetLocalReady();
-                break;
-        }
+        int myTeam = PhotonTeamManager.GetLocalTeamRaw();
+        if (IsHostOfTeam(myTeam))
+            _playerSpawner.SpawnTeamCharacter(myTeam);
+        SetLocalReady();
     }
 
     private void SetLocalReady()
@@ -173,42 +160,43 @@ public class InGameManager : SingletonPunCallbacks<InGameManager>
 
     public static bool IsHostOfTeam(int teamNumber)
     {
-        if (PhotonTeamManager.Instance == null) return false;
-
-        var members = PhotonTeamManager.Instance.GetTeamMembers(teamNumber);
-        if (members.Count == 0) return false;
-
         int minActor = int.MaxValue;
-        foreach (var member in members)
+        bool foundAny = false;
+
+        foreach (var player in PhotonNetwork.PlayerList)
         {
-            if (member.ActorNumber < minActor)
-                minActor = member.ActorNumber;
+            if (PhotonTeamManager.GetTeamRaw(player) != teamNumber) continue;
+            foundAny = true;
+            if (player.ActorNumber < minActor)
+                minActor = player.ActorNumber;
         }
 
+        if (!foundAny) return false;
         return PhotonNetwork.LocalPlayer.ActorNumber == minActor;
     }
 
     public static int GetGuestActorNumber(int teamNumber)
     {
-        if (PhotonTeamManager.Instance == null) return -1;
-
-        var members = PhotonTeamManager.Instance.GetTeamMembers(teamNumber);
-        if (members.Count < 2) return -1;
-
         int minActor = int.MaxValue;
-        foreach (var member in members)
+        int otherActor = -1;
+        int count = 0;
+
+        foreach (var player in PhotonNetwork.PlayerList)
         {
-            if (member.ActorNumber < minActor)
-                minActor = member.ActorNumber;
+            if (PhotonTeamManager.GetTeamRaw(player) != teamNumber) continue;
+            count++;
+            if (player.ActorNumber < minActor)
+            {
+                otherActor = minActor == int.MaxValue ? -1 : minActor;
+                minActor = player.ActorNumber;
+            }
+            else
+            {
+                otherActor = player.ActorNumber;
+            }
         }
 
-        foreach (var member in members)
-        {
-            if (member.ActorNumber != minActor)
-                return member.ActorNumber;
-        }
-
-        return -1;
+        return count < 2 ? -1 : otherActor;
     }
 
 }
