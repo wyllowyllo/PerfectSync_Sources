@@ -5,7 +5,7 @@ using Photon.Pun;
 
 public class AwardsSceneManager : SingletonPunCallbacks<AwardsSceneManager>
 {
-    private const string DefaultPlayerPrefabResourceName = "PlayerPrefab";
+    private const string DefaultTeamCharacterPrefabName = "TeamCharacter";
     private const float DefaultReturnToLobbyDelaySeconds = 10f;
     private const string DefaultLobbySceneName = "Lobby";
 
@@ -14,7 +14,7 @@ public class AwardsSceneManager : SingletonPunCallbacks<AwardsSceneManager>
     [Header("Spawn")]
     [SerializeField] private Transform _spawnFirstSlotInTeam;
     [SerializeField] private Transform _spawnSecondSlotInTeam;
-    [SerializeField] private string _playerPrefabResourceName = DefaultPlayerPrefabResourceName;
+    [SerializeField] private string _teamCharacterPrefabName = DefaultTeamCharacterPrefabName;
 
     public static event Action RefreshUiRequested;
 
@@ -30,7 +30,7 @@ public class AwardsSceneManager : SingletonPunCallbacks<AwardsSceneManager>
     {
         base.Awake();
         _waitReturnToLobby = new WaitForSeconds(_returnToLobbyDelaySeconds);
-        _showcaseSpawner = new AwardsShowcaseSpawner(_spawnFirstSlotInTeam, _spawnSecondSlotInTeam, _playerPrefabResourceName);
+        _showcaseSpawner = new AwardsShowcaseSpawner(_spawnFirstSlotInTeam, _spawnSecondSlotInTeam, _teamCharacterPrefabName);
     }
 
     private void Start()
@@ -49,7 +49,7 @@ public class AwardsSceneManager : SingletonPunCallbacks<AwardsSceneManager>
             yield break;
         }
 
-        _showcaseSpawner.TrySpawnShowcasePlayer();
+        _showcaseSpawner.TrySpawnShowcaseTeam();
         yield return null;
         RefreshUiRequested?.Invoke();
 

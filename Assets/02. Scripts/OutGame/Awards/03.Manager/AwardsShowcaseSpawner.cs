@@ -1,59 +1,87 @@
 using UnityEngine;
-using Photon.Pun;
-using Photon.Realtime;
 
 public sealed class AwardsShowcaseSpawner
 {
-    private readonly Transform _spawnFirstSlotInTeam;
-    private readonly Transform _spawnSecondSlotInTeam;
-    private readonly string _playerPrefabResourceName;
+    private const string DividedModeChildName = "DividedMode";
+    private const string MergedModeChildName = "MergedMode";
+    private const string AvatarAChildName = "DividedBodyA";
+    private const string AvatarBChildName = "DividedBodyB";
+    private const string RubberBandChildName = "RubberBand";
 
-    public AwardsShowcaseSpawner(Transform spawnFirstSlotInTeam, Transform spawnSecondSlotInTeam, string playerPrefabResourceName)
+    private readonly Transform _spawnSlotA;
+    private readonly Transform _spawnSlotB;
+    private readonly string _teamCharacterPrefabName;
+
+    public AwardsShowcaseSpawner(Transform spawnSlotA, Transform spawnSlotB, string teamCharacterPrefabName)
     {
-        _spawnFirstSlotInTeam = spawnFirstSlotInTeam;
-        _spawnSecondSlotInTeam = spawnSecondSlotInTeam;
-        _playerPrefabResourceName = playerPrefabResourceName;
+        _spawnSlotA = spawnSlotA;
+        _spawnSlotB = spawnSlotB;
+        _teamCharacterPrefabName = teamCharacterPrefabName;
     }
 
-    public bool TrySpawnShowcasePlayer()
+    public bool TrySpawnShowcaseTeam()
     {
-        if (_spawnFirstSlotInTeam == null || _spawnSecondSlotInTeam == null)
+        if (_spawnSlotA == null || _spawnSlotB == null)
             return false;
 
-        int team = PhotonTeamManager.GetTeamRaw(PhotonNetwork.LocalPlayer);
+        int team = PhotonTeamManager.GetLocalTeamRaw();
         if (team == PhotonTeamManager.TeamNone)
             return false;
 
-        int slot = GetSlotIndexInTeam(team);
-        if (slot < 0)
+        var prefab = Resources.Load<GameObject>(_teamCharacterPrefabName);
+        if (prefab == null)
             return false;
 
-        Transform spawn = slot == 0 ? _spawnFirstSlotInTeam : _spawnSecondSlotInTeam;
-        GameObject player = PhotonNetwork.Instantiate(_playerPrefabResourceName, spawn.position, spawn.rotation);
+        Vector3 center = (_spawnSlotA.position + _spawnSlotB.position) * 0.5f;
+        var character = Object.Instantiate(prefab, center, Quaternion.identity);
 
-        foreach (var move in player.GetComponentsInChildren<PlayerMoveAbility>(true))
-            move.enabled = false;
-        foreach (var rot in player.GetComponentsInChildren<PlayerRotateAbility>(true))
-            rot.enabled = false;
-
-        var tracker = player.GetComponentInChildren<RaceProgressTracker>(true);
-        if (tracker != null)
-            tracker.enabled = false;
+        DisableAllScripts(character);
+        FreezeAllRigidbodies(character);
+        ApplySeparatedMode(character);
 
         return true;
     }
 
-    private static int GetSlotIndexInTeam(int teamNumber)
+    private static void DisableAllScripts(GameObject root)
     {
-        int slot = 0;
-        foreach (var p in PhotonNetwork.PlayerList)
-        {
-            if (PhotonTeamManager.GetTeamRaw(p) != teamNumber) continue;
-            if (p == PhotonNetwork.LocalPlayer)
-                return slot;
-            slot++;
-        }
+        foreach (var mb in root.GetComponentsInChildren<MonoBehaviour>(true))
+            mb.enabled = false;
+    }
 
-        return -1;
+    private static void FreezeAllRigidbodies(GameObject root)
+    {
+        foreach (var rb in root.GetComponentsInChildren<Rigidbody>(true))
+            rb.isKinematic = true;
+    }
+
+    private void ApplySeparatedMode(GameObject character)
+    {
+        var mergedMode = character.transform.Find(MergedModeChildName);
+        var dividedMode = character.transform.Find(DividedModeChildName);
+
+        if (mergedMode != null)
+            mergedMode.gameObject.SetActive(false);
+        if (dividedMode != null)
+            dividedMode.gameObject.SetActive(true);
+
+        if (dividedMode == null)
+            return;
+
+        var rubberBand = dividedMode.Find(RubberBandChildName);
+        if (rubberBand != null)
+            rubberBand.gameObject.SetActive(false);
+
+        PositionChild(dividedMode, AvatarAChildName, _spawnSlotA);
+        PositionChild(dividedMode, AvatarBChildName, _spawnSlotB);
+    }
+
+    private static void PositionChild(Transform parent, string childName, Transform target)
+    {
+        var child = parent.Find(childName);
+        if (child == null || target == null)
+            return;
+
+        child.position = target.position;
+        child.rotation = target.rotation;
     }
 }
