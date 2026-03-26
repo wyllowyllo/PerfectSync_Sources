@@ -129,7 +129,7 @@ namespace InGame.Player.Movement
                     _playerJump.Jump();
                     OnJumped?.Invoke();
                 }
-                else if (_playerJump.TryDive(_inputDirection))
+                else if (InGameManager.IsLocalPlayerControllable && _playerJump.TryDive(_inputDirection))
                 {
                     _currentVelocity = Vector3.zero;
                     OnDived?.Invoke();

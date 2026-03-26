@@ -102,6 +102,10 @@ namespace InGame.UserInput
             }
 
             ReadLocalInput();
+
+            if (!InGameManager.IsLocalPlayerControllable)
+                _cachedLocalWorldDir = Vector3.zero;
+
             RouteInput();
             SendLocalInput();
         }
