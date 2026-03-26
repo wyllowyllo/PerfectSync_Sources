@@ -36,8 +36,8 @@ public class PlayerSpawner : MonoBehaviour
 
         GameObject character = PhotonNetwork.Instantiate(_teamCharacterPrefabName, position, rotation);
 
-        var tracker = character.GetComponent<RaceProgressTracker>();
-        if (tracker != null)
+        var trackers = character.GetComponentsInChildren<RaceProgressTracker>(true);
+        foreach (var tracker in trackers)
             tracker.SetTeam(teamNumber);
 
         return character;

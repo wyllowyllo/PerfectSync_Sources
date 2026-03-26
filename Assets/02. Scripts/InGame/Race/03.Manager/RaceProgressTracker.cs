@@ -31,6 +31,12 @@ public class RaceProgressTracker : MonoBehaviour
 
     private void OnDisable()
     {
+        // 모드 전환(SetActive(false))시에도 체크포인트/진행도를 유지하기 위해
+        // Unregister는 OnDestroy에서만 수행한다.
+    }
+
+    private void OnDestroy()
+    {
         if (RaceRankingManager.Instance != null)
             RaceRankingManager.Instance.UnregisterTracker(this);
     }
