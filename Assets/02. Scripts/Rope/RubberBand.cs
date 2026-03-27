@@ -25,6 +25,9 @@ public class RubberBand : MonoBehaviour
     [Tooltip("원통 단면의 각 수 (8=팔각형)")]
     [SerializeField, Range(3, 32)] private int _sides = 8;
 
+    [Tooltip("물리 노드 사이의 보간 분할 수 (높을수록 부드러운 곡선)")]
+    [SerializeField, Range(1, 5)] private int _interpolationSegments = 3;
+
     [Tooltip("렌더링 색상")]
     [SerializeField] private Gradient _color;
 
@@ -82,7 +85,7 @@ public class RubberBand : MonoBehaviour
     private void Awake()
     {
         var meshFilter = GetComponent<MeshFilter>();
-        _renderer = new TubeRenderer(meshFilter, _sides, _color, _nodeCount);
+        _renderer = new TubeRenderer(meshFilter, _sides, _color, _nodeCount, _interpolationSegments);
         _nodeBuffer = new Vector3[_nodeCount];
     }
 
