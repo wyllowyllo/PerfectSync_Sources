@@ -3,6 +3,7 @@ using InGame.Player;
 using InGame.Player.Network;
 using InGame.Team;
 using Photon.Pun;
+using Photon.Realtime;
 using UnityEngine;
 
 namespace InGame.UserInput
@@ -25,7 +26,13 @@ namespace InGame.UserInput
         private Transform _cameraTransformA;
         private UnityEngine.Camera _mainCamera;
         private bool _isHost;
+        private bool? _isMyTeam;
+        private bool _initialized;
         private ETeamMode _currentMode;
+
+        // Host → Guest 1:1 RPC 전송용 캐시
+        private Photon.Realtime.Player _guestPlayer;
+        private bool _guestPlayerResolved;
 
         // 입력 RPC 쓰로틀링
         private bool _pendingJump;
@@ -63,21 +70,42 @@ namespace InGame.UserInput
             _isHost = photonView.IsMine;
             _currentMode = _startMode;
 
-            _mainCamera = UnityEngine.Camera.main;
-            _cameraTransformA = _mainCamera != null ? _mainCamera.transform : null;
-
+            // body 활성화·모드 전환은 모든 인스턴스에서 필요 (시각 동기화)
             _playerFormController.OnModeChanged += HandleModeChanged;
             _playerFormController.Initialize(_startMode);
 
             if (_teamModeSynchronizer != null)
                 _teamModeSynchronizer.OnSwitchRequested += HandleSwitchRequested;
+
+            TryInitialize();
+        }
+
+        private void TryInitialize()
+        {
+            if (_initialized) return;
+            if (!CheckIsMyTeam()) return;
+
+            _initialized = true;
+
+            _mainCamera = UnityEngine.Camera.main;
+            _cameraTransformA = _mainCamera != null ? _mainCamera.transform : null;
         }
 
         // ── Update Loop ─────────────────────────────────────────────
 
         private void Update()
         {
+            if (!_initialized)
+            {
+                TryInitialize();
+                if (!_initialized) return;
+            }
+
             ReadLocalInput();
+
+            if (!InGameManager.IsLocalPlayerControllable)
+                _cachedLocalWorldDir = Vector3.zero;
+
             RouteInput();
             SendLocalInput();
         }
@@ -136,12 +164,46 @@ namespace InGame.UserInput
             if (Time.time - _lastSendTime < MinSendInterval) return;
 
             if (_isHost)
-                photonView.RPC(nameof(RpcRemoteInput), RpcTarget.Others, _cachedLocalWorldDir, _pendingJump, _cachedLocalCameraForwardXZ);
+            {
+                var guest = ResolveGuestPlayer();
+                if (guest != null)
+                    photonView.RPC(nameof(RpcRemoteInput), guest, _cachedLocalWorldDir, _pendingJump, _cachedLocalCameraForwardXZ);
+            }
             else
+            {
                 photonView.RPC(nameof(RpcRemoteInput), photonView.Owner, _cachedLocalWorldDir, _pendingJump, _cachedLocalCameraForwardXZ);
+            }
 
             _pendingJump = false;
             _lastSendTime = Time.time;
+        }
+
+        private Photon.Realtime.Player ResolveGuestPlayer()
+        {
+            if (_guestPlayerResolved) return _guestPlayer;
+
+            if (photonView.Owner == null) return null;
+
+            int ownerTeam = PhotonTeamManager.GetTeamRaw(photonView.Owner);
+            if (ownerTeam == PhotonTeamManager.TeamNone) return null;
+
+            var members = PhotonTeamManager.Instance?.GetTeamMembers(ownerTeam);
+            if (members == null) return null;
+
+            foreach (var member in members)
+            {
+                if (member.ActorNumber != photonView.Owner.ActorNumber)
+                {
+                    _guestPlayer = member;
+                    break;
+                }
+            }
+
+            // Guest가 있을 때만 캐시 확정 (없으면 다음 프레임에 재탐색)
+            if (_guestPlayer != null)
+                _guestPlayerResolved = true;
+
+            return _guestPlayer;
         }
 
         [PunRPC]
@@ -160,6 +222,23 @@ namespace InGame.UserInput
         private void HandleModeChanged(ETeamMode newMode)
         {
             _currentMode = newMode;
+        }
+
+        private bool CheckIsMyTeam()
+        {
+            if (_isMyTeam.HasValue) return _isMyTeam.Value;
+
+            var owner = photonView.Owner;
+            if (owner == null) return false;
+
+            int ownerTeam = PhotonTeamManager.GetTeamRaw(owner);
+            int myTeam = PhotonTeamManager.GetLocalTeamRaw();
+
+            if (ownerTeam == PhotonTeamManager.TeamNone || myTeam == PhotonTeamManager.TeamNone)
+                return false;
+
+            _isMyTeam = (ownerTeam == myTeam);
+            return _isMyTeam.Value;
         }
 
         private void OnDestroy()
