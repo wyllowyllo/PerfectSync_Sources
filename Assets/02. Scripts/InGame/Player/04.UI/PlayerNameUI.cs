@@ -10,7 +10,7 @@ public class PlayerNameUI : MonoBehaviour
 
     private void Start()
     {
-        var photonView = GetComponentInParent<PhotonView>();
+        var photonView = GetComponent<PhotonView>();
         if (photonView == null || photonView.Owner == null) return;
 
         _nameText.text = photonView.Owner.NickName;
