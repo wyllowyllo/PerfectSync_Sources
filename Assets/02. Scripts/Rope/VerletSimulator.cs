@@ -121,7 +121,7 @@ public class VerletSimulator : IRopePhysics
     private void ApplyCollisionConstraints()
     {
         const float NodeRadius = 0.15f; // 고무줄 두께에 맞춰 조절
-        
+
         for (int i = 0; i < _nodes.Length; i++)
         {
             if (_nodes[i].IsPinned) continue;
@@ -131,49 +131,75 @@ public class VerletSimulator : IRopePhysics
             Vector3 delta = currPos - prevPos;
             float distanceToMove = delta.magnitude;
 
-            // 고정 장애물에 부딪힐 때 충돌 처리
+            // 1단계: SphereCast 경로 추적 — 이전→현재 이동 경로상의 고정 장애물 충돌
             if (distanceToMove > 0.001f)
             {
                 Vector3 direction = delta / distanceToMove;
-    
+
                 // 표면에서 쏘면 무시되는 현상 방지를 위해 시작점을 살짝 뒤로 잡음
                 Vector3 safePrevPos = prevPos - (direction * 0.01f);
                 float safeDistance = distanceToMove + 0.01f;
-    
+
                 if (Physics.SphereCast(safePrevPos, NodeRadius, direction, out RaycastHit hit, safeDistance, _obstacleLayer))
                 {
                     float friction = GetFrictionForLayer(hit.collider.gameObject.layer);
-                    
+
                     // 장애물 표면으로 밀어냄
                     _nodes[i].CurrentPosition = hit.point + hit.normal * (NodeRadius + 0.005f);
-        
+
                     // 벽 표면을 따라 미끄러지는 속도만 남기기
                     Vector3 currentVelocity = _nodes[i].CurrentPosition - prevPos;
                     Vector3 slideVelocity = Vector3.ProjectOnPlane(currentVelocity, hit.normal);
-        
+
                     _nodes[i].PreviousPosition = _nodes[i].CurrentPosition - (slideVelocity * friction);
-        
+
                     _nodes[i].IsTouchingObstacle = true;
-                    continue; 
+                    continue;
                 }
             }
 
-            // 다른 플레이어가 지나갈 때 충돌 처리
-            int count = Physics.OverlapSphereNonAlloc(_nodes[i].CurrentPosition, NodeRadius + 0.05f, _overlapBuffer, _dynamicObstacleLayer);
-            
-            for (int j = 0; j < count; j++)
+            // 2단계: OverlapSphere 관통 보정 — 거리 제약 보정 후 벽 안으로 밀려난 경우 복구
+            int staticCount = Physics.OverlapSphereNonAlloc(_nodes[i].CurrentPosition, NodeRadius, _overlapBuffer, _obstacleLayer);
+
+            for (int j = 0; j < staticCount; j++)
             {
                 Collider obstacle = _overlapBuffer[j];
-                _overlappingColliders.Add(obstacle);
-                
                 Vector3 closestPoint = obstacle.ClosestPoint(_nodes[i].CurrentPosition);
                 float penetrationDistance = Vector3.Distance(_nodes[i].CurrentPosition, closestPoint);
-            
+
                 if (penetrationDistance < NodeRadius)
                 {
                     Vector3 pushDirection = (_nodes[i].CurrentPosition - closestPoint).normalized;
-                    if (pushDirection == Vector3.zero) pushDirection = Vector3.up; 
-                
+                    if (pushDirection == Vector3.zero) pushDirection = Vector3.up;
+
+                    float friction = GetFrictionForLayer(obstacle.gameObject.layer);
+
+                    _nodes[i].CurrentPosition = closestPoint + pushDirection * (NodeRadius + 0.005f);
+
+                    Vector3 currentVelocity = _nodes[i].CurrentPosition - _nodes[i].PreviousPosition;
+                    Vector3 slideVelocity = Vector3.ProjectOnPlane(currentVelocity, pushDirection);
+                    _nodes[i].PreviousPosition = _nodes[i].CurrentPosition - (slideVelocity * friction);
+
+                    _nodes[i].IsTouchingObstacle = true;
+                }
+            }
+
+            // 3단계: 동적 장애물(플레이어) 충돌 처리
+            int dynamicCount = Physics.OverlapSphereNonAlloc(_nodes[i].CurrentPosition, NodeRadius + 0.05f, _overlapBuffer, _dynamicObstacleLayer);
+
+            for (int j = 0; j < dynamicCount; j++)
+            {
+                Collider obstacle = _overlapBuffer[j];
+                _overlappingColliders.Add(obstacle);
+
+                Vector3 closestPoint = obstacle.ClosestPoint(_nodes[i].CurrentPosition);
+                float penetrationDistance = Vector3.Distance(_nodes[i].CurrentPosition, closestPoint);
+
+                if (penetrationDistance < NodeRadius)
+                {
+                    Vector3 pushDirection = (_nodes[i].CurrentPosition - closestPoint).normalized;
+                    if (pushDirection == Vector3.zero) pushDirection = Vector3.up;
+
                     _nodes[i].CurrentPosition = closestPoint + (pushDirection * NodeRadius);
                     _nodes[i].IsTouchingObstacle = true;
                 }
