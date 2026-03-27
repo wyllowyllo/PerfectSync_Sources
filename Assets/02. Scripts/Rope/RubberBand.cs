@@ -21,6 +21,9 @@ public class RubberBand : MonoBehaviour
     [Tooltip("물리 제약 조건 반복 횟수 (높을수록 뻣뻣해지지만 연산량 증가)")]
     [SerializeField, Range(1, 10)] private int _constraintIterations = 5;
 
+    [Tooltip("물리 서브스텝 수 (높을수록 고속 이동 시 안정적이지만 연산량 증가)")]
+    [SerializeField, Range(1, 5)] private int _subSteps = 3;
+
     [Header("Tube Settings")]
     [Tooltip("원통 단면의 각 수 (8=팔각형)")]
     [SerializeField, Range(3, 32)] private int _sides = 8;
@@ -129,7 +132,8 @@ public class RubberBand : MonoBehaviour
             startPos,
             _obstacleLayer,
             _playerLayer,
-            _layerFrictionSettings
+            _layerFrictionSettings,
+            _subSteps
         );
         _currentTension = 0f;
         _previousColliders.Clear();

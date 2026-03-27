@@ -10,6 +10,7 @@ public class VerletSimulator : IRopePhysics
     private readonly VerletNode[] _nodes;
     private readonly float _nodeDistance;
     private readonly int _constraintIterations;
+    private readonly int _subSteps;
     private readonly LayerMask _obstacleLayer;
     private readonly LayerMask _dynamicObstacleLayer;
     private readonly SerializableDictionary<LayerMask, float> _frictionMap;
@@ -30,7 +31,7 @@ public class VerletSimulator : IRopePhysics
     /// <param name="obstacleLayer">충돌을 감지할 장애물의 레이어 마스크</param>
     /// <param name="dynamicObstacleLayer">충돌을 감지할 움직이는 장애물의 레이어 마스크</param>
     /// <exception cref="ArgumentOutOfRangeException">노드 개수나 길이가 유효하지 않을 때 발생</exception>
-    public VerletSimulator(int nodeCount, float totalLength, int constraintIterations, Vector3 startPosition, LayerMask obstacleLayer, LayerMask dynamicObstacleLayer, SerializableDictionary<LayerMask, float> frictionMap)
+    public VerletSimulator(int nodeCount, float totalLength, int constraintIterations, Vector3 startPosition, LayerMask obstacleLayer, LayerMask dynamicObstacleLayer, SerializableDictionary<LayerMask, float> frictionMap, int subSteps = 3)
     {
         if (nodeCount < 2)
             throw new ArgumentOutOfRangeException(nameof(nodeCount), "로프를 구성하기 위해 노드는 최소 2개 이상 필요합니다.");
@@ -38,10 +39,11 @@ public class VerletSimulator : IRopePhysics
             throw new ArgumentOutOfRangeException(nameof(totalLength), "로프의 길이는 0보다 커야 합니다.");
         if (constraintIterations <= 0)
             throw new ArgumentOutOfRangeException(nameof(constraintIterations), "반복 횟수는 최소 1 이상이어야 합니다.");
-        
+
         _nodes = new VerletNode[nodeCount];
         _nodeDistance = totalLength / (nodeCount - 1);
         _constraintIterations = constraintIterations;
+        _subSteps = Mathf.Max(1, subSteps);
         _obstacleLayer = obstacleLayer;
         _dynamicObstacleLayer = dynamicObstacleLayer;
         _frictionMap = frictionMap;
@@ -56,18 +58,23 @@ public class VerletSimulator : IRopePhysics
     public void Simulate(float deltaTime)
     {
         _overlappingColliders.Clear();
-        
+
         for (int i = 0; i < _nodes.Length; i++)
         {
             _nodes[i].IsTouchingObstacle = false;
         }
-        
-        ApplyVerletIntegrator(deltaTime);
-        
-        for (int i = 0; i < _constraintIterations; i++)
+
+        float subDt = deltaTime / _subSteps;
+
+        for (int step = 0; step < _subSteps; step++)
         {
-            ApplyDistanceConstraints();
-            ApplyCollisionConstraints();
+            ApplyVerletIntegrator(subDt);
+
+            for (int i = 0; i < _constraintIterations; i++)
+            {
+                ApplyDistanceConstraints();
+                ApplyCollisionConstraints();
+            }
         }
     }
 
