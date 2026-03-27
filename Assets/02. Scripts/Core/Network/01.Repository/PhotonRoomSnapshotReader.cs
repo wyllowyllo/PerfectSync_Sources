@@ -31,9 +31,8 @@ public static class PhotonRoomSnapshotReader
 
         return s switch
         {
-            PhotonRoomTypes.Random => RoomKind.Random,
-            PhotonRoomTypes.Custom => RoomKind.Custom,
-            PhotonRoomTypes.Party => RoomKind.Party,
+            PhotonRoomTypes.Lobby => RoomKind.Lobby,
+            PhotonRoomTypes.Game => RoomKind.Game,
             _ => RoomKind.Unknown
         };
     }

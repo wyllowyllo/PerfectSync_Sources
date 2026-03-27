@@ -13,6 +13,7 @@ public class PhotonServerManager : SingletonPunCallbacks<PhotonServerManager>
     [SerializeField] private bool _autoConnect = true;
 
     public event Action<string> OnNicknameSet;
+    public event Action<string> OnLocalUserIdReady;
 
     protected override void Awake()
     {
@@ -49,12 +50,39 @@ public class PhotonServerManager : SingletonPunCallbacks<PhotonServerManager>
         PhotonNetwork.SendRate = 40;
         PhotonNetwork.SerializationRate = 30;
 
+        ApplyPersistentAuthUserId();
         PhotonNetwork.ConnectUsingSettings();
+    }
+
+    private static void ApplyPersistentAuthUserId()
+    {
+        const string prefsKey = "PerfectSync_AuthUserId";
+        string uid = PlayerPrefs.GetString(prefsKey, string.Empty);
+        if (string.IsNullOrEmpty(uid))
+        {
+            uid = Guid.NewGuid().ToString("N");
+            PlayerPrefs.SetString(prefsKey, uid);
+            PlayerPrefs.Save();
+        }
+
+        PhotonNetwork.AuthValues = new Photon.Realtime.AuthenticationValues(uid);
     }
 
     public override void OnConnectedToMaster()
     {
         base.OnConnectedToMaster();
+        RaiseLocalUserIdReady();
+    }
+
+    private void RaiseLocalUserIdReady()
+    {
+        string id = null;
+        if (PhotonNetwork.LocalPlayer != null && !string.IsNullOrEmpty(PhotonNetwork.LocalPlayer.UserId))
+            id = PhotonNetwork.LocalPlayer.UserId;
+        else if (PhotonNetwork.AuthValues != null && !string.IsNullOrEmpty(PhotonNetwork.AuthValues.UserId))
+            id = PhotonNetwork.AuthValues.UserId;
+
+        OnLocalUserIdReady?.Invoke(id ?? string.Empty);
     }
 
     public override void OnDisconnected(DisconnectCause cause)

@@ -3,6 +3,7 @@ using System.Collections;
 using UnityEngine;
 using Photon.Pun;
 using Photon.Realtime;
+using Hashtable = ExitGames.Client.Photon.Hashtable;
 
 [DefaultExecutionOrder(-100)]
 [RequireComponent(typeof(LobbyPhotonBridge), typeof(LobbyStartSequence))]
@@ -20,6 +21,8 @@ public class LobbyManager : SingletonMonoBehaviour<LobbyManager>
 
     private LobbyStartSequence _startSequence;
     private bool _isGameStarting;
+    private bool _pendingQueueAfterLobbyJoin;
+    private string _pendingNicknameForQueue;
 
     protected override void Awake()
     {
@@ -35,6 +38,9 @@ public class LobbyManager : SingletonMonoBehaviour<LobbyManager>
         if (PhotonTeamManager.Instance != null)
             PhotonTeamManager.Instance.OnAllTeamsAssigned += HandleAllTeamsAssigned;
 
+        if (LobbyRoomConnector.Instance != null)
+            LobbyRoomConnector.Instance.OnLobbyRoomJoined += HandleLobbyRoomJoined;
+
         StartCoroutine(DeferredInitialUi());
     }
 
@@ -45,6 +51,9 @@ public class LobbyManager : SingletonMonoBehaviour<LobbyManager>
         ShowMainScreenRequested?.Invoke();
         NicknameFieldSet?.Invoke(PhotonNetwork.NickName);
         RefreshUIFromNetworkState();
+
+        if (LobbyRoomConnector.Instance != null)
+            LobbyRoomConnector.Instance.EnsureInLobbyWhenConnected();
     }
 
     protected override void OnDestroy()
@@ -54,6 +63,9 @@ public class LobbyManager : SingletonMonoBehaviour<LobbyManager>
 
         if (PhotonTeamManager.Instance != null)
             PhotonTeamManager.Instance.OnAllTeamsAssigned -= HandleAllTeamsAssigned;
+
+        if (LobbyRoomConnector.Instance != null)
+            LobbyRoomConnector.Instance.OnLobbyRoomJoined -= HandleLobbyRoomJoined;
 
         base.OnDestroy();
     }
@@ -65,17 +77,58 @@ public class LobbyManager : SingletonMonoBehaviour<LobbyManager>
 
     public void RequestMatch(string nicknameTrimmed)
     {
-        if (!string.IsNullOrEmpty(nicknameTrimmed))
-            PhotonNetwork.NickName = nicknameTrimmed;
+        string trimmed = string.IsNullOrEmpty(nicknameTrimmed) ? string.Empty : nicknameTrimmed.Trim();
+        if (!string.IsNullOrEmpty(trimmed))
+            PhotonNetwork.NickName = trimmed;
 
+        if (!PhotonNetwork.InRoom)
+        {
+            _pendingQueueAfterLobbyJoin = true;
+            _pendingNicknameForQueue = trimmed;
+            MatchButtonInteractableChanged?.Invoke(false);
+            ShowMatchingScreenRequested?.Invoke();
+            MatchingStatusChanged?.Invoke("로비에 입장 중입니다...");
+            LobbyRoomConnector.Instance?.EnsureInLobbyWhenConnected();
+            return;
+        }
+
+        _pendingQueueAfterLobbyJoin = false;
+        _pendingNicknameForQueue = null;
+        EnqueueMatchmakingAfterInLobby();
+    }
+
+    private void HandleLobbyRoomJoined()
+    {
+        if (!_pendingQueueAfterLobbyJoin)
+            return;
+
+        _pendingQueueAfterLobbyJoin = false;
+        if (!string.IsNullOrEmpty(_pendingNicknameForQueue))
+            PhotonNetwork.NickName = _pendingNicknameForQueue;
+        _pendingNicknameForQueue = null;
+        EnqueueMatchmakingAfterInLobby();
+    }
+
+    private void EnqueueMatchmakingAfterInLobby()
+    {
         MatchButtonInteractableChanged?.Invoke(false);
-        PhotonRoomManager.Instance.JoinRandomRoom();
-        MatchingStatusChanged?.Invoke("매칭을 찾고 있습니다...");
+        PhotonNetwork.LocalPlayer.SetCustomProperties(new Hashtable { { LobbyMatchmakingKeys.Ready, true } });
+        MatchingStatusChanged?.Invoke("매칭 큐에 등록되었습니다...");
         ShowMatchingScreenRequested?.Invoke();
     }
 
     public void RequestLeaveRoom()
     {
+        if (PhotonNetwork.InRoom &&
+            PhotonRoomSnapshotReader.TryGetCurrent(out var snap) &&
+            snap.Kind == RoomKind.Lobby)
+        {
+            PhotonNetwork.LocalPlayer.SetCustomProperties(new Hashtable { { LobbyMatchmakingKeys.Ready, false } });
+            ShowMainScreenRequested?.Invoke();
+            MatchButtonInteractableChanged?.Invoke(PhotonNetwork.IsConnectedAndReady);
+            return;
+        }
+
         PhotonRoomManager.Instance.LeaveRoom();
     }
 
@@ -112,7 +165,7 @@ public class LobbyManager : SingletonMonoBehaviour<LobbyManager>
         if (!PhotonNetwork.InRoom) return;
 
         if (PhotonRoomSnapshotReader.TryGetCurrent(out var snap) &&
-            snap.Kind == RoomKind.Random &&
+            snap.Kind == RoomKind.Game &&
             _isGameStarting)
         {
             CancelCountdown();
@@ -139,7 +192,7 @@ public class LobbyManager : SingletonMonoBehaviour<LobbyManager>
         if (PhotonNetwork.InRoom && PhotonRoomSnapshotReader.TryGetCurrent(out var snap))
         {
             PlayerCountChanged?.Invoke(snap.PlayerCount, snap.MaxPlayers);
-            MatchingStatusChanged?.Invoke("매칭을 찾고 있습니다...");
+            MatchingStatusChanged?.Invoke(snap.Kind == RoomKind.Lobby ? "로비에 있습니다." : "매칭을 찾고 있습니다...");
         }
     }
 
@@ -168,7 +221,7 @@ public class LobbyManager : SingletonMonoBehaviour<LobbyManager>
         if (PhotonRoomSnapshotReader.TryGetCurrent(out var snap))
         {
             PlayerCountChanged?.Invoke(snap.PlayerCount, snap.MaxPlayers);
-            MatchingStatusChanged?.Invoke("매칭을 찾고 있습니다...");
+            MatchingStatusChanged?.Invoke(snap.Kind == RoomKind.Lobby ? "로비에 있습니다." : "매칭을 찾고 있습니다...");
         }
     }
 }
