@@ -41,4 +41,11 @@ public interface IRopePhysics
     /// 이번 스텝에서 충돌 처리한 움직이는 장애물의 HashSet을 반환합니다.
     /// </summary>
     HashSet<Collider> OverlappingColliders { get; }
+
+    /// <summary>
+    /// 감김점(WrapPoint) 경로를 설정합니다.
+    /// 감김점 위치에 노드를 고정하고, 자유 구간에 나머지 노드를 재배치합니다.
+    /// </summary>
+    /// <param name="waypoints">앵커 포함 전체 경로점 배열 (AnchorA, WP0, ..., AnchorB)</param>
+    void SetWrapWaypoints(Vector3[] waypoints);
 }

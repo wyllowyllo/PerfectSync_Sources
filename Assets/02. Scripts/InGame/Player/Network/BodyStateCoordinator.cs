@@ -15,6 +15,9 @@ namespace InGame.Player.Network
         [SerializeField] private GameObject _avatarA;
         [SerializeField] private GameObject _avatarB;
 
+        [Header("RubberBand")]
+        [SerializeField] private RubberBandCoordinator _rubberBandCoordinator;
+
         private PlayerFormController _playerFormController;
         private LocalPlayerInput _localPlayerInput;
         private PhotonView _photonView;
@@ -87,6 +90,14 @@ namespace InGame.Player.Network
                 ConfigureRagdollAuthority(_avatarB, true, isHost);
             }
 
+            // 고무줄 활성화/비활성화.
+            if (_rubberBandCoordinator != null)
+            {
+                if (!isMerged)
+                    _rubberBandCoordinator.Activate(_avatarA, _avatarB, isHost);
+                else
+                    _rubberBandCoordinator.Deactivate();
+            }
         }
 
         private void ConfigureRagdollAuthority(
