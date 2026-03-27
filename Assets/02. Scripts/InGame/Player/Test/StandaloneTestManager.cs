@@ -1,13 +1,12 @@
 using Photon.Pun;
 using Photon.Realtime;
 using UnityEngine;
-using Hashtable = ExitGames.Client.Photon.Hashtable;
 
 namespace InGame.Player.Test
 {
     /// <summary>
     /// 단일 씬 테스트용 네트워크 부트스트래퍼.
-    /// Photon 접속 → 방 생성 → 팀 자동 배정까지만 담당한다.
+    /// Photon 접속 → 방 생성 → 전원 입장 대기 → 팀 일괄 배정까지 담당한다.
     /// 스폰과 게임 흐름은 씬에 배치된 InGameManager + PlayerSpawner가 처리한다.
     /// </summary>
     public class StandaloneTestManager : MonoBehaviourPunCallbacks
@@ -17,7 +16,13 @@ namespace InGame.Player.Test
         [SerializeField] private string _roomName = "TestRoom";
         [SerializeField] private string _nickName = "Player";
 
+        [Header("Test Settings")]
+        [Tooltip("팀 배정 전 대기할 플레이어 수")]
+        [SerializeField] private int _expectedPlayers = 2;
+
         public static StandaloneTestManager Instance { get; private set; }
+
+        private bool _teamsAssigned;
 
         private void Awake()
         {
@@ -46,7 +51,7 @@ namespace InGame.Player.Test
 
             RoomOptions roomOptions = new RoomOptions
             {
-                MaxPlayers = 8,
+                MaxPlayers = (byte)_expectedPlayers,
                 IsVisible = true,
                 IsOpen = true
             };
@@ -59,13 +64,13 @@ namespace InGame.Player.Test
             Debug.Log($"[StandaloneTestManager] Joined room: {PhotonNetwork.CurrentRoom.Name} " +
                       $"(Players: {PhotonNetwork.CurrentRoom.PlayerCount})");
 
-            if (PhotonTeamManager.GetLocalTeamRaw() == PhotonTeamManager.TeamNone)
-                AssignToAvailableTeam();
+            TryAssignTeamsWhenReady();
         }
 
         public override void OnPlayerEnteredRoom(Photon.Realtime.Player newPlayer)
         {
             Debug.Log($"[StandaloneTestManager] Player entered: {newPlayer.NickName} (Actor: {newPlayer.ActorNumber})");
+            TryAssignTeamsWhenReady();
         }
 
         public override void OnPlayerLeftRoom(Photon.Realtime.Player otherPlayer)
@@ -73,27 +78,15 @@ namespace InGame.Player.Test
             Debug.Log($"[StandaloneTestManager] Player left: {otherPlayer.NickName}");
         }
 
-        private void AssignToAvailableTeam()
+        private void TryAssignTeamsWhenReady()
         {
-            if (PhotonTeamManager.Instance != null)
-            {
-                for (int team = 1; team <= PhotonTeamManager.MaxTeams; team++)
-                {
-                    if (PhotonTeamManager.Instance.SetTeam(team))
-                    {
-                        Debug.Log($"[StandaloneTestManager] Assigned to team {team}");
-                        return;
-                    }
-                }
+            if (_teamsAssigned) return;
+            if (!PhotonNetwork.IsMasterClient) return;
+            if (PhotonNetwork.CurrentRoom.PlayerCount < _expectedPlayers) return;
 
-                Debug.LogWarning("[StandaloneTestManager] All teams are full!");
-                return;
-            }
-
-            // PhotonTeamManager 인스턴스가 없을 때 직접 custom property로 팀 배정.
-            PhotonNetwork.LocalPlayer.SetCustomProperties(
-                new Hashtable { { PhotonTeamManager.TeamKey, 1 } });
-            Debug.Log("[StandaloneTestManager] Assigned team 1 via direct property (fallback)");
+            _teamsAssigned = true;
+            PhotonTeamManager.Instance.AssignTeamsRandomly();
+            Debug.Log($"[StandaloneTestManager] All {_expectedPlayers} players present – teams assigned");
         }
 
         private void EnsureRequiredSingletons()
