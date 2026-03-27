@@ -150,15 +150,15 @@ public class TubeRenderer : IRopeRenderer
                 int c = nextSegmentOffset + nextSide;
                 int d = currentSegmentOffset + nextSide;
 
-                // 첫 번째 삼각형 (a -> b -> c)
+                // 첫 번째 삼각형 (a -> c -> b)
                 _triangles[ti++] = a;
+                _triangles[ti++] = c;
                 _triangles[ti++] = b;
-                _triangles[ti++] = c;
 
-                // 두 번째 삼각형 (a -> c -> d)
+                // 두 번째 삼각형 (a -> d -> c)
                 _triangles[ti++] = a;
-                _triangles[ti++] = c;
                 _triangles[ti++] = d;
+                _triangles[ti++] = c;
             }
         }
     }

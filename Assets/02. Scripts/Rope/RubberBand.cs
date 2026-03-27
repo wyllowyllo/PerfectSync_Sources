@@ -51,6 +51,9 @@ public class RubberBand : MonoBehaviour
     [Tooltip("렌더링되는 고무줄의 굵기")]
     [SerializeField] private float _thickness = 0.1f;
 
+    [Tooltip("GPU 셰이더 기반 렌더링 사용 (Custom/RopeTube 셰이더 필요)")]
+    [SerializeField] private bool _useGPURendering = false;
+
     [Header("Collision Support")]
     [Tooltip("장애물로 인식할 레이어")]
     [SerializeField] private LayerMask _obstacleLayer;
@@ -91,7 +94,27 @@ public class RubberBand : MonoBehaviour
     private void Awake()
     {
         var meshFilter = GetComponent<MeshFilter>();
-        _renderer = new TubeRenderer(meshFilter, _sides, _color, _nodeCount, _interpolationSegments);
+
+        if (_useGPURendering && SystemInfo.supportsComputeShaders)
+        {
+            var ropeShader = Shader.Find("Custom/RopeTube");
+            if (ropeShader != null)
+            {
+                var meshRenderer = GetComponent<MeshRenderer>();
+                meshRenderer.material = new Material(ropeShader);
+                _renderer = new GPUTubeRenderer(meshFilter, meshRenderer, _sides, _color, _nodeCount, _interpolationSegments);
+            }
+            else
+            {
+                Debug.LogWarning("RopeTube shader not found. Falling back to CPU rendering.");
+                _renderer = new TubeRenderer(meshFilter, _sides, _color, _nodeCount, _interpolationSegments);
+            }
+        }
+        else
+        {
+            _renderer = new TubeRenderer(meshFilter, _sides, _color, _nodeCount, _interpolationSegments);
+        }
+
         _nodeBuffer = new Vector3[_nodeCount];
     }
 
@@ -175,6 +198,11 @@ public class RubberBand : MonoBehaviour
     private void OnDisable()
     {
         _initialized = false;
+    }
+
+    private void OnDestroy()
+    {
+        (_renderer as System.IDisposable)?.Dispose();
     }
 
     /// <summary>
