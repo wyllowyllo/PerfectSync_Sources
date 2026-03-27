@@ -16,6 +16,7 @@ public class TubeRenderer : IRopeRenderer
     private readonly MeshFilter _meshFilter;
 
     private Vector3[] _vertices;
+    private Vector3[] _normals;
     private Vector2[] _uvs;
     private Color[] _colors;
     private int[] _triangles;
@@ -67,6 +68,7 @@ public class TubeRenderer : IRopeRenderer
 
         // 배열 할당
         _vertices = new Vector3[vertexCount];
+        _normals = new Vector3[vertexCount];
         _uvs = new Vector2[vertexCount];
         _colors = new Color[vertexCount];
         _triangles = new int[triangleIndexCount];
@@ -81,6 +83,7 @@ public class TubeRenderer : IRopeRenderer
         GenerateTriangles(renderNodeCount);
 
         _mesh.SetVertices(_vertices);
+        _mesh.SetNormals(_normals);
         _mesh.SetUVs(0, _uvs);
         _mesh.SetColors(_colors);
         _mesh.SetTriangles(_triangles, 0);
@@ -185,13 +188,17 @@ public class TubeRenderer : IRopeRenderer
 
             for (int s = 0; s < _sides; s++)
             {
-                Vector3 ringOffset = (right * _cos[s] + currentUp * _sin[s]) * radius;
+                // 원통 단면의 방사 방향 = 노말 방향 (center → vertex)
+                Vector3 radialDirection = right * _cos[s] + currentUp * _sin[s];
+                Vector3 ringOffset = radialDirection * radius;
                 _vertices[offset + s] = _transform.InverseTransformPoint(center + ringOffset);
+                _normals[offset + s] = _transform.InverseTransformDirection(radialDirection);
             }
         }
 
-        // 정점만 메쉬에 덮어씌움
+        // 정점과 노말을 메쉬에 덮어씌움
         _mesh.SetVertices(_vertices, 0, _vertices.Length, MeshUpdateFlags.DontRecalculateBounds);
+        _mesh.SetNormals(_normals, 0, _normals.Length, MeshUpdateFlags.DontRecalculateBounds);
 
         // 카메라 컬링을 위한 바운딩 박스 갱신
         _mesh.RecalculateBounds();
