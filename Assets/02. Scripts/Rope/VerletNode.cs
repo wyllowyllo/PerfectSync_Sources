@@ -24,12 +24,7 @@ public struct VerletNode
     /// 장애물에 닿아있는 정점
     /// </summary>
     public bool IsTouchingObstacle;
-
-    /// <summary>
-    /// 장애물 감김으로 인해 고정된 정점 (앵커 Pin과 구분)
-    /// </summary>
-    public bool IsWrapPin;
-
+    
     // 초기화를 쉽게 하기 위한 생성자
     public VerletNode(Vector3 position, bool isPinned = false)
     {
@@ -37,6 +32,5 @@ public struct VerletNode
         PreviousPosition = position;
         IsPinned = isPinned;
         IsTouchingObstacle = false;
-        IsWrapPin = false;
     }
 }

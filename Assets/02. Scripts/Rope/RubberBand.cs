@@ -55,7 +55,6 @@ public class RubberBand : MonoBehaviour
 
     private IRopePhysics _simulator;
     private IRopeRenderer _renderer;
-    private WrapPointTracker _wrapTracker;
 
     private Vector3[] _nodeBuffer;
     private float _currentTension;
@@ -78,14 +77,7 @@ public class RubberBand : MonoBehaviour
     private readonly Dictionary<Collider, int> _enterSides = new();
 
     public event Action<Collider> OnCrossingDetected;
-    public event Action OnMaxTensionReached;
-    public event Action OnTensionReleased;
-    public event Action<Vector3> OnWrapContact;
-
     public float CurrentTension => _currentTension;
-    public int WrapCount => _wrapTracker?.WrapCount ?? 0;
-
-    private bool _wasMaxTension;
 
     private void Awake()
     {
@@ -136,12 +128,7 @@ public class RubberBand : MonoBehaviour
             _playerLayer,
             _layerFrictionSettings
         );
-
-        _wrapTracker = new WrapPointTracker(_obstacleLayer);
-        _wrapTracker.OnWrapAdded += pos => OnWrapContact?.Invoke(pos);
-
         _currentTension = 0f;
-        _wasMaxTension = false;
         _previousColliders.Clear();
         _enterSides.Clear();
         _initialized = true;
@@ -152,21 +139,8 @@ public class RubberBand : MonoBehaviour
         if (!_initialized) return;
 
         SyncAnchorPositions();
-
-        // 감김점 판정 및 Verlet 노드 재배치
-        Vector3 anchorWorldA = _targetA.TransformPoint(_anchorOffsetA);
-        Vector3 anchorWorldB = _targetB.TransformPoint(_anchorOffsetB);
-        _wrapTracker.Update(anchorWorldA, anchorWorldB);
-        if (_wrapTracker.ConsumeChanged())
-        {
-            _simulator.SetWrapWaypoints(_wrapTracker.Waypoints);
-        }
-
         _simulator.Simulate(Time.fixedDeltaTime);
-        _currentTension = CalculateEffectiveTension();
-
-        // 장력 이벤트 발행
-        CheckTensionEvents();
+        _currentTension = _simulator.GetCurrentTension();
 
         // Host만 물리력 적용 + 충돌 판정.
         if (_isAuthority)
@@ -185,13 +159,11 @@ public class RubberBand : MonoBehaviour
         var tension = Mathf.Max(1f, _currentTension);
         var thickness = _thickness / tension;
         _renderer.RenderRope(_nodeBuffer, thickness);
-        _renderer.UpdateTension(_currentTension);
     }
 
     private void OnDisable()
     {
         _initialized = false;
-        _wrapTracker?.Reset();
     }
 
     /// <summary>
@@ -203,48 +175,6 @@ public class RubberBand : MonoBehaviour
         Vector3 worldB = _targetB.TransformPoint(_anchorOffsetB);
         _simulator.SetNodePosition(0, worldA);
         _simulator.SetNodePosition(_nodeCount - 1, worldB);
-    }
-
-    /// <summary>
-    /// 감김을 고려한 유효 장력을 계산합니다.
-    /// 감김이 많을수록 유효 자유 길이가 줄어들어 장력이 증가합니다.
-    /// </summary>
-    private float CalculateEffectiveTension()
-    {
-        if (_wrapTracker.WrapCount == 0)
-            return _simulator.GetCurrentTension();
-
-        // 자유 구간의 실제 노드 체인 길이
-        float totalNodeDistance = 0f;
-        _simulator.GetNodePositions(ref _nodeBuffer);
-        for (int i = 0; i < _nodeBuffer.Length - 1; i++)
-        {
-            totalNodeDistance += Vector3.Distance(_nodeBuffer[i], _nodeBuffer[i + 1]);
-        }
-
-        // 유효 자유 길이 = baseLength (감김 구간은 고정이므로 baseLength 자체가 줄어드는 효과)
-        Vector3 worldA = _targetA.TransformPoint(_anchorOffsetA);
-        Vector3 worldB = _targetB.TransformPoint(_anchorOffsetB);
-        float effectiveFreeLength = Mathf.Max(0.1f, _baseLength - _wrapTracker.WrappedLength + Vector3.Distance(worldA, worldB));
-
-        // 실제 체인 길이 / 유효 길이
-        return totalNodeDistance / Mathf.Max(0.1f, _baseLength);
-    }
-
-    /// <summary>
-    /// 장력 임계값 이벤트를 발행합니다.
-    /// </summary>
-    private void CheckTensionEvents()
-    {
-        const float maxTensionThreshold = 2.0f;
-
-        bool isMaxTension = _currentTension > maxTensionThreshold;
-        if (isMaxTension && !_wasMaxTension)
-            OnMaxTensionReached?.Invoke();
-        else if (!isMaxTension && _wasMaxTension)
-            OnTensionReleased?.Invoke();
-
-        _wasMaxTension = isMaxTension;
     }
 
     /// <summary>

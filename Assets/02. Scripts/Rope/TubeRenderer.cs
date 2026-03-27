@@ -9,7 +9,6 @@ public class TubeRenderer : IRopeRenderer
 {
     private readonly int _sides;
     private readonly Gradient _color;
-    private readonly Gradient _tensionGradient;
     private readonly Transform _transform;
 
     private Mesh _mesh;
@@ -24,19 +23,14 @@ public class TubeRenderer : IRopeRenderer
     private float[] _cos;
     private float[] _sin;
 
-    // 장력 기반 색상용 캐시
-    private Color[] _baseColors;
-    private float _lastTension = 1f;
-
-    public TubeRenderer(MeshFilter meshFilter, int sides, Gradient color, int nodeCount, Gradient tensionGradient = null)
+    public TubeRenderer(MeshFilter meshFilter, int sides, Gradient color, int nodeCount)
     {
         _meshFilter = meshFilter;
         _transform = meshFilter.transform;
         _sides = sides;
         _color = color;
-        _tensionGradient = tensionGradient;
         _nodeCount = nodeCount;
-
+        
         Initialize(nodeCount);
     }
     
@@ -106,8 +100,6 @@ public class TubeRenderer : IRopeRenderer
     /// </summary>
     private void GenerateStaticData()
     {
-        _baseColors = new Color[_nodeCount * _sides];
-
         for (int i = 0; i < _nodeCount; i++)
         {
             int offset = i * _sides;
@@ -119,7 +111,6 @@ public class TubeRenderer : IRopeRenderer
                 float uvU = (float)s / _sides;
                 _uvs[offset + s] = new Vector2(uvU, uvV);
                 _colors[offset + s] = vertexColor;
-                _baseColors[offset + s] = vertexColor;
             }
         }
     }
@@ -197,27 +188,6 @@ public class TubeRenderer : IRopeRenderer
         _mesh.RecalculateBounds();
     }
     
-    /// <summary>
-    /// 장력 수치에 따라 로프의 vertex color를 갱신합니다.
-    /// tensionGradient가 설정된 경우, 기본 색상과 장력 색상을 Lerp합니다.
-    /// </summary>
-    public void UpdateTension(float tension)
-    {
-        if (_tensionGradient == null || Mathf.Approximately(tension, _lastTension)) return;
-        _lastTension = tension;
-
-        // 장력 0~1 구간으로 정규화 (1.0 = 기본, 2.0+ = 최대 긴장)
-        float t = Mathf.Clamp01((tension - 1f) / 1.5f);
-        Color tensionColor = _tensionGradient.Evaluate(t);
-
-        for (int i = 0; i < _colors.Length; i++)
-        {
-            _colors[i] = Color.Lerp(_baseColors[i], tensionColor, t);
-        }
-
-        _mesh.SetColors(_colors);
-    }
-
     /// <summary>
     /// 현재 마디가 바라볼 방향(Forward)과 직교하는 Up, Right 벡터를 계산합니다.
     /// '메쉬 꼬임(Twist)'을 방지하기 위해 이전 마디의 Up 벡터(ref)를 참조하여 회전량을 누적합니다.
