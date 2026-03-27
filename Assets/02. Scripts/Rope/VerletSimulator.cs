@@ -11,6 +11,8 @@ public class VerletSimulator : IRopePhysics
     private readonly float _nodeDistance;
     private readonly int _constraintIterations;
     private readonly int _subSteps;
+    private readonly float _compliance;
+    private readonly float[] _lambdas;
     private readonly LayerMask _obstacleLayer;
     private readonly LayerMask _dynamicObstacleLayer;
     private readonly SerializableDictionary<LayerMask, float> _frictionMap;
@@ -31,7 +33,7 @@ public class VerletSimulator : IRopePhysics
     /// <param name="obstacleLayer">충돌을 감지할 장애물의 레이어 마스크</param>
     /// <param name="dynamicObstacleLayer">충돌을 감지할 움직이는 장애물의 레이어 마스크</param>
     /// <exception cref="ArgumentOutOfRangeException">노드 개수나 길이가 유효하지 않을 때 발생</exception>
-    public VerletSimulator(int nodeCount, float totalLength, int constraintIterations, Vector3 startPosition, LayerMask obstacleLayer, LayerMask dynamicObstacleLayer, SerializableDictionary<LayerMask, float> frictionMap, int subSteps = 3)
+    public VerletSimulator(int nodeCount, float totalLength, int constraintIterations, Vector3 startPosition, LayerMask obstacleLayer, LayerMask dynamicObstacleLayer, SerializableDictionary<LayerMask, float> frictionMap, int subSteps = 3, float compliance = 0f)
     {
         if (nodeCount < 2)
             throw new ArgumentOutOfRangeException(nameof(nodeCount), "로프를 구성하기 위해 노드는 최소 2개 이상 필요합니다.");
@@ -44,6 +46,8 @@ public class VerletSimulator : IRopePhysics
         _nodeDistance = totalLength / (nodeCount - 1);
         _constraintIterations = constraintIterations;
         _subSteps = Mathf.Max(1, subSteps);
+        _compliance = Mathf.Max(0f, compliance);
+        _lambdas = new float[nodeCount - 1];
         _obstacleLayer = obstacleLayer;
         _dynamicObstacleLayer = dynamicObstacleLayer;
         _frictionMap = frictionMap;
@@ -70,9 +74,12 @@ public class VerletSimulator : IRopePhysics
         {
             ApplyVerletIntegrator(subDt);
 
+            // XPBD: 각 서브스텝 시작 시 라그랑주 승수 초기화
+            System.Array.Clear(_lambdas, 0, _lambdas.Length);
+
             for (int i = 0; i < _constraintIterations; i++)
             {
-                ApplyDistanceConstraints();
+                ApplyDistanceConstraints(subDt);
                 ApplyCollisionConstraints();
             }
         }
@@ -101,24 +108,43 @@ public class VerletSimulator : IRopePhysics
     }
 
     /// <summary>
-    /// 탄성을 계산하여 거리 유지
+    /// XPBD 기반 거리 제약 솔버.
+    /// compliance(α)와 Lagrange multiplier(λ)를 사용하여 dt에 독립적인 강성 제어를 수행합니다.
+    /// α = 0이면 완전 강체, α가 클수록 탄성적으로 동작합니다.
     /// </summary>
-    private void ApplyDistanceConstraints()
+    private void ApplyDistanceConstraints(float subDt)
     {
+        // α̃ = α / dt² (시간 스케일링된 유연도)
+        float alphaTilde = _compliance / (subDt * subDt);
+
         for (int i = 0; i < _nodes.Length - 1; i++)
         {
             ref var nodeA = ref _nodes[i];
             ref var nodeB = ref _nodes[i + 1];
 
-            var currentDistance = Vector3.Distance(in nodeA.CurrentPosition, in nodeB.CurrentPosition);
-            var error = currentDistance - _nodeDistance;
-            
-            Vector3 direction = (nodeA.CurrentPosition - nodeB.CurrentPosition).normalized;
-            Vector3 correction = direction * error;
+            Vector3 diff = nodeA.CurrentPosition - nodeB.CurrentPosition;
+            float currentDistance = diff.magnitude;
 
-            // 두 점이 핀으로 고정되지 않았다면 반반씩 이동시켜 거리 조절
-            if (!nodeA.IsPinned) _nodes[i].CurrentPosition -= correction * 0.5f;
-            if (!nodeB.IsPinned) _nodes[i + 1].CurrentPosition += correction * 0.5f;
+            if (currentDistance < 1e-7f) continue;
+
+            // 제약 값: C = 현재 거리 - 기본 거리
+            float C = currentDistance - _nodeDistance;
+
+            // 역질량: 고정된 노드는 0 (무한 질량), 자유 노드는 1
+            float w1 = nodeA.IsPinned ? 0f : 1f;
+            float w2 = nodeB.IsPinned ? 0f : 1f;
+            float wSum = w1 + w2;
+
+            if (wSum < 1e-7f) continue;
+
+            // Δλ = -(C + α̃ · λ) / (w₁ + w₂ + α̃)
+            float deltaLambda = -(C + alphaTilde * _lambdas[i]) / (wSum + alphaTilde);
+            _lambdas[i] += deltaLambda;
+
+            // 위치 보정: 역질량에 비례하여 각 노드를 이동
+            Vector3 direction = diff / currentDistance;
+            _nodes[i].CurrentPosition += direction * (deltaLambda * w1);
+            _nodes[i + 1].CurrentPosition -= direction * (deltaLambda * w2);
         }
     }
     
