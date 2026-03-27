@@ -10,6 +10,7 @@ public class TubeRenderer : IRopeRenderer
     private readonly int _sides;
     private readonly Gradient _color;
     private readonly Gradient _tensionGradient;
+    private readonly Transform _transform;
 
     private Mesh _mesh;
     private readonly MeshFilter _meshFilter;
@@ -30,6 +31,7 @@ public class TubeRenderer : IRopeRenderer
     public TubeRenderer(MeshFilter meshFilter, int sides, Gradient color, int nodeCount, Gradient tensionGradient = null)
     {
         _meshFilter = meshFilter;
+        _transform = meshFilter.transform;
         _sides = sides;
         _color = color;
         _tensionGradient = tensionGradient;
@@ -171,17 +173,18 @@ public class TubeRenderer : IRopeRenderer
         float radius = thickness * 0.5f;
         
         // 튜브 정점 생성 로직 - 노드를 순회하며 Ring 형태를 만드는 정점 계산
+        // 노드 좌표는 월드 공간이므로 메쉬의 로컬 공간으로 변환해야 올바른 위치에 렌더링됩니다.
         for (int i = 0; i < _nodeCount; i++)
         {
             CalculateSegmentOrientation(i, nodePositions, ref currentUp, out var right);
-            
+
             int offset = i * _sides;
             Vector3 center = nodePositions[i];
-            
+
             for (int s = 0; s < _sides; s++)
             {
-                Vector3 localPosition = (right * _cos[s] + currentUp * _sin[s]) * radius;
-                _vertices[offset + s] = center + localPosition;
+                Vector3 ringOffset = (right * _cos[s] + currentUp * _sin[s]) * radius;
+                _vertices[offset + s] = _transform.InverseTransformPoint(center + ringOffset);
             }
         }
         

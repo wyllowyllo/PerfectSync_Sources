@@ -60,11 +60,15 @@ public class RubberBand : MonoBehaviour
     private Vector3[] _nodeBuffer;
     private float _currentTension;
 
-    // 동적 바인딩 타겟.
+    // 동적 바인딩 타겟 (물리 바디의 Transform).
     private Transform _targetA;
     private Transform _targetB;
     private Rigidbody _rigidbodyA;
     private Rigidbody _rigidbodyB;
+
+    // 물리 바디 로컬 공간 기준 앵커 오프셋.
+    private Vector3 _anchorOffsetA;
+    private Vector3 _anchorOffsetB;
 
     private bool _isAuthority;
     private bool _initialized;
@@ -92,15 +96,19 @@ public class RubberBand : MonoBehaviour
 
     /// <summary>
     /// 고무줄의 양 끝 타겟과 Rigidbody를 동적으로 바인딩합니다.
+    /// targetA/B는 물리 바디(RootBody)의 Transform이며, offsetA/B는 앵커의 로컬 오프셋입니다.
     /// Guest는 rigidbody를 null로 전달합니다 (물리력 미적용).
     /// </summary>
     public void BindTargets(Transform targetA, Transform targetB,
-        Rigidbody rigidbodyA, Rigidbody rigidbodyB)
+        Rigidbody rigidbodyA, Rigidbody rigidbodyB,
+        Vector3 offsetA = default, Vector3 offsetB = default)
     {
         _targetA = targetA;
         _targetB = targetB;
         _rigidbodyA = rigidbodyA;
         _rigidbodyB = rigidbodyB;
+        _anchorOffsetA = offsetA;
+        _anchorOffsetB = offsetB;
     }
 
     /// <summary>
@@ -118,11 +126,12 @@ public class RubberBand : MonoBehaviour
     /// </summary>
     public void ResetSimulator()
     {
+        Vector3 startPos = _targetA.TransformPoint(_anchorOffsetA);
         _simulator = new VerletSimulator(
             _nodeCount,
             _baseLength,
             _constraintIterations,
-            _targetA.position,
+            startPos,
             _obstacleLayer,
             _playerLayer,
             _layerFrictionSettings
@@ -145,7 +154,9 @@ public class RubberBand : MonoBehaviour
         SyncAnchorPositions();
 
         // 감김점 판정 및 Verlet 노드 재배치
-        _wrapTracker.Update(_targetA.position, _targetB.position);
+        Vector3 anchorWorldA = _targetA.TransformPoint(_anchorOffsetA);
+        Vector3 anchorWorldB = _targetB.TransformPoint(_anchorOffsetB);
+        _wrapTracker.Update(anchorWorldA, anchorWorldB);
         if (_wrapTracker.ConsumeChanged())
         {
             _simulator.SetWrapWaypoints(_wrapTracker.Waypoints);
@@ -184,12 +195,14 @@ public class RubberBand : MonoBehaviour
     }
 
     /// <summary>
-    /// 고무줄의 시작점과 끝점을 플레이어의 위치에 동기화합니다.
+    /// 고무줄의 시작점과 끝점을 플레이어의 물리 바디 위치 + 앵커 오프셋으로 동기화합니다.
     /// </summary>
     private void SyncAnchorPositions()
     {
-        _simulator.SetNodePosition(0, _targetA.position);
-        _simulator.SetNodePosition(_nodeCount - 1, _targetB.position);
+        Vector3 worldA = _targetA.TransformPoint(_anchorOffsetA);
+        Vector3 worldB = _targetB.TransformPoint(_anchorOffsetB);
+        _simulator.SetNodePosition(0, worldA);
+        _simulator.SetNodePosition(_nodeCount - 1, worldB);
     }
 
     /// <summary>
@@ -210,7 +223,9 @@ public class RubberBand : MonoBehaviour
         }
 
         // 유효 자유 길이 = baseLength (감김 구간은 고정이므로 baseLength 자체가 줄어드는 효과)
-        float effectiveFreeLength = Mathf.Max(0.1f, _baseLength - _wrapTracker.WrappedLength + Vector3.Distance(_targetA.position, _targetB.position));
+        Vector3 worldA = _targetA.TransformPoint(_anchorOffsetA);
+        Vector3 worldB = _targetB.TransformPoint(_anchorOffsetB);
+        float effectiveFreeLength = Mathf.Max(0.1f, _baseLength - _wrapTracker.WrappedLength + Vector3.Distance(worldA, worldB));
 
         // 실제 체인 길이 / 유효 길이
         return totalNodeDistance / Mathf.Max(0.1f, _baseLength);
@@ -244,9 +259,11 @@ public class RubberBand : MonoBehaviour
         var stretch = _currentTension - 1.0f;
         var springForce = Mathf.Pow(stretch, _elasticCurve) * _springConstant;
 
-        // 장력의 방향 계산.
-        var pullDirectionA = _simulator.CalculatePullingDirection(_targetA.position, true);
-        var pullDirectionB = _simulator.CalculatePullingDirection(_targetB.position, false);
+        // 장력의 방향 계산 (물리 바디 기준 앵커 월드 위치 사용).
+        Vector3 anchorPosA = _targetA.TransformPoint(_anchorOffsetA);
+        Vector3 anchorPosB = _targetB.TransformPoint(_anchorOffsetB);
+        var pullDirectionA = _simulator.CalculatePullingDirection(anchorPosA, true);
+        var pullDirectionB = _simulator.CalculatePullingDirection(anchorPosB, false);
 
         // y축 장력 제한.
         pullDirectionA = new Vector3(pullDirectionA.x, pullDirectionA.y * 0.2f, pullDirectionA.z).normalized;
@@ -280,13 +297,16 @@ public class RubberBand : MonoBehaviour
         // 시뮬레이터가 이번 프레임에 수집한 해시셋.
         var currentColliders = _simulator.OverlappingColliders;
 
+        Vector3 anchorPosA = _targetA.TransformPoint(_anchorOffsetA);
+        Vector3 anchorPosB = _targetB.TransformPoint(_anchorOffsetB);
+
         // OnColliderEnter.
         foreach (var coll in currentColliders)
         {
             if (_previousColliders.Contains(coll)) continue;
 
             // 처음 닿은 순간의 방향을 기록.
-            _enterSides[coll] = CCW_XZ(_targetA.position, _targetB.position, coll.transform.position);
+            _enterSides[coll] = CCW_XZ(anchorPosA, anchorPosB, coll.transform.position);
         }
 
         // OnColliderExit.
@@ -297,7 +317,7 @@ public class RubberBand : MonoBehaviour
             if (!_enterSides.TryGetValue(coll, out var enterSide)) continue;
 
             // 떨어진 순간의 방향 계산.
-            var exitSide = CCW_XZ(_targetA.position, _targetB.position, coll.transform.position);
+            var exitSide = CCW_XZ(anchorPosA, anchorPosB, coll.transform.position);
 
             // 진입 방향과 탈출 방향이 다르면 통과 판정.
             if (enterSide != exitSide)
