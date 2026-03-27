@@ -9,13 +9,13 @@ public class LobbyPopupCoordinator : MonoBehaviour
     [Header("Panels (children under PopupPanel)")]
     [SerializeField] private GameObject _settingsPanel;
     [SerializeField] private GameObject _nicknameChangePanel;
-    [SerializeField] private GameObject _followFriendsPanel;
+    [SerializeField] private GameObject _inviteFriendsPanel;
     [SerializeField] private GameObject _quitPanel;
 
-    [Header("Optional — leave empty if you wire buttons only in Inspector OnClick")]
-    [SerializeField] private Button _openInviteFriendsButton;
-    [SerializeField] private Button _openNicknameChangeButton;
+    [Header("Optional")]
     [SerializeField] private Button _openSettingsButton;
+    [SerializeField] private Button _openNicknameChangeButton;
+    [SerializeField] private Button _openInviteFriendsButton;
 
     private void OnEnable()
     {
@@ -81,14 +81,14 @@ public class LobbyPopupCoordinator : MonoBehaviour
 
     public void ShowFollowFriends()
     {
-        ShowSinglePopup(_followFriendsPanel);
+        ShowSinglePopup(_inviteFriendsPanel);
     }
 
     public void CloseAllPopups()
     {
         SetActiveIfExists(_settingsPanel, false);
         SetActiveIfExists(_nicknameChangePanel, false);
-        SetActiveIfExists(_followFriendsPanel, false);
+        SetActiveIfExists(_inviteFriendsPanel, false);
         SetActiveIfExists(_quitPanel, false);
         SetActiveIfExists(_popupPanelRoot, false);
     }
@@ -105,7 +105,7 @@ public class LobbyPopupCoordinator : MonoBehaviour
 
         SetActiveIfExists(_settingsPanel, false);
         SetActiveIfExists(_nicknameChangePanel, false);
-        SetActiveIfExists(_followFriendsPanel, false);
+        SetActiveIfExists(_inviteFriendsPanel, false);
         SetActiveIfExists(_quitPanel, false);
 
         _popupPanelRoot.SetActive(true);
@@ -120,7 +120,7 @@ public class LobbyPopupCoordinator : MonoBehaviour
 
     private bool AnyNonQuitPopupVisible()
     {
-        return IsActive(_settingsPanel) || IsActive(_nicknameChangePanel) || IsActive(_followFriendsPanel);
+        return IsActive(_settingsPanel) || IsActive(_nicknameChangePanel) || IsActive(_inviteFriendsPanel);
     }
 
     private bool IsQuitPanelVisible()
