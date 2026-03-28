@@ -73,6 +73,7 @@ public class LobbyManager : SingletonMonoBehaviour<LobbyManager>
     public void OnNicknameConfirmed(string nickname)
     {
         PhotonNetwork.NickName = nickname;
+        NicknameFieldSet?.Invoke(PhotonNetwork.NickName);
     }
 
     public void RequestMatch(string nicknameTrimmed)

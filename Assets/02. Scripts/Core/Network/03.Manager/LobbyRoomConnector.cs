@@ -56,8 +56,31 @@ public class LobbyRoomConnector : SingletonPunCallbacks<LobbyRoomConnector>
     {
         base.OnJoinedRoom();
 
-        if (GetCurrentRoomType() == PhotonRoomTypes.Lobby)
-            OnLobbyRoomJoined?.Invoke();
+        if (GetCurrentRoomType() != PhotonRoomTypes.Lobby)
+            return;
+
+        var room = PhotonNetwork.CurrentRoom;
+        if (room != null)
+        {
+            Debug.Log(
+                $"[LobbyRoomConnector] 로비 방 입장 — 방 이름: {room.Name}, 인원: {room.PlayerCount}/{room.MaxPlayers}, " +
+                $"방 타입(커스텀): {PhotonRoomTypes.Lobby}, 마스터 클라이언트: {room.MasterClientId}, " +
+                $"로컬 닉네임: {PhotonNetwork.LocalPlayer?.NickName}");
+        }
+
+        OnLobbyRoomJoined?.Invoke();
+    }
+
+    public override void OnPlayerEnteredRoom(Player newPlayer)
+    {
+        base.OnPlayerEnteredRoom(newPlayer);
+
+        if (GetCurrentRoomType() != PhotonRoomTypes.Lobby || newPlayer == null)
+            return;
+
+        Debug.Log(
+            $"[LobbyRoomConnector] 로비에 플레이어 입장 — 닉네임: {newPlayer.NickName}, ActorNumber: {newPlayer.ActorNumber}, " +
+            $"UserId: {newPlayer.UserId}, IsLocal: {newPlayer.IsLocal}");
     }
 
     private static string GetCurrentRoomType()
