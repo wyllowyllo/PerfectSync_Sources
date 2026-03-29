@@ -51,7 +51,6 @@ namespace InGame.Player.Movement
         // Host-authoritative 합체 모드: 애니메이션 트리거 동기화용.
         public event Action OnJumped;
         public event Action OnDived;
-        public event Action<bool> OnDiveLanded;
 
         public Vector3 Velocity
         {
@@ -115,12 +114,10 @@ namespace InGame.Player.Movement
                 _airControlBoost = 1f;
             }
 
-            // 다이브 중 착지 → 애니메이션 전환 후 즉시 이동 허용.
+            // 다이브 중 착지 → 이동 속도 초기화.
             if (_playerJump.IsDiving && _isGrounded)
             {
                 _playerJump.ClearDiving();
-                _anim.Land(true);
-                OnDiveLanded?.Invoke(true);
                 _currentVelocity = Vector3.zero;
             }
 

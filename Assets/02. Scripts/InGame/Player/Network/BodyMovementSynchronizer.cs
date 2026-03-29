@@ -53,7 +53,6 @@ namespace InGame.Player.Network
             {
                 _movement.OnJumped += HandleJumped;
                 _movement.OnDived += HandleDived;
-                _movement.OnDiveLanded += HandleDiveLanded;
             }
         }
 
@@ -63,7 +62,6 @@ namespace InGame.Player.Network
             {
                 _movement.OnJumped -= HandleJumped;
                 _movement.OnDived -= HandleDived;
-                _movement.OnDiveLanded -= HandleDiveLanded;
             }
         }
 
@@ -150,12 +148,6 @@ namespace InGame.Player.Network
             photonView.RPC(nameof(RpcAnimDive), RpcTarget.Others);
         }
 
-        private void HandleDiveLanded(bool active)
-        {
-            if (!photonView.IsMine || !_syncEnabled) return;
-            photonView.RPC(nameof(RpcAnimLand), RpcTarget.Others, active);
-        }
-
         [PunRPC]
         private void RpcAnimJump()
         {
@@ -166,12 +158,6 @@ namespace InGame.Player.Network
         private void RpcAnimDive()
         {
             if (_animation != null) _animation.Dive();
-        }
-
-        [PunRPC]
-        private void RpcAnimLand(bool active)
-        {
-            if (_animation != null) _animation.Land(active);
         }
 
         #endregion

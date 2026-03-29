@@ -12,7 +12,6 @@ namespace InGame.Player.Animation
         private static readonly int s_diveHash = Animator.StringToHash("Dive");
         private static readonly int s_getUpFromBackHash = Animator.StringToHash("GetUpFromBack");
         private static readonly int s_getUpFromBellyHash = Animator.StringToHash("GetUpFromBelly");
-        private static readonly int s_diveLandHash = Animator.StringToHash("DiveLand");
         private static readonly int s_stumbleHash = Animator.StringToHash("Stumble");
 
         public void Locomotion(bool isGrounded, float speed)
@@ -28,20 +27,13 @@ namespace InGame.Player.Animation
 
         public void Dive()
         {
-            _animator.SetBool(s_diveLandHash, false);
             _animator.SetTrigger(s_diveHash);
-        }
-
-        public void Land(bool active)
-        {
-            _animator.SetBool(s_diveLandHash, active);
         }
 
         public void GetUp(bool isFaceUp)
         {
             _animator.ResetTrigger(s_jumpHash);
             _animator.ResetTrigger(s_diveHash);
-            _animator.SetBool(s_diveLandHash, false);
             _animator.SetFloat(s_speedHash, 0f);
             _animator.SetBool(s_isGroundedHash, true);
 
