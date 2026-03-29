@@ -1,4 +1,6 @@
 using InGame.Player;
+using InGame.Team;
+using Photon.Pun;
 using UnityEngine;
 
 namespace InGame.Gimmick
@@ -14,6 +16,15 @@ namespace InGame.Gimmick
             if (formController == null) return;
 
             formController.LaunchAllBodies(_targetPoint.position);
+
+            var photonView = formController.GetComponent<PhotonView>();
+            if (photonView == null || photonView.Owner == null) return;
+
+            int teamNumber = PhotonTeamManager.GetTeamRaw(photonView.Owner);
+            if (teamNumber == PhotonTeamManager.TeamNone) return;
+
+            if (TeamModeManager.Instance != null)
+                TeamModeManager.Instance.HandleTrampolineTrigger(teamNumber);
         }
 
         private void OnDrawGizmos()
