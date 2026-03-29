@@ -65,7 +65,7 @@ namespace InGame.Player.Movement
 
             _movement.MomentumBlend = 1f;
             _movement.AirControlBoost = 1f;
-            _anim.Jump();
+            _anim.TrampolineLaunch();
             _isLaunching = true;
         }
 

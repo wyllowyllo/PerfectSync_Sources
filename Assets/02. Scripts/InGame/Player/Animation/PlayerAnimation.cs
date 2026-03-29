@@ -13,6 +13,7 @@ namespace InGame.Player.Animation
         private static readonly int s_getUpFromBackHash = Animator.StringToHash("GetUpFromBack");
         private static readonly int s_getUpFromBellyHash = Animator.StringToHash("GetUpFromBelly");
         private static readonly int s_stumbleHash = Animator.StringToHash("Stumble");
+        private static readonly int s_trampolineLaunchHash = Animator.StringToHash("TrampolineLaunch");
 
         public void Locomotion(bool isGrounded, float speed)
         {
@@ -80,6 +81,11 @@ namespace InGame.Player.Animation
         public void ClearStumbleState()
         {
             _animator.ResetTrigger(s_stumbleHash);
+        }
+
+        public void TrampolineLaunch()
+        {
+            _animator.SetTrigger(s_trampolineLaunchHash);
         }
     }
 }
