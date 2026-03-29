@@ -246,7 +246,7 @@ public class MatchQueueManager : SingletonPunCallbacks<MatchQueueManager>
 
             var content = new object[] { roomName };
             var opts = new RaiseEventOptions { TargetActors = actorNums };
-            PhotonNetwork.RaiseEvent(LobbyPhotonEventCodes.MatchConfirmed, content, opts, SendOptions.SendReliable);
+            PhotonNetwork.RaiseEvent(PhotonEventCodes.MatchConfirmed, content, opts, SendOptions.SendReliable);
 
             foreach (var e in batch)
                 _queue.Remove(e);

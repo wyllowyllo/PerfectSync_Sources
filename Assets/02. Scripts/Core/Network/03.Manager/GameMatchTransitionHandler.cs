@@ -24,7 +24,7 @@ public class GameMatchTransitionHandler : SingletonPunCallbacks<GameMatchTransit
 
     public void OnEvent(EventData photonEvent)
     {
-        if (photonEvent.Code != LobbyPhotonEventCodes.MatchConfirmed)
+        if (photonEvent.Code != PhotonEventCodes.MatchConfirmed)
             return;
 
         if (photonEvent.CustomData is not object[] arr || arr.Length == 0)

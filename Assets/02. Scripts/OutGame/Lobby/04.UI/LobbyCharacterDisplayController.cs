@@ -1,4 +1,5 @@
 using Photon.Pun;
+using Photon.Realtime;
 using UnityEngine;
 
 /// <summary>
@@ -45,6 +46,12 @@ public class LobbyCharacterDisplayController : MonoBehaviour
 
         if (LobbyManager.Instance != null)
             LobbyManager.Instance.NicknameFieldSet += ApplyLocalNickname;
+
+        if (LobbyPartyService.Instance != null)
+        {
+            LobbyPartyService.Instance.OnPartyPartnerLinked += HandlePartyPartnerLinked;
+            LobbyPartyService.Instance.OnPartyCleared += HandlePartyCleared;
+        }
     }
 
     private void UnsubscribeEvents()
@@ -54,6 +61,31 @@ public class LobbyCharacterDisplayController : MonoBehaviour
 
         if (LobbyManager.Instance != null)
             LobbyManager.Instance.NicknameFieldSet -= ApplyLocalNickname;
+
+        if (LobbyPartyService.Instance != null)
+        {
+            LobbyPartyService.Instance.OnPartyPartnerLinked -= HandlePartyPartnerLinked;
+            LobbyPartyService.Instance.OnPartyCleared -= HandlePartyCleared;
+        }
+    }
+
+    private void HandlePartyPartnerLinked(Player partner)
+    {
+        if (_partyCharacter == null || partner == null)
+            return;
+
+        string nick = partner.NickName ?? string.Empty;
+        _partyCharacter.SetVisible(true);
+        _partyCharacter.SetNickname(nick);
+    }
+
+    private void HandlePartyCleared()
+    {
+        if (_partyCharacter == null)
+            return;
+
+        _partyCharacter.ClearNickname();
+        _partyCharacter.SetVisible(false);
     }
 
     private void HandleLobbyRoomJoined()
