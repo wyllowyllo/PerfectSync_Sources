@@ -17,7 +17,7 @@ namespace InGame.Team
         [SerializeField] private Vector3 _displayOffset = new(0f, 2.0f, 0f);
 
         [Header("Animation")]
-        [SerializeField] private float _slideHeight = 3f;
+        [SerializeField] private float _slideDistance = 3f;
         [SerializeField] private float _appearDuration = 0.4f;
         [SerializeField] private float _disappearDuration = 0.35f;
 
@@ -31,7 +31,7 @@ namespace InGame.Team
         private SlotMachine _activeSlotMachine;
         private Tween _activeTween;
         private Quaternion _prefabBaseRotation;
-        private float _localOffsetY;
+        private float _slideOffset;
         private bool _isMatch;
 
         private void Start()
@@ -56,20 +56,20 @@ namespace InGame.Team
             if (_activeSlotMachine == null) return;
 
             Transform body = _formController.PrimaryBodyTransform;
-            Vector3 targetPos = body.position + _displayOffset;
-            targetPos.y += _localOffsetY;
+            var cam = UnityEngine.Camera.main;
+            if (cam == null) return;
+
+            // 카메라 기준 오른쪽으로 슬라이드 오프셋 적용.
+            Vector3 camRight = cam.transform.right;
+            Vector3 targetPos = body.position + _displayOffset + camRight * _slideOffset;
             _activeSlotMachine.transform.position = targetPos;
 
-            var cam = UnityEngine.Camera.main;
-            if (cam != null)
+            Vector3 lookDir = cam.transform.position - targetPos;
+            lookDir.y = 0f;
+            if (lookDir.sqrMagnitude > 0.001f)
             {
-                Vector3 lookDir = cam.transform.position - targetPos;
-                lookDir.y = 0f;
-                if (lookDir.sqrMagnitude > 0.001f)
-                {
-                    Quaternion yaw = Quaternion.LookRotation(lookDir);
-                    _activeSlotMachine.transform.rotation = yaw * _prefabBaseRotation;
-                }
+                Quaternion yaw = Quaternion.LookRotation(lookDir);
+                _activeSlotMachine.transform.rotation = yaw * _prefabBaseRotation;
             }
         }
 
@@ -83,17 +83,19 @@ namespace InGame.Team
             }
 
             _isMatch = isMatch;
-            _localOffsetY = _slideHeight;
+            _slideOffset = _slideDistance;
 
             Transform body = _formController.PrimaryBodyTransform;
-            Vector3 spawnPos = body.position + _displayOffset + Vector3.up * _slideHeight;
+            var cam = UnityEngine.Camera.main;
+            Vector3 camRight = cam != null ? cam.transform.right : Vector3.right;
+            Vector3 spawnPos = body.position + _displayOffset + camRight * _slideDistance;
 
             _activeSlotMachine = Instantiate(_slotMachinePrefab, spawnPos, _slotMachinePrefab.transform.rotation);
             _prefabBaseRotation = _slotMachinePrefab.transform.rotation;
 
-            // 위에서 내려오며 등장.
-            _activeTween = DOTween.To(() => _localOffsetY, v => _localOffsetY = v, 0f, _appearDuration)
-                .SetEase(Ease.OutBack)
+            // 오른쪽에서 슬라이드인.
+            _activeTween = DOTween.To(() => _slideOffset, v => _slideOffset = v, 0f, _appearDuration)
+                .SetEase(Ease.OutCubic)
                 .OnComplete(() =>
                 {
                     _activeSlotMachine.Spin(symbols);
@@ -114,11 +116,11 @@ namespace InGame.Team
             yield return new WaitUntil(IsAnyActiveBodyGrounded);
             yield return new WaitForSeconds(_postLandingDelay);
 
-            // 위로 올라가며 퇴장.
+            // 오른쪽으로 슬라이드아웃.
             if (_activeSlotMachine != null)
             {
-                _activeTween = DOTween.To(() => _localOffsetY, v => _localOffsetY = v, _slideHeight, _disappearDuration)
-                    .SetEase(Ease.InBack);
+                _activeTween = DOTween.To(() => _slideOffset, v => _slideOffset = v, _slideDistance, _disappearDuration)
+                    .SetEase(Ease.InCubic);
 
                 yield return _activeTween.WaitForCompletion();
 
