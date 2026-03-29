@@ -43,6 +43,7 @@ namespace InGame.Player.Movement
         private bool _jumpRequested;
         private bool _isGrounded;
         private Vector3 _inputDirection;
+        private bool _lockXZ;
 
         private const float CoyoteTime = 0.1f;
 
@@ -63,6 +64,8 @@ namespace InGame.Player.Movement
         public Transform BodyTransform => _rootBody.transform;
         public bool IsRagdollActive => _ragdollController.IsRagdollActive;
         public bool Grounded => _isGrounded;
+        public float Gravity => _gravity;
+        public bool LockXZ { get => _lockXZ; set => _lockXZ = value; }
         public float CurrentSpeed => _currentVelocity.magnitude;
 
         private void Awake()
@@ -94,6 +97,14 @@ namespace InGame.Player.Movement
             // 풀 래그돌/Dead 중에는 이동 불가.
             if (currentRagdollState != ERagdollState.Animated)
                 return;
+
+            // 발사 중에는 입력/점프 처리를 건너뛰고 에어본 애니메이션만 갱신.
+            if (_lockXZ)
+            {
+                _anim.Locomotion(false, 0f);
+                _jumpRequested = false;
+                return;
+            }
 
             _isGrounded = IsGrounded();
             if (_isGrounded)
@@ -150,8 +161,16 @@ namespace InGame.Player.Movement
                 return;
 
             Vector3 velocity = _rootBody.linearVelocity;
-            velocity.x = _currentVelocity.x;
-            velocity.z = _currentVelocity.z;
+            if (_lockXZ)
+            {
+                velocity.x = 0f;
+                velocity.z = 0f;
+            }
+            else
+            {
+                velocity.x = _currentVelocity.x;
+                velocity.z = _currentVelocity.z;
+            }
             velocity.y += (-_gravity - Physics.gravity.y) * Time.fixedDeltaTime;
             velocity.y = Mathf.Max(velocity.y, -_maxFallSpeed);
             _rootBody.linearVelocity = velocity;
@@ -206,6 +225,7 @@ namespace InGame.Player.Movement
                 _rootBody.isKinematic = true;
                 _currentVelocity = Vector3.zero;
                 _jumpRequested = false;
+                _lockXZ = false;
             }
         }
     }

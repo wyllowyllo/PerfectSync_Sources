@@ -179,6 +179,29 @@ namespace InGame.Player
                 ragdoll.ForceRecover();
         }
 
+        public void LaunchAllBodies(float targetHeight)
+        {
+            switch (_currentMode)
+            {
+                case ETeamMode.Merged:
+                    LaunchBody(_mergedBody, targetHeight);
+                    break;
+                case ETeamMode.Separated:
+                    LaunchBody(_avatarA, targetHeight);
+                    LaunchBody(_avatarB, targetHeight);
+                    break;
+            }
+        }
+
+        private void LaunchBody(GameObject body, float targetHeight)
+        {
+            if (body == null || !body.activeInHierarchy) return;
+
+            var launchable = body.GetComponentInChildren<ILaunchable>();
+            if (launchable != null && !launchable.IsLaunching)
+                launchable.Launch(targetHeight);
+        }
+
         private bool IsAnyRagdollActive()
         {
             return _currentMode switch
