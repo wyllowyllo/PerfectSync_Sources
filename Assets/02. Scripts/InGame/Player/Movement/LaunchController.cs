@@ -14,12 +14,16 @@ namespace InGame.Player.Movement
         [Header("References")]
         [SerializeField] private Rigidbody _rootBody;
 
+        [Header("Blend")]
+        [SerializeField] private float _blendOutDuration = 0.5f;
+
         private PlayerMovement _movement;
         private PlayerJump _playerJump;
         private PlayerAnimation _anim;
         private RagdollStateMachine _ragdollStateMachine;
 
         private bool _isLaunching;
+        private bool _isBlending;
 
         public bool IsLaunching => _isLaunching;
 
@@ -59,23 +63,41 @@ namespace InGame.Player.Movement
 
             _rootBody.linearVelocity = new Vector3(vx, vy, vz);
 
-            _movement.LockXZ = true;
+            _movement.MomentumBlend = 1f;
+            _isBlending = false;
             _anim.Jump();
             _isLaunching = true;
         }
 
         private void FixedUpdate()
         {
+            // 정점 도달 후 블렌드 아웃: 발사 모멘텀 → 입력 제어로 서서히 전환.
+            if (_isBlending)
+            {
+                float blend = _movement.MomentumBlend
+                    - Time.fixedDeltaTime / _blendOutDuration;
+
+                if (blend <= 0f)
+                {
+                    _movement.MomentumBlend = 0f;
+                    _isBlending = false;
+                }
+                else
+                {
+                    _movement.MomentumBlend = blend;
+                }
+            }
+
             if (!_isLaunching) return;
 
             // 발사 중 래그돌 활성 → 비상 해제.
             if (_ragdollStateMachine.IsRagdollActive)
             {
-                CompleteLaunch();
+                AbortLaunch();
                 return;
             }
 
-            // 정점 도달: 상승 속도가 0 이하 → 제어 해제.
+            // 정점 도달: 상승 속도가 0 이하 → 블렌드 아웃 시작.
             if (_rootBody.linearVelocity.y <= 0f)
                 CompleteLaunch();
         }
@@ -83,13 +105,21 @@ namespace InGame.Player.Movement
         private void CompleteLaunch()
         {
             _isLaunching = false;
-            _movement.LockXZ = false;
+            _isBlending = true;
+            // MomentumBlend를 즉시 0으로 하지 않음 — FixedUpdate에서 서서히 감쇠.
+        }
+
+        private void AbortLaunch()
+        {
+            _isLaunching = false;
+            _isBlending = false;
+            _movement.MomentumBlend = 0f;
         }
 
         private void OnDisable()
         {
-            if (_isLaunching)
-                CompleteLaunch();
+            if (_isLaunching || _isBlending)
+                AbortLaunch();
         }
     }
 }

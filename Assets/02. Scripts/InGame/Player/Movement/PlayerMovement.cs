@@ -43,7 +43,7 @@ namespace InGame.Player.Movement
         private bool _jumpRequested;
         private bool _isGrounded;
         private Vector3 _inputDirection;
-        private bool _lockXZ;
+        private float _momentumBlend;
 
         private const float CoyoteTime = 0.1f;
 
@@ -65,7 +65,7 @@ namespace InGame.Player.Movement
         public bool IsRagdollActive => _ragdollController.IsRagdollActive;
         public bool Grounded => _isGrounded;
         public float Gravity => _gravity;
-        public bool LockXZ { get => _lockXZ; set => _lockXZ = value; }
+        public float MomentumBlend { get => _momentumBlend; set => _momentumBlend = value; }
         public float CurrentSpeed => _currentVelocity.magnitude;
 
         private void Awake()
@@ -98,8 +98,8 @@ namespace InGame.Player.Movement
             if (currentRagdollState != ERagdollState.Animated)
                 return;
 
-            // 발사 중에는 입력/점프 처리를 건너뛰고 에어본 애니메이션만 갱신.
-            if (_lockXZ)
+            // 발사 중(블렌드 1.0)에는 입력/점프 처리를 건너뛰고 에어본 애니메이션만 갱신.
+            if (_momentumBlend >= 1f)
             {
                 _anim.Locomotion(false, 0f);
                 _jumpRequested = false;
@@ -161,7 +161,13 @@ namespace InGame.Player.Movement
                 return;
 
             Vector3 velocity = _rootBody.linearVelocity;
-            if (!_lockXZ)
+            if (_momentumBlend > 0f)
+            {
+                // 발사 모멘텀 → 입력 제어로 부드럽게 전환.
+                velocity.x = Mathf.Lerp(_currentVelocity.x, velocity.x, _momentumBlend);
+                velocity.z = Mathf.Lerp(_currentVelocity.z, velocity.z, _momentumBlend);
+            }
+            else
             {
                 velocity.x = _currentVelocity.x;
                 velocity.z = _currentVelocity.z;
@@ -220,7 +226,7 @@ namespace InGame.Player.Movement
                 _rootBody.isKinematic = true;
                 _currentVelocity = Vector3.zero;
                 _jumpRequested = false;
-                _lockXZ = false;
+                _momentumBlend = 0f;
             }
         }
     }
