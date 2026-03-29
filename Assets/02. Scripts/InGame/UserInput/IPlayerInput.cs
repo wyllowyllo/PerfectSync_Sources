@@ -13,7 +13,9 @@ namespace InGame.UserInput
         // 래그돌 네트워크 경계. 로컬 = 즉시 invoke, PUN2 = RPC → invoke.
         event Action<HitData, int> OnHitReceived;
         event Action OnDeathReceived;
+        event Action OnRespawnReceived;
         void SendHit(HitData hit, int hitViewID);
         void SendDeath();
+        void SendRespawn();
     }
 }

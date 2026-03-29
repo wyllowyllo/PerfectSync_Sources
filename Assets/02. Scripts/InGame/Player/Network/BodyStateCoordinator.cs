@@ -32,6 +32,7 @@ namespace InGame.Player.Network
             _playerFormController.OnModeChanged += HandleModeChanged;
             _localPlayerInput.OnHitReceived += HandleHit;
             _localPlayerInput.OnDeathReceived += HandleDeath;
+            _localPlayerInput.OnRespawnReceived += HandleRespawn;
 
             if (_photonView != null && _photonView.IsMine)
             {
@@ -50,6 +51,7 @@ namespace InGame.Player.Network
             {
                 _localPlayerInput.OnHitReceived -= HandleHit;
                 _localPlayerInput.OnDeathReceived -= HandleDeath;
+                _localPlayerInput.OnRespawnReceived -= HandleRespawn;
             }
         }
 
@@ -169,6 +171,20 @@ namespace InGame.Player.Network
                 case ETeamMode.Separated:
                     FindInBody<RagdollStateMachine>(_avatarA)?.EnterDead();
                     FindInBody<RagdollStateMachine>(_avatarB)?.EnterDead();
+                    break;
+            }
+        }
+
+        private void HandleRespawn()
+        {
+            switch (_currentMode)
+            {
+                case ETeamMode.Merged:
+                    FindInBody<RagdollStateMachine>(_mergedBody)?.Respawn();
+                    break;
+                case ETeamMode.Separated:
+                    FindInBody<RagdollStateMachine>(_avatarA)?.Respawn();
+                    FindInBody<RagdollStateMachine>(_avatarB)?.Respawn();
                     break;
             }
         }
