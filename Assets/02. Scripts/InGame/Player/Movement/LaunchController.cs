@@ -14,8 +14,11 @@ namespace InGame.Player.Movement
         [Header("References")]
         [SerializeField] private Rigidbody _rootBody;
 
-        [Header("Blend")]
-        [SerializeField] private float _blendOutDuration = 0.5f;
+        [Header("Transition")]
+        [SerializeField] private float _transitionDuration = 0.4f;
+
+        [Header("Post-Launch Air Control")]
+        [SerializeField] private float _postLaunchAirControlBoost = 3f;
 
         private PlayerMovement _movement;
         private PlayerJump _playerJump;
@@ -23,7 +26,7 @@ namespace InGame.Player.Movement
         private RagdollStateMachine _ragdollStateMachine;
 
         private bool _isLaunching;
-        private bool _isBlending;
+        private float _transitionStartVy;
 
         public bool IsLaunching => _isLaunching;
 
@@ -51,43 +54,23 @@ namespace InGame.Player.Movement
                 _playerJump.ClearDiving();
 
             // vy = √(2gh) — 목표 높이에 정확히 도달하는 상향 속도.
-            float gravity = _movement.Gravity;
-            float vy = Mathf.Sqrt(2f * gravity * height);
+            float vy = Mathf.Sqrt(2f * _movement.Gravity * height);
 
-            // 정점까지 걸리는 시간: t = vy / g.
-            float timeToApex = vy / gravity;
+            // 수직 발사: XZ 고정, Y만 이동.
+            _rootBody.linearVelocity = new Vector3(0f, vy, 0f);
 
-            // 그 시간 안에 목표 XZ에 도달하는 수평 속도.
-            float vx = (targetPosition.x - _rootBody.position.x) / timeToApex;
-            float vz = (targetPosition.z - _rootBody.position.z) / timeToApex;
-
-            _rootBody.linearVelocity = new Vector3(vx, vy, vz);
+            // 전환 시작 지점의 vy: 정점 _transitionDuration초 전의 상승 속도.
+            // vy = g * t 이므로, 정점 t초 전의 속도 = g * t.
+            _transitionStartVy = _movement.Gravity * _transitionDuration;
 
             _movement.MomentumBlend = 1f;
-            _isBlending = false;
+            _movement.AirControlBoost = 1f;
             _anim.Jump();
             _isLaunching = true;
         }
 
         private void FixedUpdate()
         {
-            // 정점 도달 후 블렌드 아웃: 발사 모멘텀 → 입력 제어로 서서히 전환.
-            if (_isBlending)
-            {
-                float blend = _movement.MomentumBlend
-                    - Time.fixedDeltaTime / _blendOutDuration;
-
-                if (blend <= 0f)
-                {
-                    _movement.MomentumBlend = 0f;
-                    _isBlending = false;
-                }
-                else
-                {
-                    _movement.MomentumBlend = blend;
-                }
-            }
-
             if (!_isLaunching) return;
 
             // 발사 중 래그돌 활성 → 비상 해제.
@@ -97,28 +80,41 @@ namespace InGame.Player.Movement
                 return;
             }
 
-            // 정점 도달: 상승 속도가 0 이하 → 블렌드 아웃 시작.
-            if (_rootBody.linearVelocity.y <= 0f)
+            float vy = _rootBody.linearVelocity.y;
+
+            // 상승 속도가 전환 시작 지점 이하 → 정점까지 서서히 블렌드.
+            if (vy <= _transitionStartVy)
+            {
+                // vy: transitionStartVy → 0 을 t: 0 → 1 로 매핑.
+                float t = 1f - Mathf.Clamp01(vy / _transitionStartVy);
+                float smoothT = t * t * (3f - 2f * t);
+
+                _movement.MomentumBlend = 1f - smoothT;
+                _movement.AirControlBoost = Mathf.Lerp(1f, _postLaunchAirControlBoost, smoothT);
+            }
+
+            // 정점 도달: 전환 완료.
+            if (vy <= 0f)
                 CompleteLaunch();
         }
 
         private void CompleteLaunch()
         {
             _isLaunching = false;
-            _isBlending = true;
-            // MomentumBlend를 즉시 0으로 하지 않음 — FixedUpdate에서 서서히 감쇠.
+            _movement.MomentumBlend = 0f;
+            _movement.AirControlBoost = _postLaunchAirControlBoost;
         }
 
         private void AbortLaunch()
         {
             _isLaunching = false;
-            _isBlending = false;
             _movement.MomentumBlend = 0f;
+            _movement.AirControlBoost = 1f;
         }
 
         private void OnDisable()
         {
-            if (_isLaunching || _isBlending)
+            if (_isLaunching)
                 AbortLaunch();
         }
     }
