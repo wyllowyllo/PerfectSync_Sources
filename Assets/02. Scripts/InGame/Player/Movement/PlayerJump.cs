@@ -46,6 +46,9 @@ namespace InGame.Player.Movement
 
         public bool TryDive(Vector3 inputDirection)
         {
+            if (_isDiving)
+                return false;
+
             if (Time.time - _lastDiveTime < _diveCooldown)
                 return false;
 

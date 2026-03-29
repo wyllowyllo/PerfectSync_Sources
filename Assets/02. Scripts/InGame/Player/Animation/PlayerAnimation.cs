@@ -47,6 +47,31 @@ namespace InGame.Player.Animation
             _animator.SetBool(s_getUpFromBellyHash, false);
         }
 
+        private static readonly int s_jumpLandHash = Animator.StringToHash("JumpLand");
+
+        // GetUp 또는 JumpLand 재생/전환 중이면 점프 차단.
+        public bool IsJumpLocked()
+        {
+            int hash = _animator.GetCurrentAnimatorStateInfo(0).shortNameHash;
+            if (IsRecoveryHash(hash))
+                return true;
+
+            if (_animator.IsInTransition(0))
+            {
+                int nextHash = _animator.GetNextAnimatorStateInfo(0).shortNameHash;
+                return IsRecoveryHash(nextHash);
+            }
+
+            return false;
+        }
+
+        private bool IsRecoveryHash(int hash)
+        {
+            return hash == s_getUpFromBackHash
+                || hash == s_getUpFromBellyHash
+                || hash == s_jumpLandHash;
+        }
+
         public void Stumble()
         {
             _animator.SetTrigger(s_stumbleHash);

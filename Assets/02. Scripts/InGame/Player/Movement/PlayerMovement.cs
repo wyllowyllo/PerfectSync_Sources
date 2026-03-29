@@ -136,16 +136,20 @@ namespace InGame.Player.Movement
 
             if (_jumpRequested)
             {
-                bool canJump = Time.time - _lastGroundedTime <= CoyoteTime;
-                if (canJump)
+                // 착지 회복 애니메이션 재생 중에는 점프/다이브 차단.
+                if (!_anim.IsJumpLocked())
                 {
-                    _playerJump.Jump();
-                    OnJumped?.Invoke();
-                }
-                else if (InGameManager.IsLocalPlayerControllable && _playerJump.TryDive(_inputDirection))
-                {
-                    _currentVelocity = Vector3.zero;
-                    OnDived?.Invoke();
+                    bool canJump = Time.time - _lastGroundedTime <= CoyoteTime;
+                    if (canJump)
+                    {
+                        _playerJump.Jump();
+                        OnJumped?.Invoke();
+                    }
+                    else if (InGameManager.IsLocalPlayerControllable && _playerJump.TryDive(_inputDirection))
+                    {
+                        _currentVelocity = Vector3.zero;
+                        OnDived?.Invoke();
+                    }
                 }
                 _jumpRequested = false;
             }
