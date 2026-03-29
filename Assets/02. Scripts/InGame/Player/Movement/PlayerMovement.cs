@@ -161,12 +161,7 @@ namespace InGame.Player.Movement
                 return;
 
             Vector3 velocity = _rootBody.linearVelocity;
-            if (_lockXZ)
-            {
-                velocity.x = 0f;
-                velocity.z = 0f;
-            }
-            else
+            if (!_lockXZ)
             {
                 velocity.x = _currentVelocity.x;
                 velocity.z = _currentVelocity.z;

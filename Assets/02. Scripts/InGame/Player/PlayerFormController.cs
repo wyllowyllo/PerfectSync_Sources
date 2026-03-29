@@ -179,27 +179,27 @@ namespace InGame.Player
                 ragdoll.ForceRecover();
         }
 
-        public void LaunchAllBodies(float targetHeight)
+        public void LaunchAllBodies(Vector3 targetPosition)
         {
             switch (_currentMode)
             {
                 case ETeamMode.Merged:
-                    LaunchBody(_mergedBody, targetHeight);
+                    LaunchBody(_mergedBody, targetPosition);
                     break;
                 case ETeamMode.Separated:
-                    LaunchBody(_avatarA, targetHeight);
-                    LaunchBody(_avatarB, targetHeight);
+                    LaunchBody(_avatarA, targetPosition);
+                    LaunchBody(_avatarB, targetPosition);
                     break;
             }
         }
 
-        private void LaunchBody(GameObject body, float targetHeight)
+        private void LaunchBody(GameObject body, Vector3 targetPosition)
         {
             if (body == null || !body.activeInHierarchy) return;
 
             var launchable = body.GetComponentInChildren<ILaunchable>();
             if (launchable != null && !launchable.IsLaunching)
-                launchable.Launch(targetHeight);
+                launchable.Launch(targetPosition);
         }
 
         private bool IsAnyRagdollActive()

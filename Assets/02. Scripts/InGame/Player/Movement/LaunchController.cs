@@ -31,11 +31,11 @@ namespace InGame.Player.Movement
             _ragdollStateMachine = GetComponent<RagdollStateMachine>();
         }
 
-        public void Launch(float targetHeight)
+        public void Launch(Vector3 targetPosition)
         {
             if (_isLaunching) return;
 
-            float height = targetHeight - _rootBody.position.y;
+            float height = targetPosition.y - _rootBody.position.y;
             if (height <= 0f) return;
 
             // 래그돌 활성 중이면 즉시 복구.
@@ -46,9 +46,18 @@ namespace InGame.Player.Movement
             if (_playerJump.IsDiving)
                 _playerJump.ClearDiving();
 
-            // v₀ = √(2gh) — 목표 높이에 정확히 도달하는 초기 속도.
-            float v0 = Mathf.Sqrt(2f * _movement.Gravity * height);
-            _rootBody.linearVelocity = new Vector3(0f, v0, 0f);
+            // vy = √(2gh) — 목표 높이에 정확히 도달하는 상향 속도.
+            float gravity = _movement.Gravity;
+            float vy = Mathf.Sqrt(2f * gravity * height);
+
+            // 정점까지 걸리는 시간: t = vy / g.
+            float timeToApex = vy / gravity;
+
+            // 그 시간 안에 목표 XZ에 도달하는 수평 속도.
+            float vx = (targetPosition.x - _rootBody.position.x) / timeToApex;
+            float vz = (targetPosition.z - _rootBody.position.z) / timeToApex;
+
+            _rootBody.linearVelocity = new Vector3(vx, vy, vz);
 
             _movement.LockXZ = true;
             _anim.Jump();

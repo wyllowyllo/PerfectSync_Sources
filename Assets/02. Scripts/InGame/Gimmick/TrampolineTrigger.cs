@@ -13,7 +13,7 @@ namespace InGame.Gimmick
             var formController = collision.collider.GetComponentInParent<PlayerFormController>();
             if (formController == null) return;
 
-            formController.LaunchAllBodies(_targetPoint.position.y);
+            formController.LaunchAllBodies(_targetPoint.position);
         }
 
         private void OnDrawGizmos()
