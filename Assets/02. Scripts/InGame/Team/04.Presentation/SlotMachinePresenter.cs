@@ -1,4 +1,5 @@
 using System.Collections;
+using DG.Tweening;
 using InGame.Player;
 using InGame.Player.Movement;
 using InGame.Player.Network;
@@ -13,7 +14,12 @@ namespace InGame.Team
         [SerializeField] private SlotMachine _slotMachinePrefab;
 
         [Header("Display")]
-        [SerializeField] private Vector3 _displayOffset = new(1.5f, 1.0f, 0f);
+        [SerializeField] private Vector3 _displayOffset = new(0f, 2.0f, 0f);
+
+        [Header("Animation")]
+        [SerializeField] private float _slideHeight = 3f;
+        [SerializeField] private float _appearDuration = 0.4f;
+        [SerializeField] private float _disappearDuration = 0.35f;
 
         [Header("Timing")]
         [SerializeField] private float _postLandingDelay = 1.5f;
@@ -23,6 +29,9 @@ namespace InGame.Team
         private PhotonView _photonView;
 
         private SlotMachine _activeSlotMachine;
+        private Tween _activeTween;
+        private Quaternion _prefabBaseRotation;
+        private float _localOffsetY;
         private bool _isMatch;
 
         private void Start()
@@ -36,6 +45,8 @@ namespace InGame.Team
 
         private void OnDestroy()
         {
+            _activeTween?.Kill();
+
             if (_synchronizer != null)
                 _synchronizer.OnSlotSpinReceived -= HandleSlotSpin;
         }
@@ -45,13 +56,26 @@ namespace InGame.Team
             if (_activeSlotMachine == null) return;
 
             Transform body = _formController.PrimaryBodyTransform;
-            _activeSlotMachine.transform.position = body.position + body.TransformDirection(_displayOffset);
-            _activeSlotMachine.transform.rotation = body.rotation;
+            Vector3 targetPos = body.position + _displayOffset;
+            targetPos.y += _localOffsetY;
+            _activeSlotMachine.transform.position = targetPos;
+
+            var cam = UnityEngine.Camera.main;
+            if (cam != null)
+            {
+                Vector3 lookDir = cam.transform.position - targetPos;
+                lookDir.y = 0f;
+                if (lookDir.sqrMagnitude > 0.001f)
+                {
+                    Quaternion yaw = Quaternion.LookRotation(lookDir);
+                    _activeSlotMachine.transform.rotation = yaw * _prefabBaseRotation;
+                }
+            }
         }
 
         private void HandleSlotSpin(int[] symbols, bool isMatch)
         {
-            // 이전 슬롯머신이 남아 있으면 정리.
+            _activeTween?.Kill();
             if (_activeSlotMachine != null)
             {
                 Destroy(_activeSlotMachine.gameObject);
@@ -59,13 +83,22 @@ namespace InGame.Team
             }
 
             _isMatch = isMatch;
+            _localOffsetY = _slideHeight;
 
             Transform body = _formController.PrimaryBodyTransform;
-            Vector3 spawnPos = body.position + body.TransformDirection(_displayOffset);
+            Vector3 spawnPos = body.position + _displayOffset + Vector3.up * _slideHeight;
 
-            _activeSlotMachine = Instantiate(_slotMachinePrefab, spawnPos, body.rotation);
-            _activeSlotMachine.Spin(symbols);
-            _activeSlotMachine.OnSpinComplete += OnSpinComplete;
+            _activeSlotMachine = Instantiate(_slotMachinePrefab, spawnPos, _slotMachinePrefab.transform.rotation);
+            _prefabBaseRotation = _slotMachinePrefab.transform.rotation;
+
+            // 위에서 내려오며 등장.
+            _activeTween = DOTween.To(() => _localOffsetY, v => _localOffsetY = v, 0f, _appearDuration)
+                .SetEase(Ease.OutBack)
+                .OnComplete(() =>
+                {
+                    _activeSlotMachine.Spin(symbols);
+                    _activeSlotMachine.OnSpinComplete += OnSpinComplete;
+                });
         }
 
         private void OnSpinComplete(int[] results)
@@ -78,18 +111,21 @@ namespace InGame.Team
 
         private IEnumerator WaitForLandingAndFinish()
         {
-            // 활성 바디가 착지할 때까지 대기.
             yield return new WaitUntil(IsAnyActiveBodyGrounded);
-
             yield return new WaitForSeconds(_postLandingDelay);
 
+            // 위로 올라가며 퇴장.
             if (_activeSlotMachine != null)
             {
+                _activeTween = DOTween.To(() => _localOffsetY, v => _localOffsetY = v, _slideHeight, _disappearDuration)
+                    .SetEase(Ease.InBack);
+
+                yield return _activeTween.WaitForCompletion();
+
                 Destroy(_activeSlotMachine.gameObject);
                 _activeSlotMachine = null;
             }
 
-            // 모드 전환은 Host만 실행. 3매치 → 합체, 불일치 → 분리.
             if (_photonView.IsMine)
             {
                 var targetMode = _isMatch ? ETeamMode.Merged : ETeamMode.Separated;
