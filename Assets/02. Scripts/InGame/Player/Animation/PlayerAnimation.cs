@@ -12,8 +12,8 @@ namespace InGame.Player.Animation
         private static readonly int s_diveHash = Animator.StringToHash("Dive");
         private static readonly int s_getUpFromBackHash = Animator.StringToHash("GetUpFromBack");
         private static readonly int s_getUpFromBellyHash = Animator.StringToHash("GetUpFromBelly");
-        private static readonly int s_diveLandHash = Animator.StringToHash("DiveLand");
         private static readonly int s_stumbleHash = Animator.StringToHash("Stumble");
+        private static readonly int s_trampolineLaunchHash = Animator.StringToHash("TrampolineLaunch");
 
         public void Locomotion(bool isGrounded, float speed)
         {
@@ -28,20 +28,13 @@ namespace InGame.Player.Animation
 
         public void Dive()
         {
-            _animator.SetBool(s_diveLandHash, false);
             _animator.SetTrigger(s_diveHash);
-        }
-
-        public void Land(bool active)
-        {
-            _animator.SetBool(s_diveLandHash, active);
         }
 
         public void GetUp(bool isFaceUp)
         {
             _animator.ResetTrigger(s_jumpHash);
             _animator.ResetTrigger(s_diveHash);
-            _animator.SetBool(s_diveLandHash, false);
             _animator.SetFloat(s_speedHash, 0f);
             _animator.SetBool(s_isGroundedHash, true);
 
@@ -55,6 +48,31 @@ namespace InGame.Player.Animation
             _animator.SetBool(s_getUpFromBellyHash, false);
         }
 
+        private static readonly int s_jumpLandHash = Animator.StringToHash("JumpLand");
+
+        // GetUp 또는 JumpLand 재생/전환 중이면 점프 차단.
+        public bool IsJumpLocked()
+        {
+            int hash = _animator.GetCurrentAnimatorStateInfo(0).shortNameHash;
+            if (IsRecoveryHash(hash))
+                return true;
+
+            if (_animator.IsInTransition(0))
+            {
+                int nextHash = _animator.GetNextAnimatorStateInfo(0).shortNameHash;
+                return IsRecoveryHash(nextHash);
+            }
+
+            return false;
+        }
+
+        private bool IsRecoveryHash(int hash)
+        {
+            return hash == s_getUpFromBackHash
+                || hash == s_getUpFromBellyHash
+                || hash == s_jumpLandHash;
+        }
+
         public void Stumble()
         {
             _animator.SetTrigger(s_stumbleHash);
@@ -63,6 +81,11 @@ namespace InGame.Player.Animation
         public void ClearStumbleState()
         {
             _animator.ResetTrigger(s_stumbleHash);
+        }
+
+        public void TrampolineLaunch()
+        {
+            _animator.SetTrigger(s_trampolineLaunchHash);
         }
     }
 }

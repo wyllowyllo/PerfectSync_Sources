@@ -13,6 +13,7 @@ namespace InGame.Player.Network
         private RagdollStateMachine _ragdollStateMachine;
         private RagdollBoneReceiver _boneReceiver;
         private bool _isAuthority = true;
+        private ERagdollState _previousState = ERagdollState.Animated;
 
         private void Awake()
         {
@@ -70,13 +71,18 @@ namespace InGame.Player.Network
                     break;
 
                 case ERagdollState.Animated:
-                    photonView.RPC(nameof(RpcEnterAnimated), RpcTarget.Others);
+                    if (_previousState == ERagdollState.Dead)
+                        photonView.RPC(nameof(RpcRespawn), RpcTarget.Others);
+                    else
+                        photonView.RPC(nameof(RpcEnterAnimated), RpcTarget.Others);
                     break;
 
                 case ERagdollState.Dead:
                     photonView.RPC(nameof(RpcEnterDead), RpcTarget.Others);
                     break;
             }
+
+            _previousState = newState;
         }
 
         private void HandleStumblePlayed()
@@ -136,6 +142,16 @@ namespace InGame.Player.Network
 
             _boneReceiver.StartReceiving();
             _ragdollStateMachine.EnterDeadRemote();
+        }
+
+        [PunRPC]
+        private void RpcRespawn()
+        {
+            if (_isAuthority) return;
+            if (!gameObject.activeInHierarchy) return;
+
+            _boneReceiver.StopReceiving();
+            _ragdollStateMachine.RespawnRemote();
         }
 
         #endregion

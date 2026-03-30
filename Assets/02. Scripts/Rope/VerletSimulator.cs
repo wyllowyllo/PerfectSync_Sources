@@ -10,6 +10,9 @@ public class VerletSimulator : IRopePhysics
     private readonly VerletNode[] _nodes;
     private readonly float _nodeDistance;
     private readonly int _constraintIterations;
+    private readonly int _subSteps;
+    private readonly float _compliance;
+    private readonly float[] _lambdas;
     private readonly LayerMask _obstacleLayer;
     private readonly LayerMask _dynamicObstacleLayer;
     private readonly SerializableDictionary<LayerMask, float> _frictionMap;
@@ -30,7 +33,7 @@ public class VerletSimulator : IRopePhysics
     /// <param name="obstacleLayer">충돌을 감지할 장애물의 레이어 마스크</param>
     /// <param name="dynamicObstacleLayer">충돌을 감지할 움직이는 장애물의 레이어 마스크</param>
     /// <exception cref="ArgumentOutOfRangeException">노드 개수나 길이가 유효하지 않을 때 발생</exception>
-    public VerletSimulator(int nodeCount, float totalLength, int constraintIterations, Vector3 startPosition, LayerMask obstacleLayer, LayerMask dynamicObstacleLayer, SerializableDictionary<LayerMask, float> frictionMap)
+    public VerletSimulator(int nodeCount, float totalLength, int constraintIterations, Vector3 startPosition, LayerMask obstacleLayer, LayerMask dynamicObstacleLayer, SerializableDictionary<LayerMask, float> frictionMap, int subSteps = 3, float compliance = 0f)
     {
         if (nodeCount < 2)
             throw new ArgumentOutOfRangeException(nameof(nodeCount), "로프를 구성하기 위해 노드는 최소 2개 이상 필요합니다.");
@@ -38,10 +41,13 @@ public class VerletSimulator : IRopePhysics
             throw new ArgumentOutOfRangeException(nameof(totalLength), "로프의 길이는 0보다 커야 합니다.");
         if (constraintIterations <= 0)
             throw new ArgumentOutOfRangeException(nameof(constraintIterations), "반복 횟수는 최소 1 이상이어야 합니다.");
-        
+
         _nodes = new VerletNode[nodeCount];
         _nodeDistance = totalLength / (nodeCount - 1);
         _constraintIterations = constraintIterations;
+        _subSteps = Mathf.Max(1, subSteps);
+        _compliance = Mathf.Max(0f, compliance);
+        _lambdas = new float[nodeCount - 1];
         _obstacleLayer = obstacleLayer;
         _dynamicObstacleLayer = dynamicObstacleLayer;
         _frictionMap = frictionMap;
@@ -56,18 +62,26 @@ public class VerletSimulator : IRopePhysics
     public void Simulate(float deltaTime)
     {
         _overlappingColliders.Clear();
-        
+
         for (int i = 0; i < _nodes.Length; i++)
         {
             _nodes[i].IsTouchingObstacle = false;
         }
-        
-        ApplyVerletIntegrator(deltaTime);
-        
-        for (int i = 0; i < _constraintIterations; i++)
+
+        float subDt = deltaTime / _subSteps;
+
+        for (int step = 0; step < _subSteps; step++)
         {
-            ApplyDistanceConstraints();
-            ApplyCollisionConstraints();
+            ApplyVerletIntegrator(subDt);
+
+            // XPBD: 각 서브스텝 시작 시 라그랑주 승수 초기화
+            System.Array.Clear(_lambdas, 0, _lambdas.Length);
+
+            for (int i = 0; i < _constraintIterations; i++)
+            {
+                ApplyDistanceConstraints(subDt);
+                ApplyCollisionConstraints();
+            }
         }
     }
 
@@ -94,24 +108,43 @@ public class VerletSimulator : IRopePhysics
     }
 
     /// <summary>
-    /// 탄성을 계산하여 거리 유지
+    /// XPBD 기반 거리 제약 솔버.
+    /// compliance(α)와 Lagrange multiplier(λ)를 사용하여 dt에 독립적인 강성 제어를 수행합니다.
+    /// α = 0이면 완전 강체, α가 클수록 탄성적으로 동작합니다.
     /// </summary>
-    private void ApplyDistanceConstraints()
+    private void ApplyDistanceConstraints(float subDt)
     {
+        // α̃ = α / dt² (시간 스케일링된 유연도)
+        float alphaTilde = _compliance / (subDt * subDt);
+
         for (int i = 0; i < _nodes.Length - 1; i++)
         {
             ref var nodeA = ref _nodes[i];
             ref var nodeB = ref _nodes[i + 1];
 
-            var currentDistance = Vector3.Distance(in nodeA.CurrentPosition, in nodeB.CurrentPosition);
-            var error = currentDistance - _nodeDistance;
-            
-            Vector3 direction = (nodeA.CurrentPosition - nodeB.CurrentPosition).normalized;
-            Vector3 correction = direction * error;
+            Vector3 diff = nodeA.CurrentPosition - nodeB.CurrentPosition;
+            float currentDistance = diff.magnitude;
 
-            // 두 점이 핀으로 고정되지 않았다면 반반씩 이동시켜 거리 조절
-            if (!nodeA.IsPinned) _nodes[i].CurrentPosition -= correction * 0.5f;
-            if (!nodeB.IsPinned) _nodes[i + 1].CurrentPosition += correction * 0.5f;
+            if (currentDistance < 1e-7f) continue;
+
+            // 제약 값: C = 현재 거리 - 기본 거리
+            float C = currentDistance - _nodeDistance;
+
+            // 역질량: 고정된 노드는 0 (무한 질량), 자유 노드는 1
+            float w1 = nodeA.IsPinned ? 0f : 1f;
+            float w2 = nodeB.IsPinned ? 0f : 1f;
+            float wSum = w1 + w2;
+
+            if (wSum < 1e-7f) continue;
+
+            // Δλ = -(C + α̃ · λ) / (w₁ + w₂ + α̃)
+            float deltaLambda = -(C + alphaTilde * _lambdas[i]) / (wSum + alphaTilde);
+            _lambdas[i] += deltaLambda;
+
+            // 위치 보정: 역질량에 비례하여 각 노드를 이동
+            Vector3 direction = diff / currentDistance;
+            _nodes[i].CurrentPosition += direction * (deltaLambda * w1);
+            _nodes[i + 1].CurrentPosition -= direction * (deltaLambda * w2);
         }
     }
     
@@ -121,7 +154,7 @@ public class VerletSimulator : IRopePhysics
     private void ApplyCollisionConstraints()
     {
         const float NodeRadius = 0.15f; // 고무줄 두께에 맞춰 조절
-        
+
         for (int i = 0; i < _nodes.Length; i++)
         {
             if (_nodes[i].IsPinned) continue;
@@ -131,49 +164,75 @@ public class VerletSimulator : IRopePhysics
             Vector3 delta = currPos - prevPos;
             float distanceToMove = delta.magnitude;
 
-            // 고정 장애물에 부딪힐 때 충돌 처리
+            // 1단계: SphereCast 경로 추적 — 이전→현재 이동 경로상의 고정 장애물 충돌
             if (distanceToMove > 0.001f)
             {
                 Vector3 direction = delta / distanceToMove;
-    
+
                 // 표면에서 쏘면 무시되는 현상 방지를 위해 시작점을 살짝 뒤로 잡음
                 Vector3 safePrevPos = prevPos - (direction * 0.01f);
                 float safeDistance = distanceToMove + 0.01f;
-    
+
                 if (Physics.SphereCast(safePrevPos, NodeRadius, direction, out RaycastHit hit, safeDistance, _obstacleLayer))
                 {
                     float friction = GetFrictionForLayer(hit.collider.gameObject.layer);
-                    
+
                     // 장애물 표면으로 밀어냄
                     _nodes[i].CurrentPosition = hit.point + hit.normal * (NodeRadius + 0.005f);
-        
+
                     // 벽 표면을 따라 미끄러지는 속도만 남기기
                     Vector3 currentVelocity = _nodes[i].CurrentPosition - prevPos;
                     Vector3 slideVelocity = Vector3.ProjectOnPlane(currentVelocity, hit.normal);
-        
+
                     _nodes[i].PreviousPosition = _nodes[i].CurrentPosition - (slideVelocity * friction);
-        
+
                     _nodes[i].IsTouchingObstacle = true;
-                    continue; 
+                    continue;
                 }
             }
 
-            // 다른 플레이어가 지나갈 때 충돌 처리
-            int count = Physics.OverlapSphereNonAlloc(_nodes[i].CurrentPosition, NodeRadius + 0.05f, _overlapBuffer, _dynamicObstacleLayer);
-            
-            for (int j = 0; j < count; j++)
+            // 2단계: OverlapSphere 관통 보정 — 거리 제약 보정 후 벽 안으로 밀려난 경우 복구
+            int staticCount = Physics.OverlapSphereNonAlloc(_nodes[i].CurrentPosition, NodeRadius, _overlapBuffer, _obstacleLayer);
+
+            for (int j = 0; j < staticCount; j++)
             {
                 Collider obstacle = _overlapBuffer[j];
-                _overlappingColliders.Add(obstacle);
-                
                 Vector3 closestPoint = obstacle.ClosestPoint(_nodes[i].CurrentPosition);
                 float penetrationDistance = Vector3.Distance(_nodes[i].CurrentPosition, closestPoint);
-            
+
                 if (penetrationDistance < NodeRadius)
                 {
                     Vector3 pushDirection = (_nodes[i].CurrentPosition - closestPoint).normalized;
-                    if (pushDirection == Vector3.zero) pushDirection = Vector3.up; 
-                
+                    if (pushDirection == Vector3.zero) pushDirection = Vector3.up;
+
+                    float friction = GetFrictionForLayer(obstacle.gameObject.layer);
+
+                    _nodes[i].CurrentPosition = closestPoint + pushDirection * (NodeRadius + 0.005f);
+
+                    Vector3 currentVelocity = _nodes[i].CurrentPosition - _nodes[i].PreviousPosition;
+                    Vector3 slideVelocity = Vector3.ProjectOnPlane(currentVelocity, pushDirection);
+                    _nodes[i].PreviousPosition = _nodes[i].CurrentPosition - (slideVelocity * friction);
+
+                    _nodes[i].IsTouchingObstacle = true;
+                }
+            }
+
+            // 3단계: 동적 장애물(플레이어) 충돌 처리
+            int dynamicCount = Physics.OverlapSphereNonAlloc(_nodes[i].CurrentPosition, NodeRadius + 0.05f, _overlapBuffer, _dynamicObstacleLayer);
+
+            for (int j = 0; j < dynamicCount; j++)
+            {
+                Collider obstacle = _overlapBuffer[j];
+                _overlappingColliders.Add(obstacle);
+
+                Vector3 closestPoint = obstacle.ClosestPoint(_nodes[i].CurrentPosition);
+                float penetrationDistance = Vector3.Distance(_nodes[i].CurrentPosition, closestPoint);
+
+                if (penetrationDistance < NodeRadius)
+                {
+                    Vector3 pushDirection = (_nodes[i].CurrentPosition - closestPoint).normalized;
+                    if (pushDirection == Vector3.zero) pushDirection = Vector3.up;
+
                     _nodes[i].CurrentPosition = closestPoint + (pushDirection * NodeRadius);
                     _nodes[i].IsTouchingObstacle = true;
                 }
@@ -204,6 +263,7 @@ public class VerletSimulator : IRopePhysics
     {
         if (index < 0 || index >= _nodes.Length) return;
         _nodes[index].CurrentPosition = position;
+        _nodes[index].PreviousPosition = position;
         _nodes[index].IsPinned = true;
     }
     

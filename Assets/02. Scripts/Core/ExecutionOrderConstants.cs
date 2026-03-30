@@ -12,6 +12,7 @@ namespace Core
         public const int RagdollStateMachine = 0;
         public const int RagdollBoneReceiver = 1;
         public const int PlayerMovement = 2;
+        public const int LaunchController = 3;
 
         // ── 카메라 (+5) ──
         public const int CinemachineCameraManager = 5;

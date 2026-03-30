@@ -24,12 +24,33 @@ namespace InGame.UserInput
 
         public event Action<HitData, int> OnHitReceived;
         public event Action OnDeathReceived;
+        public event Action OnRespawnReceived;
 
         private Vector2 _moveInput;
         private bool _jumpPressed;
+        private bool? _isMyTeam;
+
+        private bool CheckIsMyTeam()
+        {
+            if (_isMyTeam.HasValue) return _isMyTeam.Value;
+
+            var owner = photonView.Owner;
+            if (owner == null) return false;
+
+            int ownerTeam = PhotonTeamManager.GetTeamRaw(owner);
+            int myTeam = PhotonTeamManager.GetLocalTeamRaw();
+
+            if (ownerTeam == PhotonTeamManager.TeamNone || myTeam == PhotonTeamManager.TeamNone)
+                return false;
+
+            _isMyTeam = (ownerTeam == myTeam);
+            return _isMyTeam.Value;
+        }
 
         private void Update()
         {
+            if (!CheckIsMyTeam()) return;
+
             _moveInput = new Vector2(Input.GetAxisRaw("Horizontal"), Input.GetAxisRaw("Vertical"));
             _jumpPressed |= Input.GetButtonDown("Jump");
         }
@@ -58,6 +79,18 @@ namespace InGame.UserInput
         private void RpcReceiveDeath()
         {
             OnDeathReceived?.Invoke();
+        }
+
+        public void SendRespawn()
+        {
+            OnRespawnReceived?.Invoke();
+            photonView.RPC(nameof(RpcReceiveRespawn), RpcTarget.Others);
+        }
+
+        [PunRPC]
+        private void RpcReceiveRespawn()
+        {
+            OnRespawnReceived?.Invoke();
         }
     }
 }

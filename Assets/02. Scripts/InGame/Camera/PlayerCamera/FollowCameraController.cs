@@ -41,17 +41,23 @@ namespace InGame.Camera.PlayerCamera
 
         private const int ActivePriority = 10;
         private const int StandbyPriority = 0;
-
-        private void Awake()
-        {
-            _animatedProxyRb = CreateInterpolatedProxy("AnimatedCameraProxy");
-            _ragdollProxyRb = CreateInterpolatedProxy("RagdollCameraProxy");
-        }
+        private bool _initialized;
 
         private void Start()
         {
             _playerFormController = GetComponent<PlayerFormController>();
             _isHost = photonView.IsMine;
+            TryInitialize();
+        }
+
+        private void TryInitialize()
+        {
+            if (_initialized) return;
+            if (!IsMyTeam()) return;
+
+            _initialized = true;
+            _animatedProxyRb = CreateInterpolatedProxy("AnimatedCameraProxy");
+            _ragdollProxyRb = CreateInterpolatedProxy("RagdollCameraProxy");
 
             if (_animatedCamera == null)
                 _animatedCamera = FindAnyObjectByType<CinemachineCamera>();
@@ -73,8 +79,22 @@ namespace InGame.Camera.PlayerCamera
             }
         }
 
+        private bool IsMyTeam()
+        {
+            var owner = photonView.Owner;
+            if (owner == null) return false;
+
+            int ownerTeam = PhotonTeamManager.GetTeamRaw(owner);
+            int myTeam = PhotonTeamManager.GetLocalTeamRaw();
+
+            return ownerTeam != PhotonTeamManager.TeamNone
+                && ownerTeam == myTeam;
+        }
+
         private void OnDestroy()
         {
+            if (!_initialized) return;
+
             if (_playerFormController != null)
                 _playerFormController.OnModeChanged -= HandleModeChanged;
 
@@ -90,6 +110,12 @@ namespace InGame.Camera.PlayerCamera
 
         private void FixedUpdate()
         {
+            if (!_initialized)
+            {
+                TryInitialize();
+                if (!_initialized) return;
+            }
+
             if (_activeTarget == null) return;
 
             Vector3 targetPos = _activeTarget.position + _targetOffset;
@@ -99,7 +125,7 @@ namespace InGame.Camera.PlayerCamera
 
         private void LateUpdate()
         {
-
+            if (!_initialized) return;
             if (_activeRagdoll == null) return;
 
             bool shouldBeRagdoll = _activeRagdoll.IsPhysicsRagdoll;

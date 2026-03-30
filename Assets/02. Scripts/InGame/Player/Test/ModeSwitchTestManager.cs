@@ -1,12 +1,11 @@
 using InGame.Player.Network;
-using Photon.Pun;
 using UnityEngine;
 
 namespace InGame.Player.Test
 {
     /// <summary>
     /// 멀티 환경 모드 전환 테스트용 매니저.
-    /// 씬에 배치하고 Input Manager의 "ModeSwitch" 버튼으로 합체/분리 전환을 트리거한다.
+    /// 씬에 배치하고 Return 키로 합체/분리 전환을 트리거한다.
     /// 테스트 완료 후 제거할 것.
     /// </summary>
     public class ModeSwitchTestManager : MonoBehaviour
@@ -16,6 +15,9 @@ namespace InGame.Player.Test
         private void Update()
         {
             if (!Input.GetKeyDown(KeyCode.Return)) return;
+
+            if (InGameManager.Instance != null && !InGameManager.IsLocalPlayerControllable)
+                return;
 
             if (_synchronizer == null)
                 _synchronizer = FindMyTeamSynchronizer();
@@ -32,15 +34,13 @@ namespace InGame.Player.Test
 
         private TeamModeSynchronizer FindMyTeamSynchronizer()
         {
-            if (PhotonTeamManager.Instance == null) return null;
-
-            int myTeam = PhotonTeamManager.Instance.GetPlayerTeam(PhotonNetwork.LocalPlayer);
+            int myTeam = PhotonTeamManager.GetLocalTeamRaw();
             if (myTeam == PhotonTeamManager.TeamNone) return null;
 
             foreach (var sync in FindObjectsByType<TeamModeSynchronizer>(FindObjectsSortMode.None))
             {
                 var owner = sync.photonView.Owner;
-                if (owner != null && PhotonTeamManager.Instance.GetPlayerTeam(owner) == myTeam)
+                if (owner != null && PhotonTeamManager.GetTeamRaw(owner) == myTeam)
                     return sync;
             }
 

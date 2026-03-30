@@ -221,6 +221,28 @@ namespace InGame.Player.Ragdoll
             OnStateChanged?.Invoke(ERagdollState.Dead);
         }
 
+        public void Respawn()
+        {
+            if (_currentState != ERagdollState.Dead) return;
+
+            _ragdollRig.DeactivateRagdoll();
+            ReattachSkeleton();
+
+            _animator.enabled = true;
+            _rootBody.isKinematic = false;
+            _rootBody.linearVelocity = Vector3.zero;
+            _rootBody.angularVelocity = Vector3.zero;
+
+            _instability = 0f;
+            _stateTimer = 0f;
+
+            _animation.ClearGetUpState();
+            _animation.ClearStumbleState();
+
+            _currentState = ERagdollState.Animated;
+            OnStateChanged?.Invoke(ERagdollState.Animated);
+        }
+
         public void ForceRecover()
         {
             if (_currentState == ERagdollState.Dead) return;
@@ -319,6 +341,18 @@ namespace InGame.Player.Ragdoll
             _ragdollRig.ActivateKinematic();
             _rootBody.isKinematic = true;
             _animator.enabled = false;
+        }
+
+        public void RespawnRemote()
+        {
+            _currentState = ERagdollState.Animated;
+            ResetRootControl();
+            ReattachSkeleton();
+            _ragdollRig.DeactivateRagdoll();
+            _animator.enabled = true;
+            _rootBody.isKinematic = false;
+            _rootBody.linearVelocity = Vector3.zero;
+            _rootBody.angularVelocity = Vector3.zero;
         }
 
         #endregion
