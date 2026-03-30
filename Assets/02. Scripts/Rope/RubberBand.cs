@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using InGame.Player.Movement;
 using UnityEngine;
 
 /// <summary>
@@ -47,6 +48,12 @@ public class RubberBand : MonoBehaviour
     [Tooltip("탄성 곡선: F = kx^ 에서 x의 지수")]
     [SerializeField, Range(1f, 3f)] private float _elasticCurve = 2f;
 
+    [Tooltip("최대 탄성 힘 (N). 이 이상의 힘은 적용되지 않습니다.")]
+    [SerializeField] private float _maxSpringForce = 150f;
+
+    [Tooltip("장력이 이 값 이상으로 늘어나야 탄성 힘이 적용됩니다 (0 = 즉시 적용)")]
+    [SerializeField, Range(0f, 1f)] private float _slackThreshold = 0.2f;
+
     [Header("Visual Properties")]
     [Tooltip("렌더링되는 고무줄의 굵기")]
     [SerializeField] private float _thickness = 0.1f;
@@ -80,6 +87,10 @@ public class RubberBand : MonoBehaviour
     // 물리 바디 로컬 공간 기준 앵커 오프셋.
     private Vector3 _anchorOffsetA;
     private Vector3 _anchorOffsetB;
+
+    // 외부 속도 주입용 PlayerMovement 참조 (Host만 사용).
+    private PlayerMovement _movementA;
+    private PlayerMovement _movementB;
 
     private bool _isAuthority;
     private bool _initialized;
@@ -133,6 +144,9 @@ public class RubberBand : MonoBehaviour
         _rigidbodyB = rigidbodyB;
         _anchorOffsetA = offsetA;
         _anchorOffsetB = offsetB;
+
+        _movementA = rigidbodyA != null ? rigidbodyA.GetComponentInParent<PlayerMovement>() : null;
+        _movementB = rigidbodyB != null ? rigidbodyB.GetComponentInParent<PlayerMovement>() : null;
     }
 
     /// <summary>
@@ -221,12 +235,15 @@ public class RubberBand : MonoBehaviour
     /// </summary>
     private void ApplyElasticForceToPlayers()
     {
-        if (_currentTension <= 1.5f) return;
         if (_rigidbodyA == null || _rigidbodyB == null) return;
 
-        // 훅의 법칙 F = k * x^e - c * x.dot
-        var stretch = _currentTension - 1.0f;
+        // 부드러운 사각지대: tension이 (1 + slackThreshold) 이하이면 힘 없음.
+        var stretch = Mathf.Max(0f, _currentTension - 1.0f - _slackThreshold);
+        if (stretch <= 0f) return;
+
+        // 훅의 법칙 F = k * x^e (상한 적용).
         var springForce = Mathf.Pow(stretch, _elasticCurve) * _springConstant;
+        springForce = Mathf.Min(springForce, _maxSpringForce);
 
         // 장력의 방향 계산 (물리 바디 기준 앵커 월드 위치 사용).
         Vector3 anchorPosA = _targetA.TransformPoint(_anchorOffsetA);
@@ -238,23 +255,28 @@ public class RubberBand : MonoBehaviour
         pullDirectionA = new Vector3(pullDirectionA.x, pullDirectionA.y * 0.2f, pullDirectionA.z).normalized;
         pullDirectionB = new Vector3(pullDirectionB.x, pullDirectionB.y * 0.2f, pullDirectionB.z).normalized;
 
-        // 댐핑 계산.
+        // 양방향 점성 댐핑: 분리 시 당김 강화, 접근 시 브레이크.
         Vector3 relativeVelocity = _rigidbodyB.linearVelocity - _rigidbodyA.linearVelocity;
         Vector3 planarRelativeVel = new Vector3(relativeVelocity.x, 0f, relativeVelocity.z);
-
         float separationSpeed = Vector3.Dot(planarRelativeVel, -pullDirectionA);
-
-        float dampingForce = 0f;
-        if (separationSpeed < 0)
-        {
-            dampingForce = separationSpeed * _dampingConstant;
-        }
+        float dampingForce = -separationSpeed * _dampingConstant;
 
         float finalForce = Mathf.Max(0f, springForce + dampingForce);
 
-        // 작용-반작용의 법칙.
-        _rigidbodyA.AddForce(pullDirectionA * finalForce, ForceMode.Force);
-        _rigidbodyB.AddForce(pullDirectionB * finalForce, ForceMode.Force);
+        // 작용-반작용의 법칙: AddExternalVelocity로 속도 덮어쓰기 충돌 방지.
+        float dt = Time.fixedDeltaTime;
+
+        Vector3 forceA = pullDirectionA * finalForce;
+        if (_movementA != null)
+            _movementA.AddExternalVelocity(forceA / _rigidbodyA.mass * dt);
+        else
+            _rigidbodyA.AddForce(forceA, ForceMode.Force);
+
+        Vector3 forceB = pullDirectionB * finalForce;
+        if (_movementB != null)
+            _movementB.AddExternalVelocity(forceB / _rigidbodyB.mass * dt);
+        else
+            _rigidbodyB.AddForce(forceB, ForceMode.Force);
     }
 
     /// <summary>

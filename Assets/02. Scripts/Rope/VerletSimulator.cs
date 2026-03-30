@@ -263,6 +263,7 @@ public class VerletSimulator : IRopePhysics
     {
         if (index < 0 || index >= _nodes.Length) return;
         _nodes[index].CurrentPosition = position;
+        _nodes[index].PreviousPosition = position;
         _nodes[index].IsPinned = true;
     }
     
