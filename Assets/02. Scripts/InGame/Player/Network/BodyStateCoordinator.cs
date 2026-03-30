@@ -15,6 +15,9 @@ namespace InGame.Player.Network
         [SerializeField] private GameObject _avatarA;
         [SerializeField] private GameObject _avatarB;
 
+        [Header("RubberBand")]
+        [SerializeField] private RubberBandCoordinator _rubberBandCoordinator;
+
         private PlayerFormController _playerFormController;
         private LocalPlayerInput _localPlayerInput;
         private PhotonView _photonView;
@@ -29,6 +32,7 @@ namespace InGame.Player.Network
             _playerFormController.OnModeChanged += HandleModeChanged;
             _localPlayerInput.OnHitReceived += HandleHit;
             _localPlayerInput.OnDeathReceived += HandleDeath;
+            _localPlayerInput.OnRespawnReceived += HandleRespawn;
 
             if (_photonView != null && _photonView.IsMine)
             {
@@ -47,6 +51,7 @@ namespace InGame.Player.Network
             {
                 _localPlayerInput.OnHitReceived -= HandleHit;
                 _localPlayerInput.OnDeathReceived -= HandleDeath;
+                _localPlayerInput.OnRespawnReceived -= HandleRespawn;
             }
         }
 
@@ -87,6 +92,14 @@ namespace InGame.Player.Network
                 ConfigureRagdollAuthority(_avatarB, true, isHost);
             }
 
+            // 고무줄 활성화/비활성화.
+            if (_rubberBandCoordinator != null)
+            {
+                if (!isMerged)
+                    _rubberBandCoordinator.Activate(_avatarA, _avatarB, isHost);
+                else
+                    _rubberBandCoordinator.Deactivate();
+            }
         }
 
         private void ConfigureRagdollAuthority(
@@ -158,6 +171,20 @@ namespace InGame.Player.Network
                 case ETeamMode.Separated:
                     FindInBody<RagdollStateMachine>(_avatarA)?.EnterDead();
                     FindInBody<RagdollStateMachine>(_avatarB)?.EnterDead();
+                    break;
+            }
+        }
+
+        private void HandleRespawn()
+        {
+            switch (_currentMode)
+            {
+                case ETeamMode.Merged:
+                    FindInBody<RagdollStateMachine>(_mergedBody)?.Respawn();
+                    break;
+                case ETeamMode.Separated:
+                    FindInBody<RagdollStateMachine>(_avatarA)?.Respawn();
+                    FindInBody<RagdollStateMachine>(_avatarB)?.Respawn();
                     break;
             }
         }

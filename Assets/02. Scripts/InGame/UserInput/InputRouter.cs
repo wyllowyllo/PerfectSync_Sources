@@ -75,7 +75,10 @@ namespace InGame.UserInput
             _playerFormController.Initialize(_startMode);
 
             if (_teamModeSynchronizer != null)
+            {
                 _teamModeSynchronizer.OnSwitchRequested += HandleSwitchRequested;
+                _teamModeSynchronizer.OnModeChangeRequested += HandleModeChangeRequested;
+            }
 
             TryInitialize();
         }
@@ -219,6 +222,11 @@ namespace InGame.UserInput
             _playerFormController.ExecuteFormToggle();
         }
 
+        private void HandleModeChangeRequested(ETeamMode targetMode)
+        {
+            _playerFormController.ExecuteFormChange(targetMode);
+        }
+
         private void HandleModeChanged(ETeamMode newMode)
         {
             _currentMode = newMode;
@@ -247,7 +255,10 @@ namespace InGame.UserInput
                 _playerFormController.OnModeChanged -= HandleModeChanged;
 
             if (_teamModeSynchronizer != null)
+            {
                 _teamModeSynchronizer.OnSwitchRequested -= HandleSwitchRequested;
+                _teamModeSynchronizer.OnModeChangeRequested -= HandleModeChangeRequested;
+            }
         }
     }
 }

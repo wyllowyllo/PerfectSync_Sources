@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using InGame.Player.Movement;
 using UnityEngine;
 
 /// <summary>
@@ -21,9 +22,18 @@ public class RubberBand : MonoBehaviour
     [Tooltip("물리 제약 조건 반복 횟수 (높을수록 뻣뻣해지지만 연산량 증가)")]
     [SerializeField, Range(1, 10)] private int _constraintIterations = 5;
 
+    [Tooltip("물리 서브스텝 수 (높을수록 고속 이동 시 안정적이지만 연산량 증가)")]
+    [SerializeField, Range(1, 5)] private int _subSteps = 3;
+
+    [Tooltip("XPBD 유연도 (0 = 완전 강체, 클수록 탄성적)")]
+    [SerializeField, Range(0f, 0.01f)] private float _compliance = 0f;
+
     [Header("Tube Settings")]
     [Tooltip("원통 단면의 각 수 (8=팔각형)")]
     [SerializeField, Range(3, 32)] private int _sides = 8;
+
+    [Tooltip("물리 노드 사이의 보간 분할 수 (높을수록 부드러운 곡선)")]
+    [SerializeField, Range(1, 5)] private int _interpolationSegments = 3;
 
     [Tooltip("렌더링 색상")]
     [SerializeField] private Gradient _color;
@@ -38,9 +48,18 @@ public class RubberBand : MonoBehaviour
     [Tooltip("탄성 곡선: F = kx^ 에서 x의 지수")]
     [SerializeField, Range(1f, 3f)] private float _elasticCurve = 2f;
 
+    [Tooltip("최대 탄성 힘 (N). 이 이상의 힘은 적용되지 않습니다.")]
+    [SerializeField] private float _maxSpringForce = 150f;
+
+    [Tooltip("장력이 이 값 이상으로 늘어나야 탄성 힘이 적용됩니다 (0 = 즉시 적용)")]
+    [SerializeField, Range(0f, 1f)] private float _slackThreshold = 0.2f;
+
     [Header("Visual Properties")]
     [Tooltip("렌더링되는 고무줄의 굵기")]
     [SerializeField] private float _thickness = 0.1f;
+
+    [Tooltip("GPU 셰이더 기반 렌더링 사용 (Custom/RopeTube 셰이더 필요)")]
+    [SerializeField] private bool _useGPURendering = false;
 
     [Header("Collision Support")]
     [Tooltip("장애물로 인식할 레이어")]
@@ -59,11 +78,19 @@ public class RubberBand : MonoBehaviour
     private Vector3[] _nodeBuffer;
     private float _currentTension;
 
-    // 동적 바인딩 타겟.
+    // 동적 바인딩 타겟 (물리 바디의 Transform).
     private Transform _targetA;
     private Transform _targetB;
     private Rigidbody _rigidbodyA;
     private Rigidbody _rigidbodyB;
+
+    // 물리 바디 로컬 공간 기준 앵커 오프셋.
+    private Vector3 _anchorOffsetA;
+    private Vector3 _anchorOffsetB;
+
+    // 외부 속도 주입용 PlayerMovement 참조 (Host만 사용).
+    private PlayerMovement _movementA;
+    private PlayerMovement _movementB;
 
     private bool _isAuthority;
     private bool _initialized;
@@ -78,21 +105,48 @@ public class RubberBand : MonoBehaviour
     private void Awake()
     {
         var meshFilter = GetComponent<MeshFilter>();
-        _renderer = new TubeRenderer(meshFilter, _sides, _color, _nodeCount);
+
+        if (_useGPURendering && SystemInfo.supportsComputeShaders)
+        {
+            var ropeShader = Shader.Find("Custom/RopeTube");
+            if (ropeShader != null)
+            {
+                var meshRenderer = GetComponent<MeshRenderer>();
+                meshRenderer.material = new Material(ropeShader);
+                _renderer = new GPUTubeRenderer(meshFilter, meshRenderer, _sides, _color, _nodeCount, _interpolationSegments);
+            }
+            else
+            {
+                Debug.LogWarning("RopeTube shader not found. Falling back to CPU rendering.");
+                _renderer = new TubeRenderer(meshFilter, _sides, _color, _nodeCount, _interpolationSegments);
+            }
+        }
+        else
+        {
+            _renderer = new TubeRenderer(meshFilter, _sides, _color, _nodeCount, _interpolationSegments);
+        }
+
         _nodeBuffer = new Vector3[_nodeCount];
     }
 
     /// <summary>
     /// 고무줄의 양 끝 타겟과 Rigidbody를 동적으로 바인딩합니다.
+    /// targetA/B는 물리 바디(RootBody)의 Transform이며, offsetA/B는 앵커의 로컬 오프셋입니다.
     /// Guest는 rigidbody를 null로 전달합니다 (물리력 미적용).
     /// </summary>
     public void BindTargets(Transform targetA, Transform targetB,
-        Rigidbody rigidbodyA, Rigidbody rigidbodyB)
+        Rigidbody rigidbodyA, Rigidbody rigidbodyB,
+        Vector3 offsetA = default, Vector3 offsetB = default)
     {
         _targetA = targetA;
         _targetB = targetB;
         _rigidbodyA = rigidbodyA;
         _rigidbodyB = rigidbodyB;
+        _anchorOffsetA = offsetA;
+        _anchorOffsetB = offsetB;
+
+        _movementA = rigidbodyA != null ? rigidbodyA.GetComponentInParent<PlayerMovement>() : null;
+        _movementB = rigidbodyB != null ? rigidbodyB.GetComponentInParent<PlayerMovement>() : null;
     }
 
     /// <summary>
@@ -110,14 +164,17 @@ public class RubberBand : MonoBehaviour
     /// </summary>
     public void ResetSimulator()
     {
+        Vector3 startPos = _targetA.TransformPoint(_anchorOffsetA);
         _simulator = new VerletSimulator(
             _nodeCount,
             _baseLength,
             _constraintIterations,
-            _targetA.position,
+            startPos,
             _obstacleLayer,
             _playerLayer,
-            _layerFrictionSettings
+            _layerFrictionSettings,
+            _subSteps,
+            _compliance
         );
         _currentTension = 0f;
         _previousColliders.Clear();
@@ -157,13 +214,20 @@ public class RubberBand : MonoBehaviour
         _initialized = false;
     }
 
+    private void OnDestroy()
+    {
+        (_renderer as System.IDisposable)?.Dispose();
+    }
+
     /// <summary>
-    /// 고무줄의 시작점과 끝점을 플레이어의 위치에 동기화합니다.
+    /// 고무줄의 시작점과 끝점을 플레이어의 물리 바디 위치 + 앵커 오프셋으로 동기화합니다.
     /// </summary>
     private void SyncAnchorPositions()
     {
-        _simulator.SetNodePosition(0, _targetA.position);
-        _simulator.SetNodePosition(_nodeCount - 1, _targetB.position);
+        Vector3 worldA = _targetA.TransformPoint(_anchorOffsetA);
+        Vector3 worldB = _targetB.TransformPoint(_anchorOffsetB);
+        _simulator.SetNodePosition(0, worldA);
+        _simulator.SetNodePosition(_nodeCount - 1, worldB);
     }
 
     /// <summary>
@@ -171,38 +235,48 @@ public class RubberBand : MonoBehaviour
     /// </summary>
     private void ApplyElasticForceToPlayers()
     {
-        if (_currentTension <= 1.5f) return;
         if (_rigidbodyA == null || _rigidbodyB == null) return;
 
-        // 훅의 법칙 F = k * x^e - c * x.dot
-        var stretch = _currentTension - 1.0f;
-        var springForce = Mathf.Pow(stretch, _elasticCurve) * _springConstant;
+        // 부드러운 사각지대: tension이 (1 + slackThreshold) 이하이면 힘 없음.
+        var stretch = Mathf.Max(0f, _currentTension - 1.0f - _slackThreshold);
+        if (stretch <= 0f) return;
 
-        // 장력의 방향 계산.
-        var pullDirectionA = _simulator.CalculatePullingDirection(_targetA.position, true);
-        var pullDirectionB = _simulator.CalculatePullingDirection(_targetB.position, false);
+        // 훅의 법칙 F = k * x^e (상한 적용).
+        var springForce = Mathf.Pow(stretch, _elasticCurve) * _springConstant;
+        springForce = Mathf.Min(springForce, _maxSpringForce);
+
+        // 장력의 방향 계산 (물리 바디 기준 앵커 월드 위치 사용).
+        Vector3 anchorPosA = _targetA.TransformPoint(_anchorOffsetA);
+        Vector3 anchorPosB = _targetB.TransformPoint(_anchorOffsetB);
+        var pullDirectionA = _simulator.CalculatePullingDirection(anchorPosA, true);
+        var pullDirectionB = _simulator.CalculatePullingDirection(anchorPosB, false);
 
         // y축 장력 제한.
         pullDirectionA = new Vector3(pullDirectionA.x, pullDirectionA.y * 0.2f, pullDirectionA.z).normalized;
         pullDirectionB = new Vector3(pullDirectionB.x, pullDirectionB.y * 0.2f, pullDirectionB.z).normalized;
 
-        // 댐핑 계산.
+        // 양방향 점성 댐핑: 분리 시 당김 강화, 접근 시 브레이크.
         Vector3 relativeVelocity = _rigidbodyB.linearVelocity - _rigidbodyA.linearVelocity;
         Vector3 planarRelativeVel = new Vector3(relativeVelocity.x, 0f, relativeVelocity.z);
-
         float separationSpeed = Vector3.Dot(planarRelativeVel, -pullDirectionA);
-
-        float dampingForce = 0f;
-        if (separationSpeed < 0)
-        {
-            dampingForce = separationSpeed * _dampingConstant;
-        }
+        float dampingForce = -separationSpeed * _dampingConstant;
 
         float finalForce = Mathf.Max(0f, springForce + dampingForce);
 
-        // 작용-반작용의 법칙.
-        _rigidbodyA.AddForce(pullDirectionA * finalForce, ForceMode.Force);
-        _rigidbodyB.AddForce(pullDirectionB * finalForce, ForceMode.Force);
+        // 작용-반작용의 법칙: AddExternalVelocity로 속도 덮어쓰기 충돌 방지.
+        float dt = Time.fixedDeltaTime;
+
+        Vector3 forceA = pullDirectionA * finalForce;
+        if (_movementA != null)
+            _movementA.AddExternalVelocity(forceA / _rigidbodyA.mass * dt);
+        else
+            _rigidbodyA.AddForce(forceA, ForceMode.Force);
+
+        Vector3 forceB = pullDirectionB * finalForce;
+        if (_movementB != null)
+            _movementB.AddExternalVelocity(forceB / _rigidbodyB.mass * dt);
+        else
+            _rigidbodyB.AddForce(forceB, ForceMode.Force);
     }
 
     /// <summary>
@@ -214,13 +288,16 @@ public class RubberBand : MonoBehaviour
         // 시뮬레이터가 이번 프레임에 수집한 해시셋.
         var currentColliders = _simulator.OverlappingColliders;
 
+        Vector3 anchorPosA = _targetA.TransformPoint(_anchorOffsetA);
+        Vector3 anchorPosB = _targetB.TransformPoint(_anchorOffsetB);
+
         // OnColliderEnter.
         foreach (var coll in currentColliders)
         {
             if (_previousColliders.Contains(coll)) continue;
 
             // 처음 닿은 순간의 방향을 기록.
-            _enterSides[coll] = CCW_XZ(_targetA.position, _targetB.position, coll.transform.position);
+            _enterSides[coll] = CCW_XZ(anchorPosA, anchorPosB, coll.transform.position);
         }
 
         // OnColliderExit.
@@ -231,7 +308,7 @@ public class RubberBand : MonoBehaviour
             if (!_enterSides.TryGetValue(coll, out var enterSide)) continue;
 
             // 떨어진 순간의 방향 계산.
-            var exitSide = CCW_XZ(_targetA.position, _targetB.position, coll.transform.position);
+            var exitSide = CCW_XZ(anchorPosA, anchorPosB, coll.transform.position);
 
             // 진입 방향과 탈출 방향이 다르면 통과 판정.
             if (enterSide != exitSide)
