@@ -24,6 +24,14 @@ namespace InGame.Team
         [Header("Timing")]
         [SerializeField] private float _postLandingDelay = 1.5f;
 
+        [Header("Hovering")]
+        [SerializeField] private float _bobAmplitude = 0.15f;
+        [SerializeField] private float _bobFrequency = 1.5f;
+        [SerializeField] private float _followSmoothTime = 0.18f;
+        [SerializeField] private float _verticalSmoothTime = 0.04f;
+        [SerializeField] private float _tiltAmplitude = 3f;
+        [SerializeField] private float _tiltFrequency = 0.8f;
+
         private TeamModeSynchronizer _synchronizer;
         private PlayerFormController _formController;
         private PhotonView _photonView;
@@ -33,6 +41,12 @@ namespace InGame.Team
         private Quaternion _prefabBaseRotation;
         private float _slideOffset;
         private bool _isMatch;
+
+        private float _smoothVelX;
+        private float _smoothVelY;
+        private float _smoothVelZ;
+        private Vector3 _currentPos;
+        private bool _posInitialized;
 
         private void Start()
         {
@@ -59,17 +73,37 @@ namespace InGame.Team
             var cam = UnityEngine.Camera.main;
             if (cam == null) return;
 
-            // 카메라 기준 오른쪽으로 슬라이드 오프셋 적용.
+            // 앵커 위치 (슬라이드 오프셋 포함).
             Vector3 camRight = cam.transform.right;
-            Vector3 targetPos = body.position + _displayOffset + camRight * _slideOffset;
-            _activeSlotMachine.transform.position = targetPos;
+            Vector3 anchorPos = body.position + _displayOffset + camRight * _slideOffset;
 
-            Vector3 lookDir = cam.transform.position - targetPos;
+            // 상하 부유 (bobbing).
+            float bob = Mathf.Sin(Time.time * _bobFrequency * Mathf.PI * 2f) * _bobAmplitude;
+            anchorPos.y += bob;
+
+            // 축별 SmoothDamp — 수평은 느긋하게, 수직은 빠르게 추적.
+            if (!_posInitialized)
+            {
+                _currentPos = anchorPos;
+                _smoothVelX = _smoothVelY = _smoothVelZ = 0f;
+                _posInitialized = true;
+            }
+
+            _currentPos.x = Mathf.SmoothDamp(_currentPos.x, anchorPos.x, ref _smoothVelX, _followSmoothTime);
+            _currentPos.y = Mathf.SmoothDamp(_currentPos.y, anchorPos.y, ref _smoothVelY, _verticalSmoothTime);
+            _currentPos.z = Mathf.SmoothDamp(_currentPos.z, anchorPos.z, ref _smoothVelZ, _followSmoothTime);
+            _activeSlotMachine.transform.position = _currentPos;
+
+            // 카메라를 향한 Yaw + 미세 틸트 흔들림.
+            Vector3 lookDir = cam.transform.position - _currentPos;
             lookDir.y = 0f;
             if (lookDir.sqrMagnitude > 0.001f)
             {
                 Quaternion yaw = Quaternion.LookRotation(lookDir);
-                _activeSlotMachine.transform.rotation = yaw * _prefabBaseRotation;
+                float tiltZ = Mathf.Sin(Time.time * _tiltFrequency * Mathf.PI * 2f) * _tiltAmplitude;
+                float tiltX = Mathf.Cos(Time.time * _tiltFrequency * 0.7f * Mathf.PI * 2f) * _tiltAmplitude * 0.5f;
+                Quaternion wobble = Quaternion.Euler(tiltX, 0f, tiltZ);
+                _activeSlotMachine.transform.rotation = yaw * wobble * _prefabBaseRotation;
             }
         }
 
@@ -84,6 +118,7 @@ namespace InGame.Team
 
             _isMatch = isMatch;
             _slideOffset = _slideDistance;
+            _posInitialized = false;
 
             Transform body = _formController.PrimaryBodyTransform;
             var cam = UnityEngine.Camera.main;
