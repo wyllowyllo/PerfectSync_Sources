@@ -39,7 +39,6 @@ namespace InGame.Player.Movement
         [SerializeField] private LayerMask _groundLayer;
 
         private Vector3 _currentVelocity;
-        private Vector3 _externalVelocity;
         private ERagdollState _previousRagdollState;
         private float _lastGroundedTime;
         private bool _jumpRequested;
@@ -171,19 +170,17 @@ namespace InGame.Player.Movement
             if (_momentumBlend > 0f)
             {
                 // 발사 모멘텀 → 입력 제어로 부드럽게 전환.
-                velocity.x = Mathf.Lerp(_currentVelocity.x, velocity.x, _momentumBlend) + _externalVelocity.x;
-                velocity.z = Mathf.Lerp(_currentVelocity.z, velocity.z, _momentumBlend) + _externalVelocity.z;
+                velocity.x = Mathf.Lerp(_currentVelocity.x, velocity.x, _momentumBlend);
+                velocity.z = Mathf.Lerp(_currentVelocity.z, velocity.z, _momentumBlend);
             }
             else
             {
-                velocity.x = _currentVelocity.x + _externalVelocity.x;
-                velocity.z = _currentVelocity.z + _externalVelocity.z;
+                velocity.x = _currentVelocity.x;
+                velocity.z = _currentVelocity.z;
             }
             velocity.y += (-_gravity - Physics.gravity.y) * Time.fixedDeltaTime;
             velocity.y = Mathf.Max(velocity.y, -_maxFallSpeed);
             _rootBody.linearVelocity = velocity;
-
-            _externalVelocity = Vector3.zero;
 
             if (_currentVelocity.sqrMagnitude > 0.01f)
             {
@@ -200,14 +197,7 @@ namespace InGame.Player.Movement
             _jumpRequested |= jump;
         }
 
-        /// <summary>
-        /// 외부 시스템(고무줄, 컨베이어 등)의 속도 기여분을 누적합니다.
-        /// FixedUpdate에서 입력 속도와 합산된 후 초기화됩니다.
-        /// </summary>
-        public void AddExternalVelocity(Vector3 velocity)
-        {
-            _externalVelocity += velocity;
-        }
+
 
         private void Accelerate(Vector3 targetVelocity)
         {
@@ -243,7 +233,6 @@ namespace InGame.Player.Movement
             {
                 _rootBody.isKinematic = true;
                 _currentVelocity = Vector3.zero;
-                _externalVelocity = Vector3.zero;
                 _jumpRequested = false;
                 _momentumBlend = 0f;
                 _airControlBoost = 1f;

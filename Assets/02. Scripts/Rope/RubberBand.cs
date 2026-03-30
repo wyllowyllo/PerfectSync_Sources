@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using InGame.Player.Movement;
 using UnityEngine;
 
 /// <summary>
@@ -88,10 +87,6 @@ public class RubberBand : MonoBehaviour
     private Vector3 _anchorOffsetA;
     private Vector3 _anchorOffsetB;
 
-    // 외부 속도 주입용 PlayerMovement 참조 (Host만 사용).
-    private PlayerMovement _movementA;
-    private PlayerMovement _movementB;
-
     private bool _isAuthority;
     private bool _initialized;
 
@@ -144,9 +139,6 @@ public class RubberBand : MonoBehaviour
         _rigidbodyB = rigidbodyB;
         _anchorOffsetA = offsetA;
         _anchorOffsetB = offsetB;
-
-        _movementA = rigidbodyA != null ? rigidbodyA.GetComponentInParent<PlayerMovement>() : null;
-        _movementB = rigidbodyB != null ? rigidbodyB.GetComponentInParent<PlayerMovement>() : null;
     }
 
     /// <summary>
@@ -263,20 +255,9 @@ public class RubberBand : MonoBehaviour
 
         float finalForce = Mathf.Max(0f, springForce + dampingForce);
 
-        // 작용-반작용의 법칙: AddExternalVelocity로 속도 덮어쓰기 충돌 방지.
-        float dt = Time.fixedDeltaTime;
-
-        Vector3 forceA = pullDirectionA * finalForce;
-        if (_movementA != null)
-            _movementA.AddExternalVelocity(forceA / _rigidbodyA.mass * dt);
-        else
-            _rigidbodyA.AddForce(forceA, ForceMode.Force);
-
-        Vector3 forceB = pullDirectionB * finalForce;
-        if (_movementB != null)
-            _movementB.AddExternalVelocity(forceB / _rigidbodyB.mass * dt);
-        else
-            _rigidbodyB.AddForce(forceB, ForceMode.Force);
+        // 작용-반작용의 법칙.
+        _rigidbodyA.AddForce(pullDirectionA * finalForce, ForceMode.Force);
+        _rigidbodyB.AddForce(pullDirectionB * finalForce, ForceMode.Force);
     }
 
     /// <summary>
