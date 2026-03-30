@@ -3,7 +3,7 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// 로비 파티 초대: UserID 입력, 유효성 검사 후 <see cref="LobbyPartyService.TryFormPartyWithUserId"/>.
+/// 로비 파티 초대: UserID 입력, 유효성 검사 후 <see cref="LobbyPartyService.TrySendPartyInviteByUserId"/>.
 /// </summary>
 [DisallowMultipleComponent]
 public class LobbyInviteFriendsPanel : MonoBehaviour
@@ -20,7 +20,7 @@ public class LobbyInviteFriendsPanel : MonoBehaviour
 
     [Header("패널을 열 때마다 표시할 기본 문구")]
     [SerializeField] [TextArea(2, 5)] private string _defaultInstruction =
-        "같은 로비에 있는 플레이어의 User ID를 입력하세요.\n(복사한 ID 또는 닉네임이 User ID 대신 쓰인 경우 그대로 입력 가능)";
+        "같은 로비에 있는 플레이어의 User ID를 입력하세요.\n(설정 화면에 표시된 ID를 복사해 붙여 넣으면 됩니다. 닉네임은 사용할 수 없습니다.)";
 
     [Header("팝업 닫기")]
     [SerializeField] private LobbyPopupCoordinator _popupCoordinator;
@@ -79,15 +79,15 @@ public class LobbyInviteFriendsPanel : MonoBehaviour
             return;
         }
 
-        if (!LobbyPartyService.Instance.TryFormPartyWithUserId(raw, out string error))
+        if (!LobbyPartyService.Instance.TrySendPartyInviteByUserId(raw, out string error))
         {
-            Debug.LogWarning($"{PartyInviteDebugTag} TryFormPartyWithUserId failed: {error}");
+            Debug.LogWarning($"{PartyInviteDebugTag} TrySendPartyInviteByUserId failed: {error}");
             if (_messageText != null)
                 _messageText.text = error;
             return;
         }
 
-        Debug.Log($"{PartyInviteDebugTag} TryFormPartyWithUserId succeeded");
+        Debug.Log($"{PartyInviteDebugTag} TrySendPartyInviteByUserId succeeded");
         ClosePopup();
     }
 

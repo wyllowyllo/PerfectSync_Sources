@@ -36,6 +36,7 @@ public class LobbyRoomConnector : SingletonPunCallbacks<LobbyRoomConnector>
             MaxPlayers = byte.MaxValue,
             IsVisible = true,
             IsOpen = true,
+            PublishUserId = true,
             CustomRoomProperties = new Hashtable
             {
                 { PhotonRoomTypes.Key, PhotonRoomTypes.Lobby },

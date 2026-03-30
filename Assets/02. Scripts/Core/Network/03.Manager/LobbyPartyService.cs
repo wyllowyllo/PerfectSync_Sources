@@ -10,14 +10,24 @@ public class LobbyPartyService : SingletonPunCallbacks<LobbyPartyService>, IOnEv
     // PARTY_INVITE_DEBUG_REMOVE: 아래 태그·Debug.Log 일괄 삭제
     private const string PartyInviteDebugTag = "[PARTY_INVITE_DEBUG]";
 
-    public event Action<string> OnPartyInviteReceived;
+    /// <summary>초대 수신 시 (초대한 액터 번호, 표시용 User ID 문자열).</summary>
+    public event Action<int, string> OnPartyInviteReceived;
+    /// <summary>내가 보낸 초대에 대한 응답 (수락 여부).</summary>
     public event Action<bool> OnPartyInviteResponded;
     /// <summary>파티가 맺어진 뒤 상대 <see cref="Player"/> (닉네임 표시용).</summary>
     public event Action<Player> OnPartyPartnerLinked;
     /// <summary>로컬 파티 상태가 비워졌을 때 (해산·퇴장 등).</summary>
     public event Action OnPartyCleared;
+    /// <summary>초대 대기 중이던 상대가 방을 나갔을 때 (수신 측 팝업 닫기 등).</summary>
+    public event Action OnPendingPartyInviteInvalidated;
+
+    private int _outgoingInviteTargetActor = -1;
+    private int _pendingInviterActor = -1;
 
     protected override bool PersistAcrossScenes => true;
+
+    public bool LocalPlayerHasParty =>
+        PhotonNetwork.LocalPlayer != null && !string.IsNullOrEmpty(GetPartyId(PhotonNetwork.LocalPlayer));
 
     public override void OnEnable()
     {
@@ -36,15 +46,11 @@ public class LobbyPartyService : SingletonPunCallbacks<LobbyPartyService>, IOnEv
         switch (photonEvent.Code)
         {
             case PhotonEventCodes.PartyInvite:
-                if (photonEvent.CustomData is Hashtable ht &&
-                    ht.TryGetValue("fromUserId", out object fromObj))
-                    OnPartyInviteReceived?.Invoke(fromObj as string);
+                HandlePartyInviteEvent(photonEvent);
                 break;
 
             case PhotonEventCodes.PartyInviteResponse:
-                if (photonEvent.CustomData is Hashtable rht &&
-                    rht.TryGetValue("accepted", out object acc))
-                    OnPartyInviteResponded?.Invoke(acc is bool b && b);
+                HandlePartyInviteResponseEvent(photonEvent);
                 break;
 
             case PhotonEventCodes.PartyDisband:
@@ -61,7 +67,19 @@ public class LobbyPartyService : SingletonPunCallbacks<LobbyPartyService>, IOnEv
     public override void OnPlayerLeftRoom(Player otherPlayer)
     {
         base.OnPlayerLeftRoom(otherPlayer);
-        if (otherPlayer == null || !PhotonNetwork.InRoom)
+        if (otherPlayer == null)
+            return;
+
+        if (otherPlayer.ActorNumber == _pendingInviterActor)
+        {
+            ClearPendingInviter();
+            OnPendingPartyInviteInvalidated?.Invoke();
+        }
+
+        if (otherPlayer.ActorNumber == _outgoingInviteTargetActor)
+            _outgoingInviteTargetActor = -1;
+
+        if (!PhotonNetwork.InRoom)
             return;
 
         string myParty = GetPartyId(PhotonNetwork.LocalPlayer);
@@ -84,7 +102,7 @@ public class LobbyPartyService : SingletonPunCallbacks<LobbyPartyService>, IOnEv
 
         foreach (var p in PhotonNetwork.PlayerList)
         {
-            if (p.UserId == userId || (string.IsNullOrEmpty(p.UserId) && p.NickName == userId))
+            if (!string.IsNullOrEmpty(p.UserId) && p.UserId == userId)
             {
                 player = p;
                 return true;
@@ -95,12 +113,12 @@ public class LobbyPartyService : SingletonPunCallbacks<LobbyPartyService>, IOnEv
     }
 
     /// <summary>
-    /// 로비에 있는 상대를 User ID(또는 User ID 미설정 시 닉네임)로 찾아 파티를 맺고, 커스텀 프로퍼티를 양쪽에 맞춥니다.
+    /// 로비에 있는 상대에게 파티 초대만 보냅니다. 상대가 수락하면 맺어집니다.
     /// </summary>
-    public bool TryFormPartyWithUserId(string userIdInput, out string errorMessage)
+    public bool TrySendPartyInviteByUserId(string userIdInput, out string errorMessage)
     {
         errorMessage = null;
-        Debug.Log($"{PartyInviteDebugTag} TryFormPartyWithUserId begin");
+        Debug.Log($"{PartyInviteDebugTag} TrySendPartyInviteByUserId begin");
 
         if (!PhotonNetwork.InRoom)
         {
@@ -138,6 +156,83 @@ public class LobbyPartyService : SingletonPunCallbacks<LobbyPartyService>, IOnEv
             return false;
         }
 
+        _outgoingInviteTargetActor = target.ActorNumber;
+        SendPartyInvite(target);
+        return true;
+    }
+
+    /// <summary>초대 수신 팝업에서 호출. 거절 시 초대한 쪽에 알림 이벤트가 갑니다.</summary>
+    public void RespondToPendingPartyInvite(bool accept)
+    {
+        if (_pendingInviterActor < 0 || !PhotonNetwork.InRoom)
+        {
+            ClearPendingInviter();
+            return;
+        }
+
+        Player inviter = PhotonNetwork.CurrentRoom?.GetPlayer(_pendingInviterActor);
+        ClearPendingInviter();
+
+        if (inviter == null)
+            return;
+
+        SendPartyInviteResponse(inviter, accept);
+    }
+
+    private void ClearPendingInviter()
+    {
+        _pendingInviterActor = -1;
+    }
+
+    private void HandlePartyInviteEvent(EventData photonEvent)
+    {
+        if (photonEvent.CustomData is not Hashtable ht ||
+            !ht.TryGetValue("fromUserId", out object fromObj))
+            return;
+
+        string fromUserId = fromObj as string ?? string.Empty;
+        int fromActor = -1;
+        if (ht.TryGetValue("fromActor", out object acObj))
+            fromActor = acObj is int ia ? ia : Convert.ToInt32(acObj);
+
+        if (fromActor < 0 && TryFindPlayerByUserId(fromUserId, out var p))
+            fromActor = p.ActorNumber;
+
+        if (fromActor < 0)
+            return;
+
+        _pendingInviterActor = fromActor;
+        OnPartyInviteReceived?.Invoke(fromActor, fromUserId);
+    }
+
+    private void HandlePartyInviteResponseEvent(EventData photonEvent)
+    {
+        if (photonEvent.CustomData is not Hashtable rht ||
+            !rht.TryGetValue("accepted", out object accObj) ||
+            !rht.TryGetValue("fromActor", out object respActorObj))
+            return;
+
+        int respondentActor = respActorObj is int ra ? ra : Convert.ToInt32(respActorObj);
+        bool accepted = accObj is bool b && b;
+
+        if (_outgoingInviteTargetActor < 0 || respondentActor != _outgoingInviteTargetActor)
+            return;
+
+        _outgoingInviteTargetActor = -1;
+        OnPartyInviteResponded?.Invoke(accepted);
+
+        if (!accepted)
+            return;
+
+        Player target = PhotonNetwork.CurrentRoom?.GetPlayer(respondentActor);
+        if (target == null || target == PhotonNetwork.LocalPlayer)
+            return;
+
+        FormPartyWithTargetAndRaiseStateSync(target);
+    }
+
+    private void FormPartyWithTargetAndRaiseStateSync(Player target)
+    {
         LeavePartyAndNotifyPartner();
 
         string partyId = "P-" + Guid.NewGuid().ToString("N").Substring(0, 8);
@@ -161,7 +256,6 @@ public class LobbyPartyService : SingletonPunCallbacks<LobbyPartyService>, IOnEv
         Debug.Log($"{PartyInviteDebugTag} RaiseEvent PartyStateSync → actor {target.ActorNumber}");
 
         OnPartyPartnerLinked?.Invoke(target);
-        return true;
     }
 
     private void HandlePartyStateSync(EventData photonEvent)
@@ -200,23 +294,28 @@ public class LobbyPartyService : SingletonPunCallbacks<LobbyPartyService>, IOnEv
         OnPartyPartnerLinked?.Invoke(inviter);
     }
 
-    public void SendPartyInvite(string targetUserId)
+    private void SendPartyInvite(Player target)
     {
-        if (!TryFindPlayerByUserId(targetUserId, out var target))
-            return;
-
         string from = string.IsNullOrEmpty(PhotonNetwork.LocalPlayer.UserId)
             ? PhotonNetwork.LocalPlayer.NickName
             : PhotonNetwork.LocalPlayer.UserId;
 
-        var content = new Hashtable { { "fromUserId", from } };
+        var content = new Hashtable
+        {
+            { "fromUserId", from },
+            { "fromActor", PhotonNetwork.LocalPlayer.ActorNumber }
+        };
         var opts = new RaiseEventOptions { TargetActors = new[] { target.ActorNumber } };
         PhotonNetwork.RaiseEvent(PhotonEventCodes.PartyInvite, content, opts, SendOptions.SendReliable);
     }
 
     public void SendPartyInviteResponse(Player toPlayer, bool accepted)
     {
-        var content = new Hashtable { { "accepted", accepted } };
+        var content = new Hashtable
+        {
+            { "accepted", accepted },
+            { "fromActor", PhotonNetwork.LocalPlayer.ActorNumber }
+        };
         var opts = new RaiseEventOptions { TargetActors = new[] { toPlayer.ActorNumber } };
         PhotonNetwork.RaiseEvent(PhotonEventCodes.PartyInviteResponse, content, opts, SendOptions.SendReliable);
     }

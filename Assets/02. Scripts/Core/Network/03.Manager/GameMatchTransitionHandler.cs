@@ -51,7 +51,17 @@ public class GameMatchTransitionHandler : SingletonPunCallbacks<GameMatchTransit
     public override void OnLeftRoom()
     {
         base.OnLeftRoom();
+        // JoinOrCreateRoom은 게임 서버 종료 직후에는 호출할 수 없음. OnConnectedToMaster에서 처리.
+    }
 
+    public override void OnConnectedToMaster()
+    {
+        base.OnConnectedToMaster();
+        TryJoinPendingGameRoom();
+    }
+
+    private void TryJoinPendingGameRoom()
+    {
         if (string.IsNullOrEmpty(_pendingGameRoom))
             return;
 

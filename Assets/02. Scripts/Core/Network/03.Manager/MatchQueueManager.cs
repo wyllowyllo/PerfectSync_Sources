@@ -195,9 +195,7 @@ public class MatchQueueManager : SingletonPunCallbacks<MatchQueueManager>
     {
         if (player == null)
             return null;
-        if (!string.IsNullOrEmpty(player.UserId))
-            return player.UserId;
-        return string.IsNullOrEmpty(player.NickName) ? null : player.NickName;
+        return string.IsNullOrEmpty(player.UserId) ? null : player.UserId;
     }
 
     private bool QueueContainsUserId(string uid)

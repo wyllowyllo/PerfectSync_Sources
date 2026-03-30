@@ -9,7 +9,6 @@ public class PhotonServerManager : SingletonPunCallbacks<PhotonServerManager>
 
     [Header("Connection Settings")]
     [SerializeField] private string _gameVersion = "0.0.1";
-    [SerializeField] private string _nickName = "";
     [SerializeField] private bool _autoConnect = true;
 
     public event Action<string> OnNicknameSet;
@@ -23,18 +22,14 @@ public class PhotonServerManager : SingletonPunCallbacks<PhotonServerManager>
     private void Start()
     {
         if (_autoConnect)
-        {
             Connect();
-        }
     }
 
     public void Connect()
     {
-        if (string.IsNullOrEmpty(_nickName))
-            _nickName = $"Player_{UnityEngine.Random.Range(1000, 9999)}";
-
-        OnNicknameSet?.Invoke(_nickName);
-        Connect(_nickName);
+        string nickName = $"Player_{UnityEngine.Random.Range(1000, 9999)}";
+        OnNicknameSet?.Invoke(nickName);
+        Connect(nickName);
     }
 
     public void Connect(string nickName)
@@ -50,22 +45,21 @@ public class PhotonServerManager : SingletonPunCallbacks<PhotonServerManager>
         PhotonNetwork.SendRate = 40;
         PhotonNetwork.SerializationRate = 30;
 
-        ApplyPersistentAuthUserId();
+        ApplySessionAuthUserId();
         PhotonNetwork.ConnectUsingSettings();
     }
 
-    private static void ApplyPersistentAuthUserId()
+    private static void ApplySessionAuthUserId()
     {
-        const string prefsKey = "PerfectSync_AuthUserId";
-        string uid = PlayerPrefs.GetString(prefsKey, string.Empty);
-        if (string.IsNullOrEmpty(uid))
-        {
-            uid = Guid.NewGuid().ToString("N");
-            PlayerPrefs.SetString(prefsKey, uid);
-            PlayerPrefs.Save();
-        }
-
+        string uid = BuildTimeBasedUniqueUserId();
         PhotonNetwork.AuthValues = new Photon.Realtime.AuthenticationValues(uid);
+    }
+
+    private static string BuildTimeBasedUniqueUserId()
+    {
+        long ticks = DateTime.UtcNow.Ticks;
+        int salt = UnityEngine.Random.Range(int.MinValue, int.MaxValue);
+        return $"PS_{ticks}_{salt:X8}";
     }
 
     public override void OnConnectedToMaster()

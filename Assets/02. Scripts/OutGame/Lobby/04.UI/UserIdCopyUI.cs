@@ -11,7 +11,7 @@ public class UserIdCopyUI : MonoBehaviour
 
     private string _userId;
 
-    private void Start()
+    private void OnEnable()
     {
         if (_copyButton != null)
             _copyButton.onClick.AddListener(OnCopyClicked);
