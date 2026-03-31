@@ -1,7 +1,6 @@
 public enum RoomKind
 {
     Unknown = 0,
-    Random = 1,
-    Custom = 2,
-    Party = 3
+    Lobby = 1,
+    Game = 2
 }

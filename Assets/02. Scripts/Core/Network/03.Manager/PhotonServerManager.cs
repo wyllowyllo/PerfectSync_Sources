@@ -9,10 +9,10 @@ public class PhotonServerManager : SingletonPunCallbacks<PhotonServerManager>
 
     [Header("Connection Settings")]
     [SerializeField] private string _gameVersion = "0.0.1";
-    [SerializeField] private string _nickName = "";
     [SerializeField] private bool _autoConnect = true;
 
     public event Action<string> OnNicknameSet;
+    public event Action<string> OnLocalUserIdReady;
 
     protected override void Awake()
     {
@@ -22,18 +22,14 @@ public class PhotonServerManager : SingletonPunCallbacks<PhotonServerManager>
     private void Start()
     {
         if (_autoConnect)
-        {
             Connect();
-        }
     }
 
     public void Connect()
     {
-        if (string.IsNullOrEmpty(_nickName))
-            _nickName = $"Player_{UnityEngine.Random.Range(1000, 9999)}";
-
-        OnNicknameSet?.Invoke(_nickName);
-        Connect(_nickName);
+        string nickName = $"Player_{UnityEngine.Random.Range(1000, 9999)}";
+        OnNicknameSet?.Invoke(nickName);
+        Connect(nickName);
     }
 
     public void Connect(string nickName)
@@ -49,12 +45,38 @@ public class PhotonServerManager : SingletonPunCallbacks<PhotonServerManager>
         PhotonNetwork.SendRate = 40;
         PhotonNetwork.SerializationRate = 30;
 
+        ApplySessionAuthUserId();
         PhotonNetwork.ConnectUsingSettings();
+    }
+
+    private static void ApplySessionAuthUserId()
+    {
+        string uid = BuildTimeBasedUniqueUserId();
+        PhotonNetwork.AuthValues = new Photon.Realtime.AuthenticationValues(uid);
+    }
+
+    private static string BuildTimeBasedUniqueUserId()
+    {
+        long ticks = DateTime.UtcNow.Ticks;
+        int salt = UnityEngine.Random.Range(int.MinValue, int.MaxValue);
+        return $"PS_{ticks}_{salt:X8}";
     }
 
     public override void OnConnectedToMaster()
     {
         base.OnConnectedToMaster();
+        RaiseLocalUserIdReady();
+    }
+
+    private void RaiseLocalUserIdReady()
+    {
+        string id = null;
+        if (PhotonNetwork.LocalPlayer != null && !string.IsNullOrEmpty(PhotonNetwork.LocalPlayer.UserId))
+            id = PhotonNetwork.LocalPlayer.UserId;
+        else if (PhotonNetwork.AuthValues != null && !string.IsNullOrEmpty(PhotonNetwork.AuthValues.UserId))
+            id = PhotonNetwork.AuthValues.UserId;
+
+        OnLocalUserIdReady?.Invoke(id ?? string.Empty);
     }
 
     public override void OnDisconnected(DisconnectCause cause)
