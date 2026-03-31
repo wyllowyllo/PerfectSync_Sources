@@ -1,5 +1,4 @@
 using Core;
-using System;
 using Unity.Cinemachine;
 using UnityEngine;
 
@@ -10,13 +9,12 @@ namespace InGame.Camera.PlayerCamera
     {
         [Header("Scene Cameras")]
         [SerializeField] private CinemachineCamera _followCamera;
+        [SerializeField] private IntroCameraController _introCamera;
 
         protected override bool PersistAcrossScenes => false;
 
         private const int ActivePriority = 10;
         private const int StandbyPriority = 0;
-
-        private GameState _currentState;
 
         public CinemachineCamera FollowCamera => _followCamera;
 
@@ -42,8 +40,6 @@ namespace InGame.Camera.PlayerCamera
 
         private void HandleGameStateChanged(GameState newState)
         {
-            _currentState = newState;
-
             switch (newState)
             {
                 case GameState.Loading:
@@ -51,33 +47,47 @@ namespace InGame.Camera.PlayerCamera
                     break;
 
                 case GameState.Intro:
-                    // 향후 인트로 카메라 활성화 지점.
-                    SetCameraPriority(_followCamera, StandbyPriority);
+                    ActivateIntro();
                     break;
 
                 case GameState.Countdown:
                 case GameState.Playing:
                 case GameState.RaceComplete:
                 case GameState.GameOver:
-                    SetCameraPriority(_followCamera, ActivePriority);
+                    ActivateFollow();
                     break;
             }
         }
 
-        /// <summary>
-        /// 특정 CinemachineCamera의 Priority를 직접 제어해야 하는 경우 사용.
-        /// FollowCameraController의 래그돌 카메라 전환 등에서 호출.
-        /// </summary>
-        public static void SetCameraPriority(CinemachineCamera camera, int priority)
+        private void ActivateIntro()
         {
-            if (camera == null) return;
-            camera.Priority.Enabled = true;
-            camera.Priority.Value = priority;
+            SetCameraPriority(_followCamera, StandbyPriority);
+
+            if (_introCamera != null)
+                _introCamera.Play();
+        }
+
+        private void ActivateFollow()
+        {
+            if (_introCamera != null)
+                _introCamera.Stop();
+
+            SetCameraPriority(_followCamera, ActivePriority);
         }
 
         private void DeactivateAll()
         {
             SetCameraPriority(_followCamera, StandbyPriority);
+
+            if (_introCamera != null)
+                _introCamera.Stop();
+        }
+
+        public static void SetCameraPriority(CinemachineCamera camera, int priority)
+        {
+            if (camera == null) return;
+            camera.Priority.Enabled = true;
+            camera.Priority.Value = priority;
         }
     }
 }
