@@ -68,18 +68,18 @@ public class PopupObstacle : MonoBehaviour, ITrap
     private void OnDrawGizmosSelected()
     {
         if (_targetTransform == null) return;
-        
+
         Gizmos.color = Color.red;
-        
-        Vector3 targetWorldPos = Application.isPlaying 
-            ? _targetWorldPosition 
+
+        Vector3 targetWorldPos = Application.isPlaying
+            ? _targetWorldPosition
             : _targetTransform.position;
-            
+
         Gizmos.DrawLine(transform.position, targetWorldPos);
 
         Gizmos.matrix = Matrix4x4.TRS(targetWorldPos, transform.rotation, transform.localScale);
-        
+
         Gizmos.DrawWireCube(Vector3.zero, Vector3.one);
     }
-}
 #endif
+}
