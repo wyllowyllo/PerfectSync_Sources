@@ -1,3 +1,4 @@
+using System;
 using Core;
 using InGame.Player.Animation;
 using InGame.Player.Ragdoll;
@@ -29,6 +30,7 @@ namespace InGame.Player.Movement
         private float _transitionStartVy;
 
         public bool IsLaunching => _isLaunching;
+        public event Action OnLaunched;
 
         private void Awake()
         {
@@ -67,6 +69,7 @@ namespace InGame.Player.Movement
             _movement.AirControlBoost = 1f;
             _anim.TrampolineLaunch();
             _isLaunching = true;
+            OnLaunched?.Invoke();
         }
 
         private void FixedUpdate()
