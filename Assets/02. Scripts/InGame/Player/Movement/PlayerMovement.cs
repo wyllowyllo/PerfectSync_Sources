@@ -102,6 +102,7 @@ namespace InGame.Player.Movement
             // 발사 중(블렌드 1.0)에는 입력/점프 처리를 건너뛰고 에어본 애니메이션만 갱신.
             if (_momentumBlend >= 1f)
             {
+                _isGrounded = false;
                 _anim.Locomotion(false, 0f);
                 _jumpRequested = false;
                 return;
