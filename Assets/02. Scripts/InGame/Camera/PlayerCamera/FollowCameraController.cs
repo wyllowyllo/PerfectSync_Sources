@@ -11,10 +11,7 @@ namespace InGame.Camera.PlayerCamera
     [DefaultExecutionOrder(ExecutionOrderConstants.CinemachineCameraManager)]
     public class FollowCameraController : MonoBehaviourPun
     {
-        [Header("Cinemachine")]
-        [SerializeField] private CinemachineCamera _animatedCamera;
-
-        [Header("Root Bodies (각 Body의 Rigidbody Transform)")]
+        [Header("Root Bodies")]
         [SerializeField] private Transform _mergedRootBody;
         [SerializeField] private Transform _avatarARootBody;
         [SerializeField] private Transform _avatarBRootBody;
@@ -30,6 +27,7 @@ namespace InGame.Camera.PlayerCamera
         [Header("Ragdoll Camera")]
         [SerializeField] private Vector3 _ragdollPositionDamping = new Vector3(2f, 2.5f, 2f);
 
+        private CinemachineCamera _followCamera;
         private CinemachineCamera _ragdollCamera;
         private Rigidbody _animatedProxyRb;
         private Rigidbody _ragdollProxyRb;
@@ -54,13 +52,18 @@ namespace InGame.Camera.PlayerCamera
         {
             if (_initialized) return;
             if (!IsMyTeam()) return;
+            if (InGameCameraManager.Instance == null) return;
+
+            _followCamera = InGameCameraManager.Instance.FollowCamera;
+            if (_followCamera == null)
+            {
+                Debug.LogError("[FollowCameraController] InGameCameraManager에 FollowCamera가 할당되지 않았습니다.", this);
+                return;
+            }
 
             _initialized = true;
             _animatedProxyRb = CreateInterpolatedProxy("AnimatedCameraProxy");
             _ragdollProxyRb = CreateInterpolatedProxy("RagdollCameraProxy");
-
-            if (_animatedCamera == null)
-                _animatedCamera = FindAnyObjectByType<CinemachineCamera>();
 
             _ragdollCamera = CreateRagdollCamera();
             SetupCameraTargets();
@@ -133,12 +136,12 @@ namespace InGame.Camera.PlayerCamera
 
             _isRagdollCameraActive = shouldBeRagdoll;
 
-            CinemachineCamera from = shouldBeRagdoll ? _animatedCamera : _ragdollCamera;
-            CinemachineCamera to = shouldBeRagdoll ? _ragdollCamera : _animatedCamera;
+            CinemachineCamera from = shouldBeRagdoll ? _followCamera : _ragdollCamera;
+            CinemachineCamera to = shouldBeRagdoll ? _ragdollCamera : _followCamera;
 
             SyncOrbitalAxes(from, to);
-            SetPriority(to, ActivePriority);
-            SetPriority(from, StandbyPriority);
+            InGameCameraManager.SetCameraPriority(to, ActivePriority);
+            InGameCameraManager.SetCameraPriority(from, StandbyPriority);
         }
 
         private void HandleModeChanged(ETeamMode newMode)
@@ -165,18 +168,18 @@ namespace InGame.Camera.PlayerCamera
 
         private void SetupCameraTargets()
         {
-            _animatedCamera.Follow = _animatedProxyRb.transform;
-            _animatedCamera.LookAt = _animatedProxyRb.transform;
+            _followCamera.Follow = _animatedProxyRb.transform;
+            _followCamera.LookAt = _animatedProxyRb.transform;
             _ragdollCamera.Follow = _ragdollProxyRb.transform;
             _ragdollCamera.LookAt = _ragdollProxyRb.transform;
 
-            SetPriority(_animatedCamera, ActivePriority);
-            SetPriority(_ragdollCamera, StandbyPriority);
+            InGameCameraManager.SetCameraPriority(_followCamera, ActivePriority);
+            InGameCameraManager.SetCameraPriority(_ragdollCamera, StandbyPriority);
         }
 
         private CinemachineCamera CreateRagdollCamera()
         {
-            var clone = Instantiate(_animatedCamera.gameObject);
+            var clone = Instantiate(_followCamera.gameObject);
             clone.name = "CinemachineCamera_Ragdoll";
 
             var cam = clone.GetComponent<CinemachineCamera>();
@@ -196,12 +199,6 @@ namespace InGame.Camera.PlayerCamera
 
             targetOrbital.HorizontalAxis.Value = sourceOrbital.HorizontalAxis.Value;
             targetOrbital.VerticalAxis.Value = sourceOrbital.VerticalAxis.Value;
-        }
-
-        private static void SetPriority(CinemachineCamera camera, int priority)
-        {
-            camera.Priority.Enabled = true;
-            camera.Priority.Value = priority;
         }
 
         private static Rigidbody CreateInterpolatedProxy(string name)
