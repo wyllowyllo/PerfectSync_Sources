@@ -27,20 +27,25 @@ namespace InGame.Player
 
             Vector3 knockback;
             Vector3 torque;
+            EHitResponse response;
 
             var source = collision.gameObject.GetComponent<IHitSource>();
             if (source != null)
             {
-                if (!source.TryComputeKnockback(collision, out knockback, out torque))
+                if (!source.TryComputeKnockback(collision, out knockback, out torque, out response))
                     return;
             }
-            else if (!TryComputeFallbackKnockback(collision, out knockback, out torque))
+            else if (TryComputeFallbackKnockback(collision, out knockback, out torque))
+            {
+                response = EHitResponse.Default;
+            }
+            else
             {
                 return;
             }
 
             Vector3 hitPoint = collision.GetContact(0).point;
-            var hit = new HitData(knockback, hitPoint, torque);
+            var hit = new HitData(knockback, hitPoint, torque, response);
             OnHitDetected?.Invoke(hit);
         }
 

@@ -30,6 +30,8 @@ namespace InGame.Player.Test
         [FormerlySerializedAs("_impulseMagnitude")]
         [SerializeField] private float _knockbackMagnitude = 10f;
 
+        [SerializeField] private EHitResponse _testResponse = EHitResponse.Ragdoll;
+
         [Header("Key")]
         [SerializeField] private KeyCode _triggerKey = KeyCode.T;
 
@@ -63,7 +65,7 @@ namespace InGame.Player.Test
             Vector3 hitPoint = body.transform.position;
             int viewID = pv.ViewID;
 
-            var hit = new HitData(knockback, hitPoint, HitData.ComputeRandomTorque(knockback.magnitude));
+            var hit = new HitData(knockback, hitPoint, HitData.ComputeRandomTorque(knockback.magnitude), _testResponse);
             _input.SendHit(hit, viewID);
             UnityEngine.Debug.Log($"[HitTestTrigger] Sent hit to '{_target}' (ViewID={viewID}), knockback={knockback}");
         }

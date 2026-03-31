@@ -178,6 +178,17 @@ namespace InGame.Player.Ragdoll
         {
             if (!_isAuthority) return;
 
+            if (hit.Response != EHitResponse.Default)
+            {
+                ApplyForcedHit(hit);
+                return;
+            }
+
+            ApplyThresholdBasedHit(hit);
+        }
+
+        private void ApplyThresholdBasedHit(HitData hit)
+        {
             float effectiveMagnitude = hit.Magnitude + _instability;
 
             switch (_currentState)
@@ -197,6 +208,40 @@ namespace InGame.Player.Ragdoll
                         EnterRagdolled(hit);
                     else if (hit.Magnitude >= _thresholdProfile.StumbleThreshold)
                         EnterStumble(hit);
+                    break;
+            }
+        }
+
+        private void ApplyForcedHit(HitData hit)
+        {
+            if (_currentState == ERagdollState.Dead) return;
+
+            if (_currentState == ERagdollState.Ragdolled)
+            {
+                _hitApplier.ApplyAdditionalHit(hit);
+                _stateTimer = 0f;
+                return;
+            }
+
+            switch (hit.Response)
+            {
+                case EHitResponse.Ragdoll:
+                    EnterRagdolled(hit);
+                    break;
+
+                case EHitResponse.Stumble:
+                    if (_currentState == ERagdollState.BlendToAnim)
+                        EnterRagdolled(hit);
+                    else
+                        EnterStumble(hit);
+                    break;
+
+                case EHitResponse.Push:
+                    if (_currentState == ERagdollState.Animated)
+                    {
+                        _rootBody.AddForce(hit.Knockback, ForceMode.Impulse);
+                        _instability += hit.Magnitude;
+                    }
                     break;
             }
         }
@@ -362,6 +407,7 @@ namespace InGame.Player.Ragdoll
         private void EnterStumble(HitData hit)
         {
             _instability += hit.Magnitude;
+            _rootBody.AddForce(hit.Knockback, ForceMode.Impulse);
             _animation.Stumble();
             OnStumblePlayed?.Invoke();
         }
