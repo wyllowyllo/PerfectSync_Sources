@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using InGame.Effect;
 using InGame.Player.Network;
 using InGame.Team;
 using Photon.Pun;
@@ -23,6 +25,9 @@ namespace InGame.Player
         [Tooltip("카메라 쉐이크용 Impulse Source. 없으면 쉐이크 생략.")]
         [SerializeField] private CinemachineImpulseSource _impulseSource;
 
+        [Tooltip("공격자 바디 PunchScale 연출. 없으면 생략.")]
+        [SerializeField] private PunchScaleEffect _punchScaleEffect;
+
         private InvincibleModeController _invincibleController;
         private TeamModeSynchronizer _synchronizer;
         private bool _isAuthority;
@@ -33,6 +38,9 @@ namespace InGame.Player
         private const int MaxOverlapResults = 8;
 
         private readonly Collider[] _overlapBuffer = new Collider[MaxOverlapResults];
+
+        // FOV Kick 등 외부 연출 훅.
+        public event Action OnHitLocal;
 
         public void SetAuthority(bool isAuthority) => _isAuthority = isAuthority;
 
@@ -91,6 +99,11 @@ namespace InGame.Player
 
             if (_impulseSource != null)
                 _impulseSource.GenerateImpulse(direction);
+
+            if (_punchScaleEffect != null)
+                _punchScaleEffect.Play();
+
+            OnHitLocal?.Invoke();
         }
 
         private void PruneStaleEntries()

@@ -1,4 +1,5 @@
 using Core;
+using DG.Tweening;
 using InGame.Player;
 using InGame.Player.Ragdoll;
 using Photon.Pun;
@@ -22,6 +23,10 @@ namespace InGame.Camera.PlayerCamera
         [Header("Ragdoll Camera")]
         [SerializeField] private Vector3 _ragdollPositionDamping = new Vector3(2f, 2.5f, 2f);
 
+        [Header("FOV Kick")]
+        [SerializeField] private float _fovKickAmount = 5f;
+        [SerializeField] private float _fovKickDuration = 0.2f;
+
         private CinemachineCamera _followCamera;
         private CinemachineCamera _ragdollCamera;
         private Rigidbody _animatedProxyRb;
@@ -33,6 +38,9 @@ namespace InGame.Camera.PlayerCamera
         private const int ActivePriority = 10;
         private const int StandbyPriority = 0;
         private bool _initialized;
+        private float _baseFov;
+        private Tween _fovTween;
+        private InvincibleContactDetector _contactDetector;
 
         private void Start()
         {
@@ -53,6 +61,12 @@ namespace InGame.Camera.PlayerCamera
             }
 
             _initialized = true;
+            _baseFov = _followCamera.Lens.FieldOfView;
+
+            _contactDetector = GetComponentInChildren<InvincibleContactDetector>();
+            if (_contactDetector != null)
+                _contactDetector.OnHitLocal += HandleInvincibleHit;
+
             _animatedProxyRb = CreateInterpolatedProxy("AnimatedCameraProxy");
             _ragdollProxyRb = CreateInterpolatedProxy("RagdollCameraProxy");
 
@@ -88,6 +102,11 @@ namespace InGame.Camera.PlayerCamera
         private void OnDestroy()
         {
             if (!_initialized) return;
+
+            if (_contactDetector != null)
+                _contactDetector.OnHitLocal -= HandleInvincibleHit;
+
+            _fovTween?.Kill();
 
             if (_animatedProxyRb != null)
                 Destroy(_animatedProxyRb.gameObject);
@@ -165,6 +184,29 @@ namespace InGame.Camera.PlayerCamera
 
             targetOrbital.HorizontalAxis.Value = sourceOrbital.HorizontalAxis.Value;
             targetOrbital.VerticalAxis.Value = sourceOrbital.VerticalAxis.Value;
+        }
+
+        private void HandleInvincibleHit()
+        {
+            if (_followCamera == null) return;
+
+            _fovTween?.Kill();
+
+            var lens = _followCamera.Lens;
+            lens.FieldOfView = _baseFov + _fovKickAmount;
+            _followCamera.Lens = lens;
+
+            _fovTween = DOTween.To(
+                () => _followCamera.Lens.FieldOfView,
+                v =>
+                {
+                    var l = _followCamera.Lens;
+                    l.FieldOfView = v;
+                    _followCamera.Lens = l;
+                },
+                _baseFov,
+                _fovKickDuration
+            ).SetEase(Ease.OutQuad);
         }
 
         private static Rigidbody CreateInterpolatedProxy(string name)
