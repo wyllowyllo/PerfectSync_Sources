@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using InGame.Player.Network;
 using InGame.Team;
 using Photon.Pun;
+using Unity.Cinemachine;
 using UnityEngine;
 
 namespace InGame.Player
@@ -17,6 +18,10 @@ namespace InGame.Player
 
         [Tooltip("상대 감지 반경")]
         [SerializeField] private float _detectionRadius = 1.2f;
+
+        [Header("Hit Feedback")]
+        [Tooltip("카메라 쉐이크용 Impulse Source. 없으면 쉐이크 생략.")]
+        [SerializeField] private CinemachineImpulseSource _impulseSource;
 
         private InvincibleModeController _invincibleController;
         private TeamModeSynchronizer _synchronizer;
@@ -82,8 +87,10 @@ namespace InGame.Player
             Vector3 hitPoint = other.ClosestPoint(transform.position);
             Vector3 torque = HitData.ComputeRandomTorque(knockback.magnitude);
 
-            _synchronizer.BroadcastInvincibleHit(
-                victimViewID, knockback, hitPoint, torque, (byte)EHitResponse.Ragdoll);
+            _synchronizer.BroadcastInvincibleHit(victimViewID, knockback, hitPoint, torque, (byte)EHitResponse.Ragdoll);
+
+            if (_impulseSource != null)
+                _impulseSource.GenerateImpulse(direction);
         }
 
         private void PruneStaleEntries()
