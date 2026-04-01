@@ -28,6 +28,36 @@ public class LobbyPopupCoordinator : MonoBehaviour
     [SerializeField] private Button _openNicknameChangeButton;
     [SerializeField] private Button _openInviteFriendsButton;
 
+    private void Start()
+    {
+        if (_openSettingsButton != null)
+            _openSettingsButton.onClick.AddListener(OnOpenSettingsButtonClicked);
+        if (_openNicknameChangeButton != null)
+            _openNicknameChangeButton.onClick.AddListener(OnOpenNicknameChangeButtonClicked);
+        if (_openInviteFriendsButton != null)
+            _openInviteFriendsButton.onClick.AddListener(OnOpenInviteFriendsButtonClicked);
+
+        EscMenuPopup.CloseAllPopupsAndEscMenuRequested += OnEscMenuCloseAllRequested;
+        EscMenuPopup.OpenSettingsFromEscMenuRequested += OnEscMenuOpenSettingsRequested;
+        EscMenuPopup.OpenQuitFromEscMenuRequested += OnEscMenuOpenQuitRequested;
+        QuitPopup.CancelRequested += OnQuitCancelRequested;
+    }
+
+    private void OnDisable()
+    {
+        if (_openSettingsButton != null)
+            _openSettingsButton.onClick.RemoveListener(OnOpenSettingsButtonClicked);
+        if (_openNicknameChangeButton != null)
+            _openNicknameChangeButton.onClick.RemoveListener(OnOpenNicknameChangeButtonClicked);
+        if (_openInviteFriendsButton != null)
+            _openInviteFriendsButton.onClick.RemoveListener(OnOpenInviteFriendsButtonClicked);
+
+        EscMenuPopup.CloseAllPopupsAndEscMenuRequested -= OnEscMenuCloseAllRequested;
+        EscMenuPopup.OpenSettingsFromEscMenuRequested -= OnEscMenuOpenSettingsRequested;
+        EscMenuPopup.OpenQuitFromEscMenuRequested -= OnEscMenuOpenQuitRequested;
+        QuitPopup.CancelRequested -= OnQuitCancelRequested;
+    }
+
     private void Update()
     {
         if (Input.GetKeyDown(KeyCode.Escape))
@@ -36,12 +66,6 @@ public class LobbyPopupCoordinator : MonoBehaviour
     
     public void ShowPopup(LobbyPopupKind kind)
     {
-        if (kind == LobbyPopupKind.EscMenu)
-        {
-            _escMenuPopup?.Show();
-            return;
-        }
-
         HideAllBackgroundPopups();
         ShowPopupBackground();
         GetBackgroundPopup(kind)?.Show();
@@ -71,7 +95,6 @@ public class LobbyPopupCoordinator : MonoBehaviour
     {
         HideAllBackgroundPopups();
         HidePopupBackground();
-        EscMenuPopup.RaiseCoordinatorClosedAllPopups();
     }
 
     private LobbyPopupBase GetBackgroundPopup(LobbyPopupKind kind)
@@ -88,6 +111,8 @@ public class LobbyPopupCoordinator : MonoBehaviour
                 return _quitPopup;
             case LobbyPopupKind.PartyInvite:
                 return _partyInvitePopup;
+            case LobbyPopupKind.EscMenu:
+                return _escMenuPopup;
             default:
                 return null;
         }
@@ -112,6 +137,7 @@ public class LobbyPopupCoordinator : MonoBehaviour
         _inviteFriendsPopup?.Hide();
         _quitPopup?.Hide();
         _partyInvitePopup?.Hide();
+        _escMenuPopup?.Hide();
     }
 
     private void HandleEscape()
@@ -128,5 +154,40 @@ public class LobbyPopupCoordinator : MonoBehaviour
             return true;
         else
             return false;
+    }
+
+    private void OnOpenSettingsButtonClicked()
+    {
+        ShowSettings();
+    }
+
+    private void OnOpenNicknameChangeButtonClicked()
+    {
+        ShowNicknameChange();
+    }
+
+    private void OnOpenInviteFriendsButtonClicked()
+    {
+        ShowFollowFriends();
+    }
+
+    private void OnEscMenuCloseAllRequested()
+    {
+        CloseAllPopups();
+    }
+
+    private void OnEscMenuOpenSettingsRequested()
+    {
+        ShowSettings();
+    }
+
+    private void OnEscMenuOpenQuitRequested()
+    {
+        ShowQuitPanel();
+    }
+
+    private void OnQuitCancelRequested()
+    {
+        CloseAllPopups();
     }
 }

@@ -17,11 +17,6 @@ public class EscMenuPopup : LobbyPopupBase
 
     private void OnEnable()
     {
-        CoordinatorClosedAllPopups += OnCoordinatorClosedAllPopups;
-    }
-
-    private void Start()
-    {
         if (_backButton != null)
             _backButton.onClick.AddListener(OnBackClicked);
         if (_optionButton != null)
@@ -29,27 +24,14 @@ public class EscMenuPopup : LobbyPopupBase
         if (_quitButton != null)
             _quitButton.onClick.AddListener(OnQuitClicked);
     }
-
     private void OnDisable()
     {
-        CoordinatorClosedAllPopups -= OnCoordinatorClosedAllPopups;
-
         if (_backButton != null)
             _backButton.onClick.RemoveListener(OnBackClicked);
         if (_optionButton != null)
             _optionButton.onClick.RemoveListener(OnOptionClicked);
         if (_quitButton != null)
             _quitButton.onClick.RemoveListener(OnQuitClicked);
-    }
-
-    public static void RaiseCoordinatorClosedAllPopups()
-    {
-        CoordinatorClosedAllPopups?.Invoke();
-    }
-
-    private void OnCoordinatorClosedAllPopups()
-    {
-        Hide();
     }
 
     private void OnBackClicked()
