@@ -24,7 +24,7 @@ namespace InGame.Gimmick
             if (teamNumber == PhotonTeamManager.TeamNone) return;
 
             if (TeamModeManager.Instance != null)
-                TeamModeManager.Instance.HandleTrampolineTrigger(teamNumber);
+                TeamModeManager.Instance.HandleTrampolineContact(teamNumber);
         }
 
         private void OnDrawGizmos()

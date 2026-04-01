@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using InGame.Player.Movement;
 using InGame.Player.Network;
 using UnityEngine;
 
@@ -28,7 +29,10 @@ namespace InGame.Team
 
         // ── Public API ─────────────────────────────────────────
 
-        public void HandleTrampolineTrigger(int teamNumber)
+        /// <summary>
+        /// 트램펄린 탑승 시 호출. 슬롯 스핀 시작 + 정점 도달 대기.
+        /// </summary>
+        public void HandleTrampolineContact(int teamNumber)
         {
             if (InGameManager.Instance != null && !InGameManager.IsLocalPlayerControllable)
                 return;
@@ -42,12 +46,20 @@ namespace InGame.Team
             if (!TryConsumeTrigger(teamNumber))
                 return;
 
-            int rank = GetTeamRank(teamNumber);
-            float probability = GetMatchProbability(rank);
-            bool isMatch = Random.value < probability;
+            // 스핀 시작 브로드캐스트 (결과 미정).
+            synchronizer.BroadcastSlotSpinStart();
 
-            int[] symbols = GenerateSymbols(isMatch);
-            synchronizer.BroadcastSlotSpin(symbols, isMatch);
+            // 정점 도달 시 결과 결정을 위해 LaunchController에 one-shot 구독.
+            var launchController = synchronizer.GetComponentInChildren<LaunchController>();
+            if (launchController != null)
+            {
+                void OnApex()
+                {
+                    launchController.OnApexReached -= OnApex;
+                    HandleApexReached(teamNumber, synchronizer);
+                }
+                launchController.OnApexReached += OnApex;
+            }
         }
 
         public int GetTeamRank(int teamNumber)
@@ -78,6 +90,22 @@ namespace InGame.Team
         }
 
         // ── Internal ───────────────────────────────────────────
+
+        /// <summary>
+        /// 정점(apex) 도달 시 호출. 결과 결정 + 브로드캐스트.
+        /// </summary>
+        private void HandleApexReached(int teamNumber, TeamModeSynchronizer synchronizer)
+        {
+            int rank = GetTeamRank(teamNumber);
+            float probability = GetMatchProbability(rank);
+            bool isMatch = Random.value < probability;
+            int[] symbols = GenerateSymbols(isMatch);
+
+            synchronizer.BroadcastSlotResult(symbols, isMatch);
+
+            if (isMatch)
+                synchronizer.BroadcastInvincibleMode(true);
+        }
 
         private int[] GenerateSymbols(bool isMatch)
         {

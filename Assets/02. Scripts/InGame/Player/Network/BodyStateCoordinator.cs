@@ -1,5 +1,6 @@
 using Core;
 using InGame.Player.Ragdoll;
+using InGame.Team;
 using InGame.UserInput;
 using Photon.Pun;
 using UnityEngine;
@@ -49,6 +50,26 @@ namespace InGame.Player.Network
             SetRemoteOnBody(_mergedBody, !isHost);
             FindInBody<BodyMovementSynchronizer>(_mergedBody)?.SetSyncEnabled(true);
             ConfigureRagdollAuthority(_mergedBody, true, isHost);
+            ConfigureInvincible(isHost);
+        }
+
+        private void ConfigureInvincible(bool isHost)
+        {
+            var invincibleController = GetComponent<InvincibleModeController>();
+            if (invincibleController != null)
+                invincibleController.SetAuthority(isHost);
+
+            var hitDetector = FindInBody<HitDetector>(_mergedBody);
+            if (hitDetector != null)
+                hitDetector.SetInvincibleController(invincibleController);
+
+            var contactDetector = FindInBody<InvincibleContactDetector>(_mergedBody);
+            if (contactDetector != null)
+            {
+                contactDetector.SetAuthority(isHost);
+                var synchronizer = GetComponent<TeamModeSynchronizer>();
+                contactDetector.Initialize(invincibleController, synchronizer);
+            }
         }
 
         private void ConfigureRagdollAuthority(

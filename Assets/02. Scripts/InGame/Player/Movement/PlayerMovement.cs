@@ -29,6 +29,7 @@ namespace InGame.Player.Movement
         [Header("Air Control")]
         [SerializeField, Range(0f, 1f)] private float _airControlFactor = 0.6f;
         private float _airControlBoost = 1f;
+        private float _buffSpeedMultiplier = 1f;
 
         [Header("Gravity")]
         [SerializeField] private float _gravity = 9.81f;
@@ -67,6 +68,7 @@ namespace InGame.Player.Movement
         public float Gravity => _gravity;
         public float MomentumBlend { get => _momentumBlend; set => _momentumBlend = value; }
         public float AirControlBoost { get => _airControlBoost; set => _airControlBoost = value; }
+        public float BuffSpeedMultiplier { get => _buffSpeedMultiplier; set => _buffSpeedMultiplier = value; }
         public float CurrentSpeed => _currentVelocity.magnitude;
 
         private void Awake()
@@ -125,7 +127,7 @@ namespace InGame.Player.Movement
             // 다이브 중에는 입력 가속을 적용하지 않음.
             if (!_playerJump.IsDiving)
             {
-                float speedMultiplier = _isGrounded ? 1f : _airControlFactor * _airControlBoost;
+                float speedMultiplier = (_isGrounded ? 1f : _airControlFactor * _airControlBoost) * _buffSpeedMultiplier;
                 Accelerate(_inputDirection * _moveSpeed * speedMultiplier);
             }
 

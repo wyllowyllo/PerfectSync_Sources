@@ -1,4 +1,5 @@
 using System;
+using InGame.Team;
 using UnityEngine;
 using UnityEngine.Serialization;
 
@@ -12,8 +13,14 @@ namespace InGame.Player
         [SerializeField] private float _minKnockback = 3f;
 
         private bool _isAuthority;
+        private InvincibleModeController _invincibleController;
 
         public event Action<HitData> OnHitDetected;
+
+        public void SetInvincibleController(InvincibleModeController controller)
+        {
+            _invincibleController = controller;
+        }
 
         public void SetAuthority(bool isAuthority)
         {
@@ -22,6 +29,7 @@ namespace InGame.Player
 
         private void OnCollisionEnter(Collision collision)
         {
+            if (_invincibleController != null && _invincibleController.IsInvincible) return;
             if (!_isAuthority) return;
             if ((_hazardLayers & (1 << collision.gameObject.layer)) == 0) return;
 

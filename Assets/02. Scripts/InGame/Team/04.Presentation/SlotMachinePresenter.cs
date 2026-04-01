@@ -55,12 +55,17 @@ namespace InGame.Team
         private Vector3 _currentPos;
         private bool _posInitialized;
 
+        // 2단계 스핀: 결과가 슬라이드인보다 먼저 도착할 경우 큐잉.
+        private int[] _pendingResult;
+        private bool _spinStarted;
+
         private void Start()
         {
             _synchronizer = GetComponent<TeamModeSynchronizer>();
             _formController = GetComponent<MergedBodyController>();
 
-            _synchronizer.OnSlotSpinReceived += HandleSlotSpin;
+            _synchronizer.OnSlotSpinStarted += HandleSpinStart;
+            _synchronizer.OnSlotResultReceived += HandleSpinResult;
         }
 
         private void OnDestroy()
@@ -69,7 +74,10 @@ namespace InGame.Team
             _scaleTween?.Kill();
 
             if (_synchronizer != null)
-                _synchronizer.OnSlotSpinReceived -= HandleSlotSpin;
+            {
+                _synchronizer.OnSlotSpinStarted -= HandleSpinStart;
+                _synchronizer.OnSlotResultReceived -= HandleSpinResult;
+            }
         }
 
         private void LateUpdate()
@@ -115,7 +123,9 @@ namespace InGame.Team
             _activeSlotMachine.transform.rotation = _prefabBaseRotation * pitch * wobble;
         }
 
-        private void HandleSlotSpin(int[] symbols, bool isMatch)
+        // ── 2단계 스핀 핸들러 ───────────────────────────────────
+
+        private void HandleSpinStart()
         {
             _activeTween?.Kill();
             _scaleTween?.Kill();
@@ -125,6 +135,8 @@ namespace InGame.Team
                 StopAllCoroutines();
             }
 
+            _pendingResult = null;
+            _spinStarted = false;
             _slideOffset = _slideDistance;
             _posInitialized = false;
 
@@ -142,15 +154,40 @@ namespace InGame.Team
             _scaleTween = _activeSlotMachine.transform.DOScale(_prefabBaseScale, _appearScaleDuration)
                 .SetEase(_appearScaleEase);
 
-            // 오른쪽에서 슬라이드인.
+            // 오른쪽에서 슬라이드인 → 완료 후 스핀 시작.
             _activeTween = DOTween.To(() => _slideOffset, v => _slideOffset = v, 0f, _appearDuration)
                 .SetEase(Ease.OutCubic)
                 .OnComplete(() =>
                 {
-                    _activeSlotMachine.Spin(symbols);
-                    _activeSlotMachine.OnSpinComplete += OnSpinComplete;
+                    _activeSlotMachine.StartSpin();
+                    _spinStarted = true;
+
+                    // 결과가 먼저 도착해서 큐잉된 경우 즉시 정지.
+                    if (_pendingResult != null)
+                    {
+                        _activeSlotMachine.StopOnSymbols(_pendingResult);
+                        _activeSlotMachine.OnSpinComplete += OnSpinComplete;
+                        _pendingResult = null;
+                    }
                 });
         }
+
+        private void HandleSpinResult(int[] symbols, bool isMatch)
+        {
+            if (_activeSlotMachine == null) return;
+
+            if (!_spinStarted)
+            {
+                // 슬라이드인 완료 전에 결과 도착 → 큐잉.
+                _pendingResult = symbols;
+                return;
+            }
+
+            _activeSlotMachine.StopOnSymbols(symbols);
+            _activeSlotMachine.OnSpinComplete += OnSpinComplete;
+        }
+
+        // ── 스핀 완료 처리 ──────────────────────────────────────
 
         private void OnSpinComplete(int[] results)
         {
