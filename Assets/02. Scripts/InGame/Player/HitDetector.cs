@@ -1,5 +1,5 @@
 using System;
-using InGame.Team;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Serialization;
 
@@ -13,13 +13,14 @@ namespace InGame.Player
         [SerializeField] private float _minKnockback = 3f;
 
         private bool _isAuthority;
-        private InvincibleModeController _invincibleController;
+        private readonly List<IInvincibilitySource> _invincibilitySources = new();
 
         public event Action<HitData> OnHitDetected;
 
-        public void SetInvincibleController(InvincibleModeController controller)
+        public void AddInvincibilitySource(IInvincibilitySource source)
         {
-            _invincibleController = controller;
+            if (!_invincibilitySources.Contains(source))
+                _invincibilitySources.Add(source);
         }
 
         public void SetAuthority(bool isAuthority)
@@ -27,13 +28,21 @@ namespace InGame.Player
             _isAuthority = isAuthority;
         }
 
+        private bool IsAnySourceInvincible()
+        {
+            foreach (var source in _invincibilitySources)
+            {
+                if (source.IsInvincible)
+                    return true;
+            }
+            return false;
+        }
+
         private void OnCollisionEnter(Collision collision)
         {
-            // 무적이면 모든 피격 면역. 무적 넉백은 InvincibleContactDetector가 처리.
-            if (_invincibleController != null && _invincibleController.IsInvincible) return;
+            if (IsAnySourceInvincible()) return;
             if (!_isAuthority) return;
 
-            // 일반 장애물 피격.
             if ((_hazardLayers & (1 << collision.gameObject.layer)) == 0) return;
 
             Vector3 knockback;

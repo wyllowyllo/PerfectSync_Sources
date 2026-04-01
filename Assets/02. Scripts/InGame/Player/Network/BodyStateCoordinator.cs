@@ -1,4 +1,5 @@
 using Core;
+using InGame.Gimmick;
 using InGame.Player.Ragdoll;
 using InGame.Team;
 using InGame.UserInput;
@@ -61,7 +62,14 @@ namespace InGame.Player.Network
 
             var hitDetector = FindInBody<HitDetector>(_mergedBody);
             if (hitDetector != null)
-                hitDetector.SetInvincibleController(invincibleController);
+            {
+                if (invincibleController != null)
+                    hitDetector.AddInvincibilitySource(invincibleController);
+
+                var respawnHandler = GetComponent<RespawnHandler>();
+                if (respawnHandler != null)
+                    hitDetector.AddInvincibilitySource(respawnHandler);
+            }
 
             var contactDetector = FindInBody<InvincibleContactDetector>(_mergedBody);
             if (contactDetector != null)

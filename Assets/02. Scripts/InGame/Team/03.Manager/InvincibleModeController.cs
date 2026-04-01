@@ -1,16 +1,13 @@
 using System;
 using System.Collections.Generic;
+using InGame.Player;
 using InGame.Player.Movement;
 using InGame.Player.Network;
 using UnityEngine;
 
 namespace InGame.Team
 {
-    /// <summary>
-    /// 무적 모드 상태 관리 컨트롤러.
-    /// TeamCharacter 루트에 부착 (TeamModeSynchronizer, MergedBodyController와 동일 레벨).
-    /// </summary>
-    public class InvincibleModeController : MonoBehaviour
+    public class InvincibleModeController : MonoBehaviour, IInvincibilitySource
     {
         [Header("Settings")]
         [Tooltip("무적 지속 시간 (초). 0 = 영구 지속")]

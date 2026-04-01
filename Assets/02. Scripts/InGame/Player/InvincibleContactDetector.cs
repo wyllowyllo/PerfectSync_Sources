@@ -69,9 +69,12 @@ namespace InGame.Player
             if (other == null) return;
             if (other.transform.IsChildOf(transform)) return;
 
-            // 상대도 무적이면 skip.
-            var victimInvincible = other.GetComponentInParent<InvincibleModeController>();
-            if (victimInvincible != null && victimInvincible.IsInvincible) return;
+            // 상대가 어떤 무적 상태든 skip (팀 무적, 리스폰 무적 등).
+            var victimSources = other.GetComponentsInParent<IInvincibilitySource>();
+            foreach (var source in victimSources)
+            {
+                if (source.IsInvincible) return;
+            }
 
             var victimView = other.GetComponentInParent<PhotonView>();
             if (victimView == null) return;
