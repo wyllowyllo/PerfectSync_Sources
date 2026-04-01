@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using InGame.Player.Movement;
 using InGame.Player.Network;
 using UnityEngine;
@@ -29,6 +30,9 @@ namespace InGame.Team
         private bool _isInvincible;
         private float _timer;
         private bool _isAuthority;
+
+        // 충돌 무시 복원용 캐시.
+        private readonly List<(Collider mine, Collider other)> _ignoredPairs = new();
 
         /// <summary>
         /// 비주얼/사운드 훅 (Rainbow Shader 등 추후 연결).
@@ -83,6 +87,7 @@ namespace InGame.Team
             if (_movement != null)
                 _movement.BuffSpeedMultiplier = _speedMultiplier;
 
+            SetPlayerCollisionIgnored(true);
             OnInvincibleEnter?.Invoke();
         }
 
@@ -94,7 +99,45 @@ namespace InGame.Team
             if (_movement != null)
                 _movement.BuffSpeedMultiplier = 1f;
 
+            SetPlayerCollisionIgnored(false);
             OnInvincibleExit?.Invoke();
+        }
+
+        /// <summary>
+        /// 무적 플레이어의 콜라이더와 다른 팀 플레이어 콜라이더 간 물리 충돌을 토글한다.
+        /// </summary>
+        private void SetPlayerCollisionIgnored(bool ignore)
+        {
+            if (!ignore)
+            {
+                foreach (var (mine, other) in _ignoredPairs)
+                {
+                    if (mine != null && other != null)
+                        Physics.IgnoreCollision(mine, other, false);
+                }
+                _ignoredPairs.Clear();
+                return;
+            }
+
+            _ignoredPairs.Clear();
+
+            var myColliders = GetComponentsInChildren<Collider>(true);
+
+            foreach (var otherController in FindObjectsByType<InvincibleModeController>(FindObjectsSortMode.None))
+            {
+                if (otherController == this) continue;
+
+                var otherColliders = otherController.GetComponentsInChildren<Collider>(true);
+                foreach (var myCol in myColliders)
+                {
+                    foreach (var otherCol in otherColliders)
+                    {
+                        if (myCol == null || otherCol == null) continue;
+                        Physics.IgnoreCollision(myCol, otherCol, true);
+                        _ignoredPairs.Add((myCol, otherCol));
+                    }
+                }
+            }
         }
     }
 }

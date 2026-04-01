@@ -188,9 +188,7 @@ namespace InGame.Player.Movement
             if (_currentVelocity.sqrMagnitude > 0.01f)
             {
                 Quaternion targetRot = Quaternion.LookRotation(_currentVelocity);
-                _rootBody.MoveRotation(Quaternion.Slerp(
-                    _rootBody.rotation, targetRot,
-                    Time.fixedDeltaTime * _rotationSpeed));
+                _rootBody.MoveRotation(Quaternion.Slerp(_rootBody.rotation, targetRot, Time.fixedDeltaTime * _rotationSpeed));
             }
         }
 

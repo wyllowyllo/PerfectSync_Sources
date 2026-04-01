@@ -7,12 +7,16 @@ using UnityEngine;
 namespace InGame.Player
 {
     /// <summary>
-    /// 무적 플레이어가 상대와 충돌 시 넉백을 적용하는 가해자 주도 컴포넌트.
+    /// 무적 플레이어가 상대와 근접 시 넉백을 적용하는 가해자 주도 컴포넌트.
+    /// Physics.IgnoreCollision으로 물리 충돌이 꺼져 있으므로 OverlapSphere로 감지한다.
     /// merged body에 부착 (HitDetector와 동일 GameObject).
     /// </summary>
     public class InvincibleContactDetector : MonoBehaviour
     {
         [SerializeField] private LayerMask _playerLayers;
+
+        [Tooltip("상대 감지 반경")]
+        [SerializeField] private float _detectionRadius = 1.2f;
 
         private InvincibleModeController _invincibleController;
         private TeamModeSynchronizer _synchronizer;
@@ -21,6 +25,9 @@ namespace InGame.Player
         private readonly Dictionary<int, float> _lastHitTimes = new();
         private const float HitCooldown = 0.5f;
         private const int PruneThreshold = 16;
+        private const int MaxOverlapResults = 8;
+
+        private readonly Collider[] _overlapBuffer = new Collider[MaxOverlapResults];
 
         public void SetAuthority(bool isAuthority) => _isAuthority = isAuthority;
 
@@ -30,18 +37,31 @@ namespace InGame.Player
             _synchronizer = synchronizer;
         }
 
-        private void OnCollisionEnter(Collision collision)
+        private void FixedUpdate()
         {
             if (!_isAuthority) return;
             if (_invincibleController == null || !_invincibleController.IsInvincible) return;
-            if ((_playerLayers & (1 << collision.gameObject.layer)) == 0) return;
+
+            int count = Physics.OverlapSphereNonAlloc(
+                transform.position, _detectionRadius, _overlapBuffer, _playerLayers);
+
+            for (int i = 0; i < count; i++)
+            {
+                TryApplyKnockback(_overlapBuffer[i]);
+            }
+        }
+
+        private void TryApplyKnockback(Collider other)
+        {
+            if (other == null) return;
+            if (other.transform.IsChildOf(transform)) return; // 자기 자신 제외
 
             // 상대 팀의 무적 컨트롤러 확인 → 상대도 무적이면 skip.
-            var victimInvincible = collision.gameObject.GetComponentInParent<InvincibleModeController>();
+            var victimInvincible = other.GetComponentInParent<InvincibleModeController>();
             if (victimInvincible != null && victimInvincible.IsInvincible) return;
 
             // 상대의 PhotonView 획득.
-            var victimView = collision.gameObject.GetComponentInParent<PhotonView>();
+            var victimView = other.GetComponentInParent<PhotonView>();
             if (victimView == null) return;
 
             int victimViewID = victimView.ViewID;
@@ -56,12 +76,12 @@ namespace InGame.Player
                 PruneStaleEntries();
 
             // 넉백 방향: 자신 → 상대 방향 + 상향 bias.
-            Vector3 direction = (collision.transform.position - transform.position).normalized;
+            Vector3 direction = (other.transform.position - transform.position).normalized;
             if (_invincibleController.KnockbackUpwardBias > 0f)
                 direction = Vector3.Lerp(direction, Vector3.up, _invincibleController.KnockbackUpwardBias).normalized;
 
             Vector3 knockback = direction * _invincibleController.KnockbackForce;
-            Vector3 hitPoint = collision.contactCount > 0 ? collision.GetContact(0).point : collision.transform.position;
+            Vector3 hitPoint = other.ClosestPoint(transform.position);
             Vector3 torque = HitData.ComputeRandomTorque(knockback.magnitude);
 
             _synchronizer.BroadcastInvincibleHit(
