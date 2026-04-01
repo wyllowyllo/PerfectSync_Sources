@@ -11,7 +11,7 @@ namespace InGame.Player.Ragdoll
 
         [Header("Extra Gravity")]
         [Tooltip("래그돌 상태에서 추가 하향 가속도 (m/s²). Unity 기본 중력에 더해짐.")]
-        [SerializeField] private float _extraGravity = 15f;
+        [SerializeField] private float _extraGravity = 0f;
 
         private Rigidbody _pelvisRb;
         private Rigidbody[] _ragdollRbs;

@@ -62,14 +62,6 @@ namespace InGame.Player.Network
             var hitDetector = FindInBody<HitDetector>(_mergedBody);
             if (hitDetector != null)
                 hitDetector.SetInvincibleController(invincibleController);
-
-            var contactDetector = FindInBody<InvincibleContactDetector>(_mergedBody);
-            if (contactDetector != null)
-            {
-                contactDetector.SetAuthority(isHost);
-                var synchronizer = GetComponent<TeamModeSynchronizer>();
-                contactDetector.Initialize(invincibleController, synchronizer);
-            }
         }
 
         private void ConfigureRagdollAuthority(
