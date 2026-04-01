@@ -1,7 +1,6 @@
 using Core;
 using InGame.Player;
 using InGame.Player.Ragdoll;
-using InGame.Team;
 using Photon.Pun;
 using Unity.Cinemachine;
 using UnityEngine;
@@ -13,13 +12,9 @@ namespace InGame.Camera.PlayerCamera
     {
         [Header("Root Bodies")]
         [SerializeField] private Transform _mergedRootBody;
-        [SerializeField] private Transform _avatarARootBody;
-        [SerializeField] private Transform _avatarBRootBody;
 
         [Header("Ragdoll State Machines")]
         [SerializeField] private RagdollStateMachine _mergedRagdoll;
-        [SerializeField] private RagdollStateMachine _avatarARagdoll;
-        [SerializeField] private RagdollStateMachine _avatarBRagdoll;
 
         [Header("Proxy")]
         [SerializeField] private Vector3 _targetOffset = new Vector3(0f, 0.7f, 0f);
@@ -31,10 +26,8 @@ namespace InGame.Camera.PlayerCamera
         private CinemachineCamera _ragdollCamera;
         private Rigidbody _animatedProxyRb;
         private Rigidbody _ragdollProxyRb;
-        private PlayerFormController _playerFormController;
         private Transform _activeTarget;
         private RagdollStateMachine _activeRagdoll;
-        private bool _isHost;
         private bool _isRagdollCameraActive;
 
         private const int ActivePriority = 10;
@@ -43,8 +36,6 @@ namespace InGame.Camera.PlayerCamera
 
         private void Start()
         {
-            _playerFormController = GetComponent<PlayerFormController>();
-            _isHost = photonView.IsMine;
             TryInitialize();
         }
 
@@ -68,8 +59,8 @@ namespace InGame.Camera.PlayerCamera
             _ragdollCamera = CreateRagdollCamera();
             SetupCameraTargets();
 
-            _playerFormController.OnModeChanged += HandleModeChanged;
-            UpdateActiveTarget(_playerFormController.CurrentMode);
+            _activeTarget = _mergedRootBody;
+            _activeRagdoll = _mergedRagdoll;
 
             Cursor.lockState = CursorLockMode.Locked;
             Cursor.visible = false;
@@ -97,9 +88,6 @@ namespace InGame.Camera.PlayerCamera
         private void OnDestroy()
         {
             if (!_initialized) return;
-
-            if (_playerFormController != null)
-                _playerFormController.OnModeChanged -= HandleModeChanged;
 
             if (_animatedProxyRb != null)
                 Destroy(_animatedProxyRb.gameObject);
@@ -142,28 +130,6 @@ namespace InGame.Camera.PlayerCamera
             SyncOrbitalAxes(from, to);
             InGameCameraManager.SetCameraPriority(to, ActivePriority);
             InGameCameraManager.SetCameraPriority(from, StandbyPriority);
-        }
-
-        private void HandleModeChanged(ETeamMode newMode)
-        {
-            UpdateActiveTarget(newMode);
-        }
-
-        private void UpdateActiveTarget(ETeamMode mode)
-        {
-            _activeTarget = mode switch
-            {
-                ETeamMode.Merged => _mergedRootBody,
-                ETeamMode.Separated => _isHost ? _avatarARootBody : _avatarBRootBody,
-                _ => _mergedRootBody
-            };
-
-            _activeRagdoll = mode switch
-            {
-                ETeamMode.Merged => _mergedRagdoll,
-                ETeamMode.Separated => _isHost ? _avatarARagdoll : _avatarBRagdoll,
-                _ => _mergedRagdoll
-            };
         }
 
         private void SetupCameraTargets()

@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using InGame.Player;
 using InGame.Player.Network;
 using UnityEngine;
 
@@ -39,9 +38,6 @@ namespace InGame.Team
 
             var synchronizer = FindTeamSynchronizer(teamNumber);
             if (synchronizer == null) return;
-
-            var formController = synchronizer.GetComponent<PlayerFormController>();
-            if (formController == null) return;
 
             if (!TryConsumeTrigger(teamNumber))
                 return;

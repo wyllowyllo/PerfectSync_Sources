@@ -1,7 +1,6 @@
 using Core.Utilities;
 using InGame.Player;
 using InGame.Player.Network;
-using InGame.Team;
 using Photon.Pun;
 using Photon.Realtime;
 using UnityEngine;
@@ -13,22 +12,17 @@ namespace InGame.UserInput
     {
         // ── Fields / SerializeField ──────────────────────────────────
 
-        [Header("Settings")]
-        [SerializeField] private ETeamMode _startMode = ETeamMode.Merged;
-
         [Header("Bodies")]
         [SerializeField] private GameObject _mergedBody;
 
         private LocalPlayerInput _localPlayerInput;
         private PlayerFormController _playerFormController;
         private RemotePlayerInput _remotePlayerInput;
-        private TeamModeSynchronizer _teamModeSynchronizer;
         private Transform _cameraTransformA;
         private UnityEngine.Camera _mainCamera;
         private bool _isHost;
         private bool? _isMyTeam;
         private bool _initialized;
-        private ETeamMode _currentMode;
 
         // Host → Guest 1:1 RPC 전송용 캐시
         private Photon.Realtime.Player _guestPlayer;
@@ -51,7 +45,6 @@ namespace InGame.UserInput
         public bool RoutedJumpB { get; private set; }
 
         public bool IsHost => _isHost;
-        public ETeamMode CurrentMode => _currentMode;
         public GameObject MergedBody => _mergedBody;
         public Vector3 LocalCameraForwardXZ => _cachedLocalCameraForwardXZ;
 
@@ -62,23 +55,12 @@ namespace InGame.UserInput
             _localPlayerInput = GetComponent<LocalPlayerInput>();
             _remotePlayerInput = GetComponent<RemotePlayerInput>();
             _playerFormController = GetComponent<PlayerFormController>();
-            _teamModeSynchronizer = GetComponent<TeamModeSynchronizer>();
         }
 
         private void Start()
         {
             _isHost = photonView.IsMine;
-            _currentMode = _startMode;
-
-            // body 활성화·모드 전환은 모든 인스턴스에서 필요 (시각 동기화)
-            _playerFormController.OnModeChanged += HandleModeChanged;
-            _playerFormController.Initialize(_startMode);
-
-            if (_teamModeSynchronizer != null)
-            {
-                _teamModeSynchronizer.OnSwitchRequested += HandleSwitchRequested;
-                _teamModeSynchronizer.OnModeChangeRequested += HandleModeChangeRequested;
-            }
+            _playerFormController.Initialize();
 
             TryInitialize();
         }
@@ -215,23 +197,6 @@ namespace InGame.UserInput
             _remotePlayerInput.SetWorldDirection(worldDir, jump, cameraForwardXZ);
         }
 
-        // ── Mode ─────────────────────────────────────────────────────
-
-        private void HandleSwitchRequested()
-        {
-            _playerFormController.ExecuteFormToggle();
-        }
-
-        private void HandleModeChangeRequested(ETeamMode targetMode)
-        {
-            _playerFormController.ExecuteFormChange(targetMode);
-        }
-
-        private void HandleModeChanged(ETeamMode newMode)
-        {
-            _currentMode = newMode;
-        }
-
         private bool CheckIsMyTeam()
         {
             if (_isMyTeam.HasValue) return _isMyTeam.Value;
@@ -247,18 +212,6 @@ namespace InGame.UserInput
 
             _isMyTeam = (ownerTeam == myTeam);
             return _isMyTeam.Value;
-        }
-
-        private void OnDestroy()
-        {
-            if (_playerFormController != null)
-                _playerFormController.OnModeChanged -= HandleModeChanged;
-
-            if (_teamModeSynchronizer != null)
-            {
-                _teamModeSynchronizer.OnSwitchRequested -= HandleSwitchRequested;
-                _teamModeSynchronizer.OnModeChangeRequested -= HandleModeChangeRequested;
-            }
         }
     }
 }

@@ -1,7 +1,6 @@
 using System.Collections;
 using InGame.Player;
 using InGame.Player.Movement;
-using InGame.Team;
 using InGame.UserInput;
 using Photon.Pun;
 using UnityEngine;
@@ -55,17 +54,7 @@ namespace InGame.Gimmick
 
         private void TeleportBodies(Vector3 position, Quaternion rotation)
         {
-            switch (_formController.CurrentMode)
-            {
-                case ETeamMode.Merged:
-                    TeleportBody(_formController.PrimaryBodyTransform, position, rotation);
-                    break;
-                case ETeamMode.Separated:
-                    Vector3 right = rotation * Vector3.right;
-                    TeleportBody(_formController.PrimaryBodyTransform, position - right * 0.5f, rotation);
-                    TeleportBody(_formController.SecondaryBodyTransform, position + right * 0.5f, rotation);
-                    break;
-            }
+            TeleportBody(_formController.PrimaryBodyTransform, position, rotation);
         }
 
         private void TeleportBody(Transform bodyTransform, Vector3 position, Quaternion rotation)

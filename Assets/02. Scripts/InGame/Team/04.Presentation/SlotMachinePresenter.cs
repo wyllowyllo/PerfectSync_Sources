@@ -3,7 +3,6 @@ using DG.Tweening;
 using InGame.Player;
 using InGame.Player.Movement;
 using InGame.Player.Network;
-using Photon.Pun;
 using UnityEngine;
 
 namespace InGame.Team
@@ -42,7 +41,6 @@ namespace InGame.Team
 
         private TeamModeSynchronizer _synchronizer;
         private PlayerFormController _formController;
-        private PhotonView _photonView;
 
         private SlotMachine _activeSlotMachine;
         private Tween _activeTween;
@@ -50,7 +48,6 @@ namespace InGame.Team
         private Quaternion _prefabBaseRotation;
         private Vector3 _prefabBaseScale;
         private float _slideOffset;
-        private bool _isMatch;
 
         private float _smoothVelX;
         private float _smoothVelY;
@@ -62,7 +59,6 @@ namespace InGame.Team
         {
             _synchronizer = GetComponent<TeamModeSynchronizer>();
             _formController = GetComponent<PlayerFormController>();
-            _photonView = GetComponent<PhotonView>();
 
             _synchronizer.OnSlotSpinReceived += HandleSlotSpin;
         }
@@ -129,7 +125,6 @@ namespace InGame.Team
                 StopAllCoroutines();
             }
 
-            _isMatch = isMatch;
             _slideOffset = _slideDistance;
             _posInitialized = false;
 
@@ -193,12 +188,6 @@ namespace InGame.Team
 
                 Destroy(_activeSlotMachine.gameObject);
                 _activeSlotMachine = null;
-            }
-
-            if (_photonView.IsMine)
-            {
-                var targetMode = _isMatch ? ETeamMode.Merged : ETeamMode.Separated;
-                _synchronizer.RequestModeChange(targetMode);
             }
         }
 

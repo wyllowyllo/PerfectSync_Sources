@@ -1,17 +1,14 @@
-using InGame.Player.Network;
 using UnityEngine;
 
 namespace InGame.Player.Test
 {
     /// <summary>
-    /// 멀티 환경 모드 전환 테스트용 매니저.
-    /// 씬에 배치하고 Return 키로 합체/분리 전환을 트리거한다.
-    /// 테스트 완료 후 제거할 것.
+    /// 키 입력 테스트용 매니저.
+    /// Return 키로 기능을 트리거한다.
+    /// 향후 다른 모드 on/off 용도로 사용 가능.
     /// </summary>
     public class ModeSwitchTestManager : MonoBehaviour
     {
-        private TeamModeSynchronizer _synchronizer;
-
         private void Update()
         {
             if (!Input.GetKeyDown(KeyCode.Return)) return;
@@ -19,32 +16,8 @@ namespace InGame.Player.Test
             if (InGameManager.Instance != null && !InGameManager.IsLocalPlayerControllable)
                 return;
 
-            if (_synchronizer == null)
-                _synchronizer = FindMyTeamSynchronizer();
-
-            if (_synchronizer == null)
-            {
-                Debug.LogWarning("[ModeSwitchTest] TeamModeSynchronizer not found for my team.");
-                return;
-            }
-
-            _synchronizer.RequestSwitch();
-            Debug.Log("[ModeSwitchTest] Mode switch requested.");
-        }
-
-        private TeamModeSynchronizer FindMyTeamSynchronizer()
-        {
-            int myTeam = PhotonTeamManager.GetLocalTeamRaw();
-            if (myTeam == PhotonTeamManager.TeamNone) return null;
-
-            foreach (var sync in FindObjectsByType<TeamModeSynchronizer>(FindObjectsSortMode.None))
-            {
-                var owner = sync.photonView.Owner;
-                if (owner != null && PhotonTeamManager.GetTeamRaw(owner) == myTeam)
-                    return sync;
-            }
-
-            return null;
+            // TODO: 향후 기능 연결
+            Debug.Log("[ModeSwitchTest] Return key pressed.");
         }
     }
 }

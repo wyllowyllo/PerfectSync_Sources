@@ -1,7 +1,6 @@
 using InGame.UserInput;
 using Photon.Pun;
 using UnityEngine;
-using UnityEngine.Serialization;
 
 namespace InGame.Player.Test
 {
@@ -11,23 +10,10 @@ namespace InGame.Player.Test
     /// </summary>
     public class HitTestTrigger : MonoBehaviour
     {
-        public enum HitTarget
-        {
-            Merged,
-            AvatarA,
-            AvatarB
-        }
-
-        [Header("Target")]
-        [SerializeField] private HitTarget _target = HitTarget.Merged;
-
         [Header("Bodies")]
         [SerializeField] private GameObject _mergedBody;
-        [SerializeField] private GameObject _avatarA;
-        [SerializeField] private GameObject _avatarB;
 
         [Header("Knockback")]
-        [FormerlySerializedAs("_impulseMagnitude")]
         [SerializeField] private float _knockbackMagnitude = 10f;
 
         [SerializeField] private EHitResponse _testResponse = EHitResponse.Ragdoll;
@@ -47,38 +33,26 @@ namespace InGame.Player.Test
             if (_input == null ) return;
             if (!Input.GetKeyDown(_triggerKey)) return;
 
-            GameObject body = GetTargetBody();
-            if (body == null || !body.activeInHierarchy)
+            if (_mergedBody == null || !_mergedBody.activeInHierarchy)
             {
-                UnityEngine.Debug.LogWarning($"[HitTestTrigger] Target body '{_target}' is null or inactive.");
+                UnityEngine.Debug.LogWarning("[HitTestTrigger] Merged body is null or inactive.");
                 return;
             }
 
-            var pv = body.GetComponentInChildren<PhotonView>();
+            var pv = _mergedBody.GetComponentInChildren<PhotonView>();
             if (pv == null)
             {
-                UnityEngine.Debug.LogWarning($"[HitTestTrigger] No PhotonView on '{body.name}'.");
+                UnityEngine.Debug.LogWarning($"[HitTestTrigger] No PhotonView on '{_mergedBody.name}'.");
                 return;
             }
 
             Vector3 knockback = Random.onUnitSphere * _knockbackMagnitude;
-            Vector3 hitPoint = body.transform.position;
+            Vector3 hitPoint = _mergedBody.transform.position;
             int viewID = pv.ViewID;
 
             var hit = new HitData(knockback, hitPoint, HitData.ComputeRandomTorque(knockback.magnitude), _testResponse);
             _input.SendHit(hit, viewID);
-            UnityEngine.Debug.Log($"[HitTestTrigger] Sent hit to '{_target}' (ViewID={viewID}), knockback={knockback}");
-        }
-
-        private GameObject GetTargetBody()
-        {
-            return _target switch
-            {
-                HitTarget.Merged => _mergedBody,
-                HitTarget.AvatarA => _avatarA,
-                HitTarget.AvatarB => _avatarB,
-                _ => null
-            };
+            UnityEngine.Debug.Log($"[HitTestTrigger] Sent hit (ViewID={viewID}), knockback={knockback}");
         }
     }
 }
