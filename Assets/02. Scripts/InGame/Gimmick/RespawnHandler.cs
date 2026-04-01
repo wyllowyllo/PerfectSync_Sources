@@ -56,20 +56,16 @@ namespace InGame.Gimmick
 
             yield return new WaitForSeconds(_respawnDelay);
 
+            // 무적을 먼저 켜서 리스폰 직후 피격 방지.
+            _isRespawnInvincible = true;
+            OnRespawnInvincibleStart?.Invoke();
+
             Vector3 respawnPosition = GetRespawnPosition();
             Quaternion respawnRotation = GetRespawnRotation();
             TeleportBodies(respawnPosition, respawnRotation);
 
             _input.SendRespawn();
             _isRespawning = false;
-
-            StartCoroutine(InvincibilityCoroutine());
-        }
-
-        private IEnumerator InvincibilityCoroutine()
-        {
-            _isRespawnInvincible = true;
-            OnRespawnInvincibleStart?.Invoke();
 
             yield return new WaitForSeconds(_invincibilityDuration);
 
