@@ -40,7 +40,7 @@ namespace InGame.Team
         [SerializeField] private float _tiltFrequency = 0.8f;
 
         private TeamModeSynchronizer _synchronizer;
-        private PlayerFormController _formController;
+        private MergedBodyController _formController;
 
         private SlotMachine _activeSlotMachine;
         private Tween _activeTween;
@@ -58,7 +58,7 @@ namespace InGame.Team
         private void Start()
         {
             _synchronizer = GetComponent<TeamModeSynchronizer>();
-            _formController = GetComponent<PlayerFormController>();
+            _formController = GetComponent<MergedBodyController>();
 
             _synchronizer.OnSlotSpinReceived += HandleSlotSpin;
         }

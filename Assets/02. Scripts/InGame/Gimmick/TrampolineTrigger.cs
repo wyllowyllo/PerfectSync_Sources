@@ -12,7 +12,7 @@ namespace InGame.Gimmick
 
         private void OnCollisionEnter(Collision collision)
         {
-            var formController = collision.collider.GetComponentInParent<PlayerFormController>();
+            var formController = collision.collider.GetComponentInParent<MergedBodyController>();
             if (formController == null) return;
 
             formController.LaunchAllBodies(_targetPoint.position);

@@ -12,13 +12,13 @@ namespace InGame.Player.Network
         [Header("Bodies")]
         [SerializeField] private GameObject _mergedBody;
 
-        private PlayerFormController _playerFormController;
+        private MergedBodyController mergedBodyController;
         private LocalPlayerInput _localPlayerInput;
         private PhotonView _photonView;
 
         private void Start()
         {
-            _playerFormController = GetComponent<PlayerFormController>();
+            mergedBodyController = GetComponent<MergedBodyController>();
             _localPlayerInput = GetComponent<LocalPlayerInput>();
             _photonView = GetComponent<PhotonView>();
 

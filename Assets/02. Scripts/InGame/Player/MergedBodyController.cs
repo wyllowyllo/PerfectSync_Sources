@@ -5,7 +5,7 @@ using UnityEngine;
 
 namespace InGame.Player
 {
-    public class PlayerFormController : MonoBehaviour
+    public class MergedBodyController : MonoBehaviour
     {
         [Header("Bodies")]
         [SerializeField] private GameObject _mergedBody;

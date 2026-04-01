@@ -7,7 +7,7 @@ using UnityEngine;
 
 namespace InGame.UserInput
 {
-    [RequireComponent(typeof(LocalPlayerInput), typeof(RemotePlayerInput), typeof(PlayerFormController))]
+    [RequireComponent(typeof(LocalPlayerInput), typeof(RemotePlayerInput), typeof(MergedBodyController))]
     public class InputRouter : MonoBehaviourPun
     {
         // ── Fields / SerializeField ──────────────────────────────────
@@ -16,7 +16,7 @@ namespace InGame.UserInput
         [SerializeField] private GameObject _mergedBody;
 
         private LocalPlayerInput _localPlayerInput;
-        private PlayerFormController _playerFormController;
+        private MergedBodyController mergedBodyController;
         private RemotePlayerInput _remotePlayerInput;
         private Transform _cameraTransformA;
         private UnityEngine.Camera _mainCamera;
@@ -54,13 +54,13 @@ namespace InGame.UserInput
         {
             _localPlayerInput = GetComponent<LocalPlayerInput>();
             _remotePlayerInput = GetComponent<RemotePlayerInput>();
-            _playerFormController = GetComponent<PlayerFormController>();
+            mergedBodyController = GetComponent<MergedBodyController>();
         }
 
         private void Start()
         {
             _isHost = photonView.IsMine;
-            _playerFormController.Initialize();
+            mergedBodyController.Initialize();
 
             TryInitialize();
         }
@@ -137,7 +137,7 @@ namespace InGame.UserInput
             if (!_isHost)
                 return;
 
-            _playerFormController.ApplyInput(worldDirA, worldDirB, jumpA, jumpB);
+            mergedBodyController.ApplyInput(worldDirA, worldDirB, jumpA, jumpB);
         }
 
         // ── Input Send ──────────────────────────────────────────────

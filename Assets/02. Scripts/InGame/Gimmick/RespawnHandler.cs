@@ -12,13 +12,13 @@ namespace InGame.Gimmick
         [SerializeField] private float _respawnDelay = 1.5f;
 
         private LocalPlayerInput _input;
-        private PlayerFormController _formController;
+        private MergedBodyController _formController;
         private bool _isRespawning;
 
         private void Start()
         {
             _input = GetComponent<LocalPlayerInput>();
-            _formController = GetComponent<PlayerFormController>();
+            _formController = GetComponent<MergedBodyController>();
             _input.OnDeathReceived += HandleDeath;
         }
 
