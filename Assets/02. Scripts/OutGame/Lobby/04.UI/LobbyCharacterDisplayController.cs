@@ -2,10 +2,6 @@ using Photon.Pun;
 using Photon.Realtime;
 using UnityEngine;
 
-/// <summary>
-/// 로비 씬 부모 오브젝트에 붙여, 로컬·파티원 캐릭터의 닉네임 표시를 묶어 관리합니다.
-/// 로비 Photon 방에 입장하면 <see cref="PhotonNetwork.NickName"/>으로 로컬 닉네임을 갱신합니다.
-/// </summary>
 public class LobbyCharacterDisplayController : MonoBehaviour
 {
     [SerializeField] private LobbyCharacterNicknameView _localCharacter;
