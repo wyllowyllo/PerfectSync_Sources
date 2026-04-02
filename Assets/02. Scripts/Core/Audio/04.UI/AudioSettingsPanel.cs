@@ -2,9 +2,6 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-/// <summary>
-/// Master / BGM / SFX 슬라이더(0~100)와 값 표시 텍스트. <see cref="AudioManager"/>와 이벤트로 동기화합니다.
-/// </summary>
 public class AudioSettingsPanel : MonoBehaviour
 {
     private const int DisplayScale = 100;

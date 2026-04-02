@@ -105,9 +105,6 @@ public class LobbyCharacterDisplayController : MonoBehaviour
         return PhotonRoomSnapshotReader.TryGetCurrent(out var snap) && snap.Kind == RoomKind.Lobby;
     }
 
-    /// <summary>
-    /// 파티원 캐릭터 표시(초대 수락 등 이후 UI에서 호출).
-    /// </summary>
     public void SetPartyMemberVisible(bool visible, string partyMemberNickname = null)
     {
         if (_partyCharacter == null)

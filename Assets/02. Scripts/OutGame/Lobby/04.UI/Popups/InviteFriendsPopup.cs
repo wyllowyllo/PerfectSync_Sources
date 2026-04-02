@@ -2,12 +2,8 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-/// <summary>
-/// 로비 파티 초대: UserID 입력, 유효성 검사 후 <see cref="LobbyPartyService.TrySendPartyInviteByUserId"/>.
-/// </summary>
 public class InviteFriendsPopup : LobbyPopupBase
 {
-    // PARTY_INVITE_DEBUG_REMOVE: 아래 Debug 호출·태그 상수 제거 시 이 주석도 삭제
     private const string PartyInviteDebugTag = "[PARTY_INVITE_DEBUG]";
 
     [Header("UI")]
