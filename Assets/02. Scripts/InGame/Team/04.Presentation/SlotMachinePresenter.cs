@@ -3,7 +3,6 @@ using DG.Tweening;
 using InGame.Player;
 using InGame.Player.Movement;
 using InGame.Player.Network;
-using Photon.Pun;
 using UnityEngine;
 
 namespace InGame.Team
@@ -41,8 +40,7 @@ namespace InGame.Team
         [SerializeField] private float _tiltFrequency = 0.8f;
 
         private TeamModeSynchronizer _synchronizer;
-        private PlayerFormController _formController;
-        private PhotonView _photonView;
+        private MergedBodyController _formController;
 
         private SlotMachine _activeSlotMachine;
         private Tween _activeTween;
@@ -50,7 +48,6 @@ namespace InGame.Team
         private Quaternion _prefabBaseRotation;
         private Vector3 _prefabBaseScale;
         private float _slideOffset;
-        private bool _isMatch;
 
         private float _smoothVelX;
         private float _smoothVelY;
@@ -58,13 +55,18 @@ namespace InGame.Team
         private Vector3 _currentPos;
         private bool _posInitialized;
 
+        // 2단계 스핀: 결과가 슬라이드인보다 먼저 도착할 경우 큐잉.
+        private int[] _pendingResult;
+        private bool _spinStarted;
+        private bool _pendingMatch;
+
         private void Start()
         {
             _synchronizer = GetComponent<TeamModeSynchronizer>();
-            _formController = GetComponent<PlayerFormController>();
-            _photonView = GetComponent<PhotonView>();
+            _formController = GetComponent<MergedBodyController>();
 
-            _synchronizer.OnSlotSpinReceived += HandleSlotSpin;
+            _synchronizer.OnSlotSpinStarted += HandleSpinStart;
+            _synchronizer.OnSlotResultReceived += HandleSpinResult;
         }
 
         private void OnDestroy()
@@ -73,7 +75,10 @@ namespace InGame.Team
             _scaleTween?.Kill();
 
             if (_synchronizer != null)
-                _synchronizer.OnSlotSpinReceived -= HandleSlotSpin;
+            {
+                _synchronizer.OnSlotSpinStarted -= HandleSpinStart;
+                _synchronizer.OnSlotResultReceived -= HandleSpinResult;
+            }
         }
 
         private void LateUpdate()
@@ -119,7 +124,9 @@ namespace InGame.Team
             _activeSlotMachine.transform.rotation = _prefabBaseRotation * pitch * wobble;
         }
 
-        private void HandleSlotSpin(int[] symbols, bool isMatch)
+        // ── 2단계 스핀 핸들러 ───────────────────────────────────
+
+        private void HandleSpinStart()
         {
             _activeTween?.Kill();
             _scaleTween?.Kill();
@@ -129,7 +136,9 @@ namespace InGame.Team
                 StopAllCoroutines();
             }
 
-            _isMatch = isMatch;
+            _pendingResult = null;
+            _spinStarted = false;
+            _pendingMatch = false;
             _slideOffset = _slideDistance;
             _posInitialized = false;
 
@@ -147,15 +156,42 @@ namespace InGame.Team
             _scaleTween = _activeSlotMachine.transform.DOScale(_prefabBaseScale, _appearScaleDuration)
                 .SetEase(_appearScaleEase);
 
-            // 오른쪽에서 슬라이드인.
+            // 오른쪽에서 슬라이드인 → 완료 후 스핀 시작.
             _activeTween = DOTween.To(() => _slideOffset, v => _slideOffset = v, 0f, _appearDuration)
                 .SetEase(Ease.OutCubic)
                 .OnComplete(() =>
                 {
-                    _activeSlotMachine.Spin(symbols);
-                    _activeSlotMachine.OnSpinComplete += OnSpinComplete;
+                    _activeSlotMachine.StartSpin();
+                    _spinStarted = true;
+
+                    // 결과가 먼저 도착해서 큐잉된 경우 즉시 정지.
+                    if (_pendingResult != null)
+                    {
+                        _activeSlotMachine.StopOnSymbols(_pendingResult);
+                        _activeSlotMachine.OnSpinComplete += OnSpinComplete;
+                        _pendingResult = null;
+                    }
                 });
         }
+
+        private void HandleSpinResult(int[] symbols, bool isMatch)
+        {
+            if (_activeSlotMachine == null) return;
+
+            _pendingMatch = isMatch;
+
+            if (!_spinStarted)
+            {
+                // 슬라이드인 완료 전에 결과 도착 → 큐잉.
+                _pendingResult = symbols;
+                return;
+            }
+
+            _activeSlotMachine.StopOnSymbols(symbols);
+            _activeSlotMachine.OnSpinComplete += OnSpinComplete;
+        }
+
+        // ── 스핀 완료 처리 ──────────────────────────────────────
 
         private void OnSpinComplete(int[] results)
         {
@@ -168,6 +204,13 @@ namespace InGame.Team
                 _activeSlotMachine.transform.localScale = _prefabBaseScale;
                 _scaleTween = _activeSlotMachine.transform
                     .DOPunchScale(_prefabBaseScale * _spinCompletePunchRatio, _spinCompletePunchDuration, 1, 0.5f);
+            }
+
+            // 릴 정지 후 매치 결과에 따라 무적 모드 전환.
+            if (_pendingMatch && _synchronizer.photonView.IsMine)
+            {
+                _synchronizer.BroadcastInvincibleMode(true);
+                _pendingMatch = false;
             }
 
             StartCoroutine(WaitForLandingAndFinish());
@@ -193,12 +236,6 @@ namespace InGame.Team
 
                 Destroy(_activeSlotMachine.gameObject);
                 _activeSlotMachine = null;
-            }
-
-            if (_photonView.IsMine)
-            {
-                var targetMode = _isMatch ? ETeamMode.Merged : ETeamMode.Separated;
-                _synchronizer.RequestModeChange(targetMode);
             }
         }
 

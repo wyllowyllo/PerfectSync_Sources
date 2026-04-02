@@ -3,88 +3,74 @@ using UnityEngine;
 
 namespace InGame.Obstacle
 {
-    public enum EKnockbackMode
+    public enum EHitDirection
     {
-        VelocityScaled,
-        Fixed
-    }
-
-    public enum EKnockbackDirection
-    {
-        FromCollision,
-        ContactNormal,
+        RelativeVelocity,
         ObstacleForward,
+        AwayFromCenter,
         Custom
     }
 
-    public enum EImpactLevel
-    {
-        Default,
-        Stumble,
-        Ragdoll,
-        PushOnly
-    }
-
-    [CreateAssetMenu(fileName = "NewHitProfile", menuName = "InGame/Obstacle Hit Profile")]
+    [CreateAssetMenu(fileName = "NewObstacleHitProfile", menuName = "InGame/Obstacle Hit Profile")]
     public class ObstacleHitProfile : ScriptableObject
     {
-        [Header("Knockback")]
-        [SerializeField] private EKnockbackMode _knockbackMode = EKnockbackMode.VelocityScaled;
+        [Header("Response")]
+        [Tooltip("Default: 상대속도 기반 threshold 판정 / 나머지: 강제 반응")]
+        [SerializeField] private EHitResponse _response = EHitResponse.Default;
 
-        [Tooltip("VelocityScaled: 상대속도에 곱해지는 배율 / Fixed: 고정 넉백 크기")]
-        [SerializeField] private float _knockbackStrength = 1f;
+        [Header("Extra Knockback")]
+        [Tooltip("장애물 고유 추가 넉백 크기")]
+        [SerializeField] private float _extraKnockback = 8f;
+
+        [Tooltip("x = 정규화된 상대속도(0~1), y = 넉백 배율. 비선형 과장/감쇠 조절용.")]
+        [SerializeField] private AnimationCurve _speedCurve = AnimationCurve.Linear(0f, 0f, 1f, 1f);
+
+        [Tooltip("커브 x=1에 해당하는 상대속도")]
+        [SerializeField] private float _maxSpeed = 15f;
 
         [Header("Direction")]
-        [SerializeField] private EKnockbackDirection _knockbackDirection = EKnockbackDirection.FromCollision;
+        [SerializeField] private EHitDirection _direction = EHitDirection.RelativeVelocity;
 
-        [Tooltip("KnockbackDirection이 Custom일 때 사용할 월드 방향")]
+        [Tooltip("EHitDirection.Custom일 때 사용할 월드 방향")]
         [SerializeField] private Vector3 _customDirection = Vector3.forward;
 
-        [Tooltip("밀림 방향에 상향 성분을 섞는 비율 (0 = 없음, 1 = 완전 위로)")]
+        [Tooltip("넉백 방향에 상향 성분을 섞는 비율 (0 = 없음, 1 = 완전 위로)")]
         [SerializeField, Range(0f, 1f)] private float _upwardBias;
-
-        [Header("Impact")]
-        [SerializeField] private HitThresholdProfile _thresholdProfile;
-
-        [Tooltip("Default: 속도 기반 자연스러운 결과 / Stumble·Ragdoll·PushOnly: _impactForce 직접 적용")]
-        [SerializeField] private EImpactLevel _impactLevel = EImpactLevel.Default;
-
-        [Tooltip("ImpactLevel이 Default가 아닐 때 적용할 넉백 크기")]
-        [SerializeField] private float _impactForce;
 
         [Header("Torque")]
         [SerializeField] private float _torqueScale = 0.15f;
 
         [Header("Cooldown")]
         [Tooltip("같은 대상에 대한 재히트 방지 시간 (초)")]
-        [SerializeField] private float _cooldown;
+        [SerializeField] private float _cooldown = 0.5f;
 
         public float Cooldown => _cooldown;
+        public EHitResponse Response => _response;
 
         public Vector3 ComputeKnockback(Collision collision, Transform obstacleTransform)
         {
-            Vector3 direction = _knockbackDirection switch
+            Vector3 relativeVelocity = collision.relativeVelocity;
+            float relativeSpeed = relativeVelocity.magnitude;
+
+            // Direction.
+            Vector3 direction = _direction switch
             {
-                EKnockbackDirection.ContactNormal => collision.GetContact(0).normal,
-                EKnockbackDirection.ObstacleForward => obstacleTransform.forward,
-                EKnockbackDirection.Custom => _customDirection.normalized,
-                _ => collision.relativeVelocity.normalized
+                EHitDirection.ObstacleForward => obstacleTransform.forward,
+                EHitDirection.AwayFromCenter =>
+                    (collision.GetContact(0).point - obstacleTransform.position).normalized,
+                EHitDirection.Custom => _customDirection.normalized,
+                _ => relativeSpeed > 0.001f
+                    ? relativeVelocity.normalized
+                    : obstacleTransform.forward
             };
 
             if (_upwardBias > 0f)
                 direction = Vector3.Lerp(direction, Vector3.up, _upwardBias).normalized;
 
-            float magnitude;
-            if (_impactLevel != EImpactLevel.Default)
-            {
-                magnitude = _impactForce;
-            }
-            else
-            {
-                magnitude = _knockbackMode == EKnockbackMode.Fixed
-                    ? _knockbackStrength
-                    : collision.relativeVelocity.magnitude * _knockbackStrength;
-            }
+            // Magnitude: 속도 커브 기반.
+            float normalizedSpeed = _maxSpeed > 0f ? Mathf.Clamp01(relativeSpeed / _maxSpeed) : 1f;
+            float speedFactor = _speedCurve.Evaluate(normalizedSpeed);
+            float magnitude = _extraKnockback * speedFactor;
 
             return direction * magnitude;
         }
@@ -92,22 +78,6 @@ namespace InGame.Obstacle
         public Vector3 ComputeTorque(float knockbackMagnitude)
         {
             return HitData.ComputeRandomTorque(knockbackMagnitude, _torqueScale);
-        }
-
-        private void OnValidate()
-        {
-            if (_thresholdProfile == null || _impactLevel == EImpactLevel.Default) return;
-
-            float stumble = _thresholdProfile.StumbleThreshold;
-            float ragdoll = _thresholdProfile.RagdollThreshold;
-
-            _impactForce = _impactLevel switch
-            {
-                EImpactLevel.PushOnly => Mathf.Clamp(_impactForce, 0f, stumble - 0.01f),
-                EImpactLevel.Stumble => Mathf.Clamp(_impactForce, stumble, ragdoll - 0.01f),
-                EImpactLevel.Ragdoll => Mathf.Max(_impactForce, ragdoll),
-                _ => _impactForce
-            };
         }
     }
 }

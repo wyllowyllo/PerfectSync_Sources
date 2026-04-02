@@ -18,6 +18,7 @@ namespace InGame.Player.Network
         private RagdollStateMachine _ragdollController;
         private PlayerMovement _movement;
         private PlayerAnimation _animation;
+        private LaunchController _launchController;
 
         private PhotonTransformView _transformView;
         private bool _syncEnabled;
@@ -33,7 +34,7 @@ namespace InGame.Player.Network
         private bool _firstSnapshot = true;
         private Vector3 _smoothVelocity;
 
-        private const float SnapThreshold = 2.0f;
+        private const float SnapThreshold = 5f;
         private const float InterpolationFactor = 0.3f;
         private const float SmoothTime = 0.08f;
         private const float MaxExtrapolationTime = 0.2f;
@@ -45,6 +46,7 @@ namespace InGame.Player.Network
             _ragdollController = GetComponent<RagdollStateMachine>();
             _movement = GetComponent<PlayerMovement>();
             _animation = GetComponent<PlayerAnimation>();
+            _launchController = GetComponent<LaunchController>();
         }
 
         private void Start()
@@ -54,6 +56,9 @@ namespace InGame.Player.Network
                 _movement.OnJumped += HandleJumped;
                 _movement.OnDived += HandleDived;
             }
+
+            if (_launchController != null)
+                _launchController.OnLaunched += HandleLaunched;
         }
 
         private void OnDestroy()
@@ -63,6 +68,9 @@ namespace InGame.Player.Network
                 _movement.OnJumped -= HandleJumped;
                 _movement.OnDived -= HandleDived;
             }
+
+            if (_launchController != null)
+                _launchController.OnLaunched -= HandleLaunched;
         }
 
         public void SetSyncEnabled(bool enabled)
@@ -121,7 +129,9 @@ namespace InGame.Player.Network
                 {
                     _rootBody.MovePosition(target);
                     _rootBody.MoveRotation(_correctionRotation);
-                    _smoothVelocity = Vector3.zero;
+                    // 스냅 후 관성을 네트워크 속도로 유지: 0으로 리셋하면 SmoothDamp가
+                    // 정지 상태에서 재시작 → target에 뒤처짐 → 재스냅 → 떨림 유발.
+                    _smoothVelocity = _networkVelocity;
                 }
                 else if (dist > 0.01f)
                 {
@@ -158,6 +168,18 @@ namespace InGame.Player.Network
         private void RpcAnimDive()
         {
             if (_animation != null) _animation.Dive();
+        }
+
+        private void HandleLaunched()
+        {
+            if (!photonView.IsMine || !_syncEnabled) return;
+            photonView.RPC(nameof(RpcAnimTrampolineLaunch), RpcTarget.Others);
+        }
+
+        [PunRPC]
+        private void RpcAnimTrampolineLaunch()
+        {
+            if (_animation != null) _animation.TrampolineLaunch();
         }
 
         #endregion

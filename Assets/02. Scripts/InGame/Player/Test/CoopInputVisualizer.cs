@@ -1,4 +1,3 @@
-using InGame.Team;
 using InGame.UserInput;
 using Photon.Pun;
 using UnityEngine;
@@ -27,7 +26,6 @@ namespace InGame.Player.Test
 
         // ── 참조 ────────────────────────────────────────────────
         private InputRouter _inputRouter;
-        private PlayerFormController _playerFormController;
         private Transform _mergedBodyTransform;
 
         // ── 화살표 오브젝트 ─────────────────────────────────────
@@ -43,16 +41,14 @@ namespace InGame.Player.Test
         private float _guestJumpTimer;
         private Vector3 _lastHostDir = Vector3.forward;
         private Vector3 _lastGuestDir = Vector3.back;
-        private bool _isActive;
 
         // ── Lifecycle ───────────────────────────────────────────
 
         private void Start()
         {
             _inputRouter = GetComponent<InputRouter>();
-            _playerFormController = GetComponent<PlayerFormController>();
 
-            if (_inputRouter == null || _playerFormController == null)
+            if (_inputRouter == null)
             {
                 enabled = false;
                 return;
@@ -84,18 +80,10 @@ namespace InGame.Player.Test
 
             _hostAlpha = IdleAlpha;
             _guestAlpha = IdleAlpha;
-
-            _playerFormController.OnModeChanged += HandleModeChanged;
-
-            _isActive = _inputRouter.CurrentMode == ETeamMode.Merged;
-            SetVisualsActive(_isActive);
         }
 
         private void OnDestroy()
         {
-            if (_playerFormController != null)
-                _playerFormController.OnModeChanged -= HandleModeChanged;
-
             if (_hostArrow != null) Destroy(_hostArrow);
             if (_guestArrow != null) Destroy(_guestArrow);
             if (_hostJumpMarker != null) Destroy(_hostJumpMarker);
@@ -106,8 +94,6 @@ namespace InGame.Player.Test
 
         private void LateUpdate()
         {
-            if (!_isActive) return;
-
             // MergedBody root는 고정 — 실제 이동하는 RootBody(Rigidbody)를 추적
             if (_mergedBodyTransform == null)
             {
@@ -193,21 +179,6 @@ namespace InGame.Player.Test
                 marker.transform.position = position;
                 marker.transform.rotation = Quaternion.LookRotation(forward, Vector3.up);
             }
-        }
-
-        private void HandleModeChanged(ETeamMode newMode)
-        {
-            _isActive = newMode == ETeamMode.Merged;
-            _mergedBodyTransform = null; // 모드 전환 시 다음 프레임에 재탐색
-            SetVisualsActive(_isActive);
-        }
-
-        private void SetVisualsActive(bool active)
-        {
-            if (_hostArrow != null) _hostArrow.SetActive(active);
-            if (_guestArrow != null) _guestArrow.SetActive(active);
-            if (_hostJumpMarker != null) _hostJumpMarker.SetActive(false);
-            if (_guestJumpMarker != null) _guestJumpMarker.SetActive(false);
         }
     }
 }

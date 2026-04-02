@@ -29,6 +29,7 @@ namespace InGame.Player.Movement
         [Header("Air Control")]
         [SerializeField, Range(0f, 1f)] private float _airControlFactor = 0.6f;
         private float _airControlBoost = 1f;
+        private float _buffSpeedMultiplier = 1f;
 
         [Header("Gravity")]
         [SerializeField] private float _gravity = 9.81f;
@@ -39,7 +40,6 @@ namespace InGame.Player.Movement
         [SerializeField] private LayerMask _groundLayer;
 
         private Vector3 _currentVelocity;
-        private Vector3 _externalVelocity;
         private ERagdollState _previousRagdollState;
         private float _lastGroundedTime;
         private bool _jumpRequested;
@@ -68,6 +68,7 @@ namespace InGame.Player.Movement
         public float Gravity => _gravity;
         public float MomentumBlend { get => _momentumBlend; set => _momentumBlend = value; }
         public float AirControlBoost { get => _airControlBoost; set => _airControlBoost = value; }
+        public float BuffSpeedMultiplier { get => _buffSpeedMultiplier; set => _buffSpeedMultiplier = value; }
         public float CurrentSpeed => _currentVelocity.magnitude;
 
         private void Awake()
@@ -103,6 +104,7 @@ namespace InGame.Player.Movement
             // 발사 중(블렌드 1.0)에는 입력/점프 처리를 건너뛰고 에어본 애니메이션만 갱신.
             if (_momentumBlend >= 1f)
             {
+                _isGrounded = false;
                 _anim.Locomotion(false, 0f);
                 _jumpRequested = false;
                 return;
@@ -125,7 +127,7 @@ namespace InGame.Player.Movement
             // 다이브 중에는 입력 가속을 적용하지 않음.
             if (!_playerJump.IsDiving)
             {
-                float speedMultiplier = _isGrounded ? 1f : _airControlFactor * _airControlBoost;
+                float speedMultiplier = (_isGrounded ? 1f : _airControlFactor * _airControlBoost) * _buffSpeedMultiplier;
                 Accelerate(_inputDirection * _moveSpeed * speedMultiplier);
             }
 
@@ -171,26 +173,22 @@ namespace InGame.Player.Movement
             if (_momentumBlend > 0f)
             {
                 // 발사 모멘텀 → 입력 제어로 부드럽게 전환.
-                velocity.x = Mathf.Lerp(_currentVelocity.x, velocity.x, _momentumBlend) + _externalVelocity.x;
-                velocity.z = Mathf.Lerp(_currentVelocity.z, velocity.z, _momentumBlend) + _externalVelocity.z;
+                velocity.x = Mathf.Lerp(_currentVelocity.x, velocity.x, _momentumBlend);
+                velocity.z = Mathf.Lerp(_currentVelocity.z, velocity.z, _momentumBlend);
             }
             else
             {
-                velocity.x = _currentVelocity.x + _externalVelocity.x;
-                velocity.z = _currentVelocity.z + _externalVelocity.z;
+                velocity.x = _currentVelocity.x;
+                velocity.z = _currentVelocity.z;
             }
             velocity.y += (-_gravity - Physics.gravity.y) * Time.fixedDeltaTime;
             velocity.y = Mathf.Max(velocity.y, -_maxFallSpeed);
             _rootBody.linearVelocity = velocity;
 
-            _externalVelocity = Vector3.zero;
-
             if (_currentVelocity.sqrMagnitude > 0.01f)
             {
                 Quaternion targetRot = Quaternion.LookRotation(_currentVelocity);
-                _rootBody.MoveRotation(Quaternion.Slerp(
-                    _rootBody.rotation, targetRot,
-                    Time.fixedDeltaTime * _rotationSpeed));
+                _rootBody.MoveRotation(Quaternion.Slerp(_rootBody.rotation, targetRot, Time.fixedDeltaTime * _rotationSpeed));
             }
         }
 
@@ -200,14 +198,7 @@ namespace InGame.Player.Movement
             _jumpRequested |= jump;
         }
 
-        /// <summary>
-        /// 외부 시스템(고무줄, 컨베이어 등)의 속도 기여분을 누적합니다.
-        /// FixedUpdate에서 입력 속도와 합산된 후 초기화됩니다.
-        /// </summary>
-        public void AddExternalVelocity(Vector3 velocity)
-        {
-            _externalVelocity += velocity;
-        }
+
 
         private void Accelerate(Vector3 targetVelocity)
         {
@@ -243,7 +234,6 @@ namespace InGame.Player.Movement
             {
                 _rootBody.isKinematic = true;
                 _currentVelocity = Vector3.zero;
-                _externalVelocity = Vector3.zero;
                 _jumpRequested = false;
                 _momentumBlend = 0f;
                 _airControlBoost = 1f;

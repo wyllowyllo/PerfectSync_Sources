@@ -1,3 +1,4 @@
+using InGame.Player.Ragdoll;
 using InGame.UserInput;
 using Photon.Pun;
 using UnityEngine;
@@ -11,6 +12,10 @@ namespace InGame.Gimmick
         {
             var photonView = other.GetComponentInParent<PhotonView>();
             if (photonView == null || !photonView.IsMine) return;
+
+            // Dead 상태면 중복 사망 방지.
+            var ragdoll = other.GetComponentInParent<RagdollStateMachine>();
+            if (ragdoll != null && ragdoll.CurrentState == ERagdollState.Dead) return;
 
             var input = other.GetComponentInParent<LocalPlayerInput>();
             if (input == null) return;

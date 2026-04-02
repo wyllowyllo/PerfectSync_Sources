@@ -1,3 +1,4 @@
+using System;
 using Core;
 using InGame.Player.Animation;
 using InGame.Player.Ragdoll;
@@ -29,6 +30,8 @@ namespace InGame.Player.Movement
         private float _transitionStartVy;
 
         public bool IsLaunching => _isLaunching;
+        public event Action OnLaunched;
+        public event Action OnApexReached;
 
         private void Awake()
         {
@@ -67,6 +70,7 @@ namespace InGame.Player.Movement
             _movement.AirControlBoost = 1f;
             _anim.TrampolineLaunch();
             _isLaunching = true;
+            OnLaunched?.Invoke();
         }
 
         private void FixedUpdate()
@@ -103,6 +107,7 @@ namespace InGame.Player.Movement
             _isLaunching = false;
             _movement.MomentumBlend = 0f;
             _movement.AirControlBoost = _postLaunchAirControlBoost;
+            OnApexReached?.Invoke();
         }
 
         private void AbortLaunch()
