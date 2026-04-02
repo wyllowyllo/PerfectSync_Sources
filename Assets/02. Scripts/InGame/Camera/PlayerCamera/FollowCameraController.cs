@@ -2,6 +2,7 @@ using Core;
 using DG.Tweening;
 using InGame.Player;
 using InGame.Player.Ragdoll;
+using InGame.Team;
 using Photon.Pun;
 using Unity.Cinemachine;
 using UnityEngine;
@@ -27,6 +28,10 @@ namespace InGame.Camera.PlayerCamera
         [SerializeField] private float _fovKickAmount = 5f;
         [SerializeField] private float _fovKickDuration = 0.2f;
 
+        [Header("Activation FOV Punch")]
+        [SerializeField] private float _activationFovPunch = -8f;
+        [SerializeField] private float _activationFovDuration = 0.4f;
+
         private CinemachineCamera _followCamera;
         private CinemachineCamera _ragdollCamera;
         private Rigidbody _animatedProxyRb;
@@ -41,6 +46,7 @@ namespace InGame.Camera.PlayerCamera
         private float _baseFov;
         private Tween _fovTween;
         private InvincibleContactDetector _contactDetector;
+        private InvincibleModeController _invincibleController;
 
         private void Start()
         {
@@ -66,6 +72,10 @@ namespace InGame.Camera.PlayerCamera
             _contactDetector = GetComponentInChildren<InvincibleContactDetector>();
             if (_contactDetector != null)
                 _contactDetector.OnHitLocal += HandleInvincibleHit;
+
+            _invincibleController = GetComponent<InvincibleModeController>();
+            if (_invincibleController != null)
+                _invincibleController.OnInvincibleEnter += HandleInvincibleActivation;
 
             _animatedProxyRb = CreateInterpolatedProxy("AnimatedCameraProxy");
             _ragdollProxyRb = CreateInterpolatedProxy("RagdollCameraProxy");
@@ -105,6 +115,9 @@ namespace InGame.Camera.PlayerCamera
 
             if (_contactDetector != null)
                 _contactDetector.OnHitLocal -= HandleInvincibleHit;
+
+            if (_invincibleController != null)
+                _invincibleController.OnInvincibleEnter -= HandleInvincibleActivation;
 
             _fovTween?.Kill();
 
@@ -184,6 +197,29 @@ namespace InGame.Camera.PlayerCamera
 
             targetOrbital.HorizontalAxis.Value = sourceOrbital.HorizontalAxis.Value;
             targetOrbital.VerticalAxis.Value = sourceOrbital.VerticalAxis.Value;
+        }
+
+        private void HandleInvincibleActivation()
+        {
+            if (_followCamera == null) return;
+
+            _fovTween?.Kill();
+
+            var lens = _followCamera.Lens;
+            lens.FieldOfView = _baseFov + _activationFovPunch;
+            _followCamera.Lens = lens;
+
+            _fovTween = DOTween.To(
+                () => _followCamera.Lens.FieldOfView,
+                v =>
+                {
+                    var l = _followCamera.Lens;
+                    l.FieldOfView = v;
+                    _followCamera.Lens = l;
+                },
+                _baseFov,
+                _activationFovDuration
+            ).SetEase(Ease.OutBack);
         }
 
         private void HandleInvincibleHit()
