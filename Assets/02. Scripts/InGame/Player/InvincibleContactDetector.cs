@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using InGame.Effect;
+using InGame.Obstacle;
 using InGame.Player.Network;
 using InGame.Team;
 using Photon.Pun;
@@ -17,6 +18,8 @@ namespace InGame.Player
     public class InvincibleContactDetector : MonoBehaviour
     {
         [SerializeField] private LayerMask _playerLayers;
+
+        [SerializeField] private LayerMask _obstacleLayers;
 
         [Tooltip("상대 감지 반경")]
         [SerializeField] private float _detectionRadius = 1.2f;
@@ -39,6 +42,9 @@ namespace InGame.Player
 
         private readonly Collider[] _overlapBuffer = new Collider[MaxOverlapResults];
 
+        // 현재 프레임에서 freeze 중인 장애물 registry ID 집합.
+        private readonly HashSet<int> _currentlyFrozenIds = new();
+
         // FOV Kick 등 외부 연출 훅.
         public event Action OnHitLocal;
 
@@ -48,6 +54,14 @@ namespace InGame.Player
         {
             _invincibleController = controller;
             _synchronizer = synchronizer;
+
+            _invincibleController.OnInvincibleExit += HandleInvincibleExit;
+        }
+
+        private void OnDestroy()
+        {
+            if (_invincibleController != null)
+                _invincibleController.OnInvincibleExit -= HandleInvincibleExit;
         }
 
         private void FixedUpdate()
@@ -55,13 +69,97 @@ namespace InGame.Player
             if (!_isAuthority) return;
             if (_invincibleController == null || !_invincibleController.IsInvincible) return;
 
-            int count = Physics.OverlapSphereNonAlloc(transform.position, _detectionRadius, _overlapBuffer, _playerLayers);
+            LayerMask combinedMask = _playerLayers | _obstacleLayers;
+            int count = Physics.OverlapSphereNonAlloc(
+                transform.position, _detectionRadius, _overlapBuffer, combinedMask);
+
+            var detectedObstacleIds = new HashSet<int>();
 
             for (int i = 0; i < count; i++)
             {
-                TryApplyKnockback(_overlapBuffer[i]);
+                var col = _overlapBuffer[i];
+                int layerBit = 1 << col.gameObject.layer;
+
+                if ((layerBit & _playerLayers) != 0)
+                {
+                    TryApplyKnockback(col);
+                }
+                else if ((layerBit & _obstacleLayers) != 0)
+                {
+                    TryCollectFreezable(col, detectedObstacleIds);
+                }
+            }
+
+            ProcessObstacleFreezeChanges(detectedObstacleIds);
+        }
+
+        // ── 장애물 Freeze ──────────────────────────────────────
+
+        private void TryCollectFreezable(Collider col, HashSet<int> detectedIds)
+        {
+            var freezable = col.GetComponentInParent<IFreezable>();
+            if (freezable == null) return;
+
+            var manager = ObstacleFreezeManager.Instance;
+            if (manager == null) return;
+
+            int id = manager.GetId(freezable);
+            if (id < 0) return;
+
+            detectedIds.Add(id);
+        }
+
+        private void ProcessObstacleFreezeChanges(HashSet<int> detectedIds)
+        {
+            var manager = ObstacleFreezeManager.Instance;
+            if (manager == null) return;
+
+            // 새로 감지된 장애물 → freeze.
+            var toFreeze = new List<int>();
+            foreach (int id in detectedIds)
+            {
+                if (!_currentlyFrozenIds.Contains(id))
+                    toFreeze.Add(id);
+            }
+
+            // 범위 이탈 장애물 → unfreeze.
+            var toUnfreeze = new List<int>();
+            foreach (int id in _currentlyFrozenIds)
+            {
+                if (!detectedIds.Contains(id))
+                    toUnfreeze.Add(id);
+            }
+
+            if (toFreeze.Count > 0)
+                manager.RequestFreeze(toFreeze.ToArray());
+
+            if (toUnfreeze.Count > 0)
+                manager.RequestUnfreeze(toUnfreeze.ToArray());
+
+            _currentlyFrozenIds.Clear();
+            foreach (int id in detectedIds)
+                _currentlyFrozenIds.Add(id);
+        }
+
+        private void HandleInvincibleExit()
+        {
+            if (!_isAuthority) return;
+
+            if (_currentlyFrozenIds.Count > 0)
+            {
+                var manager = ObstacleFreezeManager.Instance;
+                if (manager != null)
+                {
+                    var ids = new int[_currentlyFrozenIds.Count];
+                    _currentlyFrozenIds.CopyTo(ids);
+                    manager.RequestUnfreeze(ids);
+                }
+
+                _currentlyFrozenIds.Clear();
             }
         }
+
+        // ── 플레이어 넉백 (기존) ────────────────────────────────
 
         private void TryApplyKnockback(Collider other)
         {
