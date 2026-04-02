@@ -51,15 +51,8 @@ public class PhotonServerManager : SingletonPunCallbacks<PhotonServerManager>
 
     private static void ApplySessionAuthUserId()
     {
-        string uid = BuildTimeBasedUniqueUserId();
+        string uid = UserIdGenerator.CreateSessionUserId();
         PhotonNetwork.AuthValues = new Photon.Realtime.AuthenticationValues(uid);
-    }
-
-    private static string BuildTimeBasedUniqueUserId()
-    {
-        long ticks = DateTime.UtcNow.Ticks;
-        int salt = UnityEngine.Random.Range(int.MinValue, int.MaxValue);
-        return $"PS_{ticks}_{salt:X8}";
     }
 
     public override void OnConnectedToMaster()
