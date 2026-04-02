@@ -7,7 +7,6 @@ public class LobbyCharacterDisplayController : MonoBehaviour
     [SerializeField] private LobbyCharacterNicknameView _localCharacter;
     [SerializeField] private LobbyCharacterNicknameView _partyCharacter;
 
-    /// <summary>첫 <see cref="Start"/> 이후에만 <see cref="OnEnable"/>에서 재구독합니다(비활성→활성 시 Start는 다시 안 돎).</summary>
     private bool _started;
 
     private void OnEnable()

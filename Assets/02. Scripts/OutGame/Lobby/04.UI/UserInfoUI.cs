@@ -5,16 +5,16 @@ using UnityEngine.UI;
 
 public class UserInfoUI : MonoBehaviour
 {
+    private const string EmptyDisplay = "";
+
     [Header("닉네임")]
     [SerializeField] private TMP_Text _nicknameText;
     [SerializeField] private Button _editNicknameButton;
-    [SerializeField] private string _emptyNicknameDisplay = "";
 
     [Header("User ID")]
     [SerializeField] private TMP_Text _userIdText;
     [SerializeField] private Button _copyUserIdButton;
     [SerializeField] private string _userIdPrefix = "UserID : ";
-    [SerializeField] private string _emptyUserIdDisplay = "";
 
     private string _userId;
 
@@ -106,7 +106,7 @@ public class UserInfoUI : MonoBehaviour
         if (string.IsNullOrEmpty(display))
             display = PhotonNetwork.NickName ?? string.Empty;
 
-        _nicknameText.text = string.IsNullOrEmpty(display) ? _emptyNicknameDisplay : display;
+        _nicknameText.text = string.IsNullOrEmpty(display) ? EmptyDisplay : display;
     }
 
     private void RefreshUserIdDisplay()
@@ -115,7 +115,7 @@ public class UserInfoUI : MonoBehaviour
             return;
 
         _userIdText.text = string.IsNullOrEmpty(_userId)
-            ? _emptyUserIdDisplay
+            ? EmptyDisplay
             : _userIdPrefix + _userId;
     }
 
