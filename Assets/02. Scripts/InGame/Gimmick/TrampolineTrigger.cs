@@ -12,7 +12,7 @@ namespace InGame.Gimmick
 
         private void OnCollisionEnter(Collision collision)
         {
-            var formController = collision.collider.GetComponentInParent<PlayerFormController>();
+            var formController = collision.collider.GetComponentInParent<MergedBodyController>();
             if (formController == null) return;
 
             formController.LaunchAllBodies(_targetPoint.position);
@@ -24,7 +24,7 @@ namespace InGame.Gimmick
             if (teamNumber == PhotonTeamManager.TeamNone) return;
 
             if (TeamModeManager.Instance != null)
-                TeamModeManager.Instance.HandleTrampolineTrigger(teamNumber);
+                TeamModeManager.Instance.HandleTrampolineContact(teamNumber);
         }
 
         private void OnDrawGizmos()

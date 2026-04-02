@@ -1,12 +1,12 @@
 using InGame.Player.Network;
+using Photon.Pun;
 using UnityEngine;
 
 namespace InGame.Player.Test
 {
     /// <summary>
-    /// 멀티 환경 모드 전환 테스트용 매니저.
-    /// 씬에 배치하고 Return 키로 합체/분리 전환을 트리거한다.
-    /// 테스트 완료 후 제거할 것.
+    /// 키 입력 테스트용 매니저.
+    /// Return 키로 무적 모드를 토글한다.
     /// </summary>
     public class ModeSwitchTestManager : MonoBehaviour
     {
@@ -20,30 +20,28 @@ namespace InGame.Player.Test
                 return;
 
             if (_synchronizer == null)
-                _synchronizer = FindMyTeamSynchronizer();
+                _synchronizer = FindLocalSynchronizer();
 
             if (_synchronizer == null)
             {
-                Debug.LogWarning("[ModeSwitchTest] TeamModeSynchronizer not found for my team.");
+                Debug.LogWarning("[ModeSwitchTest] TeamModeSynchronizer를 찾을 수 없습니다.");
                 return;
             }
 
-            _synchronizer.RequestSwitch();
-            Debug.Log("[ModeSwitchTest] Mode switch requested.");
+            var controller = _synchronizer.GetComponent<Team.InvincibleModeController>();
+            bool next = controller == null || !controller.IsInvincible;
+
+            Debug.Log($"[ModeSwitchTest] 무적 모드 {(next ? "ON" : "OFF")}");
+            _synchronizer.BroadcastInvincibleMode(next);
         }
 
-        private TeamModeSynchronizer FindMyTeamSynchronizer()
+        private static TeamModeSynchronizer FindLocalSynchronizer()
         {
-            int myTeam = PhotonTeamManager.GetLocalTeamRaw();
-            if (myTeam == PhotonTeamManager.TeamNone) return null;
-
             foreach (var sync in FindObjectsByType<TeamModeSynchronizer>(FindObjectsSortMode.None))
             {
-                var owner = sync.photonView.Owner;
-                if (owner != null && PhotonTeamManager.GetTeamRaw(owner) == myTeam)
+                if (sync.photonView != null && sync.photonView.IsMine)
                     return sync;
             }
-
             return null;
         }
     }

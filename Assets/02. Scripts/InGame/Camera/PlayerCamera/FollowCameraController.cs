@@ -1,4 +1,5 @@
 using Core;
+using DG.Tweening;
 using InGame.Player;
 using InGame.Player.Ragdoll;
 using InGame.Team;
@@ -11,18 +12,11 @@ namespace InGame.Camera.PlayerCamera
     [DefaultExecutionOrder(ExecutionOrderConstants.CinemachineCameraManager)]
     public class FollowCameraController : MonoBehaviourPun
     {
-        [Header("Cinemachine")]
-        [SerializeField] private CinemachineCamera _animatedCamera;
-
-        [Header("Root Bodies (각 Body의 Rigidbody Transform)")]
+        [Header("Root Bodies")]
         [SerializeField] private Transform _mergedRootBody;
-        [SerializeField] private Transform _avatarARootBody;
-        [SerializeField] private Transform _avatarBRootBody;
 
         [Header("Ragdoll State Machines")]
         [SerializeField] private RagdollStateMachine _mergedRagdoll;
-        [SerializeField] private RagdollStateMachine _avatarARagdoll;
-        [SerializeField] private RagdollStateMachine _avatarBRagdoll;
 
         [Header("Proxy")]
         [SerializeField] private Vector3 _targetOffset = new Vector3(0f, 0.7f, 0f);
@@ -30,23 +24,32 @@ namespace InGame.Camera.PlayerCamera
         [Header("Ragdoll Camera")]
         [SerializeField] private Vector3 _ragdollPositionDamping = new Vector3(2f, 2.5f, 2f);
 
+        [Header("FOV Kick")]
+        [SerializeField] private float _fovKickAmount = 5f;
+        [SerializeField] private float _fovKickDuration = 0.2f;
+
+        [Header("Activation FOV Punch")]
+        [SerializeField] private float _activationFovPunch = -8f;
+        [SerializeField] private float _activationFovDuration = 0.4f;
+
+        private CinemachineCamera _followCamera;
         private CinemachineCamera _ragdollCamera;
         private Rigidbody _animatedProxyRb;
         private Rigidbody _ragdollProxyRb;
-        private PlayerFormController _playerFormController;
         private Transform _activeTarget;
         private RagdollStateMachine _activeRagdoll;
-        private bool _isHost;
         private bool _isRagdollCameraActive;
 
         private const int ActivePriority = 10;
         private const int StandbyPriority = 0;
         private bool _initialized;
+        private float _baseFov;
+        private Tween _fovTween;
+        private InvincibleContactDetector _contactDetector;
+        private InvincibleModeController _invincibleController;
 
         private void Start()
         {
-            _playerFormController = GetComponent<PlayerFormController>();
-            _isHost = photonView.IsMine;
             TryInitialize();
         }
 
@@ -54,19 +57,34 @@ namespace InGame.Camera.PlayerCamera
         {
             if (_initialized) return;
             if (!IsMyTeam()) return;
+            if (InGameCameraManager.Instance == null) return;
+
+            _followCamera = InGameCameraManager.Instance.FollowCamera;
+            if (_followCamera == null)
+            {
+                Debug.LogError("[FollowCameraController] InGameCameraManager에 FollowCamera가 할당되지 않았습니다.", this);
+                return;
+            }
 
             _initialized = true;
+            _baseFov = _followCamera.Lens.FieldOfView;
+
+            _contactDetector = GetComponentInChildren<InvincibleContactDetector>();
+            if (_contactDetector != null)
+                _contactDetector.OnHitLocal += HandleInvincibleHit;
+
+            _invincibleController = GetComponent<InvincibleModeController>();
+            if (_invincibleController != null)
+                _invincibleController.OnInvincibleEnter += HandleInvincibleActivation;
+
             _animatedProxyRb = CreateInterpolatedProxy("AnimatedCameraProxy");
             _ragdollProxyRb = CreateInterpolatedProxy("RagdollCameraProxy");
-
-            if (_animatedCamera == null)
-                _animatedCamera = FindAnyObjectByType<CinemachineCamera>();
 
             _ragdollCamera = CreateRagdollCamera();
             SetupCameraTargets();
 
-            _playerFormController.OnModeChanged += HandleModeChanged;
-            UpdateActiveTarget(_playerFormController.CurrentMode);
+            _activeTarget = _mergedRootBody;
+            _activeRagdoll = _mergedRagdoll;
 
             Cursor.lockState = CursorLockMode.Locked;
             Cursor.visible = false;
@@ -95,8 +113,13 @@ namespace InGame.Camera.PlayerCamera
         {
             if (!_initialized) return;
 
-            if (_playerFormController != null)
-                _playerFormController.OnModeChanged -= HandleModeChanged;
+            if (_contactDetector != null)
+                _contactDetector.OnHitLocal -= HandleInvincibleHit;
+
+            if (_invincibleController != null)
+                _invincibleController.OnInvincibleEnter -= HandleInvincibleActivation;
+
+            _fovTween?.Kill();
 
             if (_animatedProxyRb != null)
                 Destroy(_animatedProxyRb.gameObject);
@@ -133,50 +156,28 @@ namespace InGame.Camera.PlayerCamera
 
             _isRagdollCameraActive = shouldBeRagdoll;
 
-            CinemachineCamera from = shouldBeRagdoll ? _animatedCamera : _ragdollCamera;
-            CinemachineCamera to = shouldBeRagdoll ? _ragdollCamera : _animatedCamera;
+            CinemachineCamera from = shouldBeRagdoll ? _followCamera : _ragdollCamera;
+            CinemachineCamera to = shouldBeRagdoll ? _ragdollCamera : _followCamera;
 
             SyncOrbitalAxes(from, to);
-            SetPriority(to, ActivePriority);
-            SetPriority(from, StandbyPriority);
-        }
-
-        private void HandleModeChanged(ETeamMode newMode)
-        {
-            UpdateActiveTarget(newMode);
-        }
-
-        private void UpdateActiveTarget(ETeamMode mode)
-        {
-            _activeTarget = mode switch
-            {
-                ETeamMode.Merged => _mergedRootBody,
-                ETeamMode.Separated => _isHost ? _avatarARootBody : _avatarBRootBody,
-                _ => _mergedRootBody
-            };
-
-            _activeRagdoll = mode switch
-            {
-                ETeamMode.Merged => _mergedRagdoll,
-                ETeamMode.Separated => _isHost ? _avatarARagdoll : _avatarBRagdoll,
-                _ => _mergedRagdoll
-            };
+            InGameCameraManager.SetCameraPriority(to, ActivePriority);
+            InGameCameraManager.SetCameraPriority(from, StandbyPriority);
         }
 
         private void SetupCameraTargets()
         {
-            _animatedCamera.Follow = _animatedProxyRb.transform;
-            _animatedCamera.LookAt = _animatedProxyRb.transform;
+            _followCamera.Follow = _animatedProxyRb.transform;
+            _followCamera.LookAt = _animatedProxyRb.transform;
             _ragdollCamera.Follow = _ragdollProxyRb.transform;
             _ragdollCamera.LookAt = _ragdollProxyRb.transform;
 
-            SetPriority(_animatedCamera, ActivePriority);
-            SetPriority(_ragdollCamera, StandbyPriority);
+            InGameCameraManager.SetCameraPriority(_followCamera, ActivePriority);
+            InGameCameraManager.SetCameraPriority(_ragdollCamera, StandbyPriority);
         }
 
         private CinemachineCamera CreateRagdollCamera()
         {
-            var clone = Instantiate(_animatedCamera.gameObject);
+            var clone = Instantiate(_followCamera.gameObject);
             clone.name = "CinemachineCamera_Ragdoll";
 
             var cam = clone.GetComponent<CinemachineCamera>();
@@ -198,10 +199,50 @@ namespace InGame.Camera.PlayerCamera
             targetOrbital.VerticalAxis.Value = sourceOrbital.VerticalAxis.Value;
         }
 
-        private static void SetPriority(CinemachineCamera camera, int priority)
+        private void HandleInvincibleActivation()
         {
-            camera.Priority.Enabled = true;
-            camera.Priority.Value = priority;
+            if (_followCamera == null) return;
+
+            _fovTween?.Kill();
+
+            var lens = _followCamera.Lens;
+            lens.FieldOfView = _baseFov + _activationFovPunch;
+            _followCamera.Lens = lens;
+
+            _fovTween = DOTween.To(
+                () => _followCamera.Lens.FieldOfView,
+                v =>
+                {
+                    var l = _followCamera.Lens;
+                    l.FieldOfView = v;
+                    _followCamera.Lens = l;
+                },
+                _baseFov,
+                _activationFovDuration
+            ).SetEase(Ease.OutBack);
+        }
+
+        private void HandleInvincibleHit()
+        {
+            if (_followCamera == null) return;
+
+            _fovTween?.Kill();
+
+            var lens = _followCamera.Lens;
+            lens.FieldOfView = _baseFov + _fovKickAmount;
+            _followCamera.Lens = lens;
+
+            _fovTween = DOTween.To(
+                () => _followCamera.Lens.FieldOfView,
+                v =>
+                {
+                    var l = _followCamera.Lens;
+                    l.FieldOfView = v;
+                    _followCamera.Lens = l;
+                },
+                _baseFov,
+                _fovKickDuration
+            ).SetEase(Ease.OutQuad);
         }
 
         private static Rigidbody CreateInterpolatedProxy(string name)
