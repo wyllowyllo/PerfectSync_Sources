@@ -1,3 +1,4 @@
+using System.Collections;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -25,17 +26,20 @@ public class LobbyPopupCoordinator : MonoBehaviour
 
     [Header("Optional")]
     [SerializeField] private Button _openSettingsButton;
-    [SerializeField] private Button _openNicknameChangeButton;
     [SerializeField] private Button _openInviteFriendsButton;
+
+    private Coroutine _transientToastCoroutine;
 
     private void Start()
     {
         if (_openSettingsButton != null)
             _openSettingsButton.onClick.AddListener(OnOpenSettingsButtonClicked);
-        if (_openNicknameChangeButton != null)
-            _openNicknameChangeButton.onClick.AddListener(OnOpenNicknameChangeButtonClicked);
         if (_openInviteFriendsButton != null)
             _openInviteFriendsButton.onClick.AddListener(OnOpenInviteFriendsButtonClicked);
+
+        LobbyUiEvents.NicknameChangePopupRequested += OnNicknameChangePopupRequested;
+        LobbyUiEvents.TransientToastRequested += OnLobbyUiTransientToastRequested;
+        PartyInvitePopup.TransientToastRequested += OnPartyInviteTransientToastRequested;
 
         EscMenuPopup.CloseAllPopupsAndEscMenuRequested += OnEscMenuCloseAllRequested;
         EscMenuPopup.OpenSettingsFromEscMenuRequested += OnEscMenuOpenSettingsRequested;
@@ -47,10 +51,12 @@ public class LobbyPopupCoordinator : MonoBehaviour
     {
         if (_openSettingsButton != null)
             _openSettingsButton.onClick.RemoveListener(OnOpenSettingsButtonClicked);
-        if (_openNicknameChangeButton != null)
-            _openNicknameChangeButton.onClick.RemoveListener(OnOpenNicknameChangeButtonClicked);
         if (_openInviteFriendsButton != null)
             _openInviteFriendsButton.onClick.RemoveListener(OnOpenInviteFriendsButtonClicked);
+
+        LobbyUiEvents.NicknameChangePopupRequested -= OnNicknameChangePopupRequested;
+        LobbyUiEvents.TransientToastRequested -= OnLobbyUiTransientToastRequested;
+        PartyInvitePopup.TransientToastRequested -= OnPartyInviteTransientToastRequested;
 
         EscMenuPopup.CloseAllPopupsAndEscMenuRequested -= OnEscMenuCloseAllRequested;
         EscMenuPopup.OpenSettingsFromEscMenuRequested -= OnEscMenuOpenSettingsRequested;
@@ -161,9 +167,40 @@ public class LobbyPopupCoordinator : MonoBehaviour
         ShowSettings();
     }
 
-    private void OnOpenNicknameChangeButtonClicked()
+    private void OnNicknameChangePopupRequested()
     {
         ShowNicknameChange();
+    }
+
+    private void OnLobbyUiTransientToastRequested(string message)
+    {
+        ShowTransientToast(message);
+    }
+
+    private void OnPartyInviteTransientToastRequested(string message)
+    {
+        ShowTransientToast(message);
+    }
+
+    private void ShowTransientToast(string message)
+    {
+        if (_transientToastText == null)
+            return;
+
+        if (_transientToastCoroutine != null)
+            StopCoroutine(_transientToastCoroutine);
+
+        _transientToastText.text = message;
+        _transientToastText.gameObject.SetActive(true);
+        _transientToastCoroutine = StartCoroutine(HideTransientToastAfterDelay());
+    }
+
+    private IEnumerator HideTransientToastAfterDelay()
+    {
+        yield return new WaitForSeconds(_transientToastDurationSeconds);
+        if (_transientToastText != null)
+            _transientToastText.gameObject.SetActive(false);
+        _transientToastCoroutine = null;
     }
 
     private void OnOpenInviteFriendsButtonClicked()
