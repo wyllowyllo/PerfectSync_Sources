@@ -1,8 +1,9 @@
 using System.Collections;
+using InGame.Obstacle;
 using UnityEngine;
 
 [RequireComponent(typeof(Rigidbody))]
-public class PopupObstacle : MonoBehaviour, ITrap
+public class PopupObstacle : MonoBehaviour, ITrap, IRecoilSource
 {
     [Header("Movement Settings")]
     [Tooltip("장애물이 도달할 목표 지점")]
@@ -26,6 +27,13 @@ public class PopupObstacle : MonoBehaviour, ITrap
 
         _startWorldPosition = transform.position;
         _targetWorldPosition = _targetTransform.position;
+    }
+
+    public bool IsRotational => false;
+
+    public Vector3 GetRecoilDirection()
+    {
+        return -(_targetWorldPosition - _startWorldPosition).normalized;
     }
 
     public void Activate()
