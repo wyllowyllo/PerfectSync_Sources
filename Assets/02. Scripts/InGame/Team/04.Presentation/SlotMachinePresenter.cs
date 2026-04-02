@@ -58,6 +58,7 @@ namespace InGame.Team
         // 2단계 스핀: 결과가 슬라이드인보다 먼저 도착할 경우 큐잉.
         private int[] _pendingResult;
         private bool _spinStarted;
+        private bool _pendingMatch;
 
         private void Start()
         {
@@ -137,6 +138,7 @@ namespace InGame.Team
 
             _pendingResult = null;
             _spinStarted = false;
+            _pendingMatch = false;
             _slideOffset = _slideDistance;
             _posInitialized = false;
 
@@ -176,6 +178,8 @@ namespace InGame.Team
         {
             if (_activeSlotMachine == null) return;
 
+            _pendingMatch = isMatch;
+
             if (!_spinStarted)
             {
                 // 슬라이드인 완료 전에 결과 도착 → 큐잉.
@@ -200,6 +204,13 @@ namespace InGame.Team
                 _activeSlotMachine.transform.localScale = _prefabBaseScale;
                 _scaleTween = _activeSlotMachine.transform
                     .DOPunchScale(_prefabBaseScale * _spinCompletePunchRatio, _spinCompletePunchDuration, 1, 0.5f);
+            }
+
+            // 릴 정지 후 매치 결과에 따라 무적 모드 전환.
+            if (_pendingMatch && _synchronizer.photonView.IsMine)
+            {
+                _synchronizer.BroadcastInvincibleMode(true);
+                _pendingMatch = false;
             }
 
             StartCoroutine(WaitForLandingAndFinish());

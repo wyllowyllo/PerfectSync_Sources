@@ -102,9 +102,6 @@ namespace InGame.Team
             int[] symbols = GenerateSymbols(isMatch);
 
             synchronizer.BroadcastSlotResult(symbols, isMatch);
-
-            if (isMatch)
-                synchronizer.BroadcastInvincibleMode(true);
         }
 
         private int[] GenerateSymbols(bool isMatch)
