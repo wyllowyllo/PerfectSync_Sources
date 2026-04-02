@@ -1,4 +1,3 @@
-using InGame.Player;
 using InGame.Player.Ragdoll;
 using InGame.UserInput;
 using Photon.Pun;
@@ -17,13 +16,6 @@ namespace InGame.Gimmick
             // Dead 상태면 중복 사망 방지.
             var ragdoll = other.GetComponentInParent<RagdollStateMachine>();
             if (ragdoll != null && ragdoll.CurrentState == ERagdollState.Dead) return;
-
-            // 무적 상태면 사망 면역.
-            var invincibilitySources = other.GetComponentsInParent<IInvincibilitySource>();
-            foreach (var source in invincibilitySources)
-            {
-                if (source.IsInvincible) return;
-            }
 
             var input = other.GetComponentInParent<LocalPlayerInput>();
             if (input == null) return;
