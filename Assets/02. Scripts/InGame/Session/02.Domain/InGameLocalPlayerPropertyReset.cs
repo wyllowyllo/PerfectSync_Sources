@@ -13,7 +13,8 @@ public static class InGameLocalPlayerPropertyReset
         {
             [InGameRaceKeys.ReadyKey] = false,
             [InGameRaceKeys.RaceDoneKey] = false,
-            [InGameRaceKeys.FinalRankKey] = null
+            [InGameRaceKeys.FinalRankKey] = null,
+            [LobbyMatchmakingKeys.Ready] = false
         };
 
         if (clearTeamBecauseNotInRoom)
