@@ -24,6 +24,9 @@ namespace InGame.Player
         [Tooltip("상대 감지 반경")]
         [SerializeField] private float _detectionRadius = 1.2f;
 
+        [Tooltip("장애물 감지 반경 (0이면 _detectionRadius 사용)")]
+        [SerializeField] private float _obstacleDetectionRadius;
+
         [Header("Hit Feedback")]
         [Tooltip("카메라 쉐이크용 Impulse Source. 없으면 쉐이크 생략.")]
         [SerializeField] private CinemachineImpulseSource _impulseSource;
@@ -64,14 +67,19 @@ namespace InGame.Player
                 _invincibleController.OnInvincibleExit -= HandleInvincibleExit;
         }
 
+        private float EffectiveObstacleRadius =>
+            _obstacleDetectionRadius > 0f ? _obstacleDetectionRadius : _detectionRadius;
+
         private void FixedUpdate()
         {
             if (!_isAuthority) return;
             if (_invincibleController == null || !_invincibleController.IsInvincible) return;
 
-            LayerMask combinedMask = _playerLayers | _obstacleLayers;
+            float obstacleRadius = EffectiveObstacleRadius;
+            float maxRadius = Mathf.Max(_detectionRadius, obstacleRadius);
+
             int count = Physics.OverlapSphereNonAlloc(
-                transform.position, _detectionRadius, _overlapBuffer, combinedMask);
+                transform.position, maxRadius, _overlapBuffer, _playerLayers | _obstacleLayers);
 
             var detectedObstacleIds = new HashSet<int>();
 
@@ -82,11 +90,15 @@ namespace InGame.Player
 
                 if ((layerBit & _playerLayers) != 0)
                 {
-                    TryApplyKnockback(col);
+                    float dist = Vector3.Distance(transform.position, col.ClosestPoint(transform.position));
+                    if (dist <= _detectionRadius)
+                        TryApplyKnockback(col);
                 }
                 else if ((layerBit & _obstacleLayers) != 0)
                 {
-                    TryCollectFreezable(col, detectedObstacleIds);
+                    float dist = Vector3.Distance(transform.position, col.ClosestPoint(transform.position));
+                    if (dist <= obstacleRadius)
+                        TryCollectFreezable(col, detectedObstacleIds);
                 }
             }
 
@@ -159,7 +171,7 @@ namespace InGame.Player
             }
         }
 
-        // ── 플레이어 넉백 (기존) ────────────────────────────────
+// ── 플레이어 넉백 (기존) ────────────────────────────────
 
         private void TryApplyKnockback(Collider other)
         {
