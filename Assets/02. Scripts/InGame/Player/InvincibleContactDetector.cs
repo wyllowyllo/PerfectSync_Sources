@@ -55,8 +55,7 @@ namespace InGame.Player
             if (!_isAuthority) return;
             if (_invincibleController == null || !_invincibleController.IsInvincible) return;
 
-            int count = Physics.OverlapSphereNonAlloc(
-                transform.position, _detectionRadius, _overlapBuffer, _playerLayers);
+            int count = Physics.OverlapSphereNonAlloc(transform.position, _detectionRadius, _overlapBuffer, _playerLayers);
 
             for (int i = 0; i < count; i++)
             {

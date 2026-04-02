@@ -38,12 +38,19 @@ namespace InGame.Player
             return false;
         }
 
+        [SerializeField, Range(0f, 1f)]
+        [Tooltip("이 값보다 contact normal의 Y가 크면 '위에서 밟음'으로 판정하여 넉백 무시 (0.5 ≈ 60°)")]
+        private float _topContactThreshold = 0.5f;
+
         private void OnCollisionEnter(Collision collision)
         {
             if (IsAnySourceInvincible()) return;
             if (!_isAuthority) return;
 
             if ((_hazardLayers & (1 << collision.gameObject.layer)) == 0) return;
+
+            if (collision.contactCount > 0 && collision.GetContact(0).normal.y > _topContactThreshold)
+                return;
 
             Vector3 knockback;
             Vector3 torque;
