@@ -5,8 +5,7 @@ public class LaserTrap : MonoBehaviour
     [Header("Components")]
     [SerializeField] private LaserTrigger _laserTrigger;
     
-    [SerializeField] private GameObject _obstacleObject; 
-    private ITrap _trap;
+    [SerializeField] private PopupObstacle _popupObstacle;
 
     [Header("Movement (Optional)")]
     [Tooltip("이동 플랫폼 위에 있을 경우, 트랩 발동 시 이동 정지용")]
@@ -22,19 +21,16 @@ public class LaserTrap : MonoBehaviour
     [Tooltip("자동 초기화 대기 시간")]
     [SerializeField] private float _resetDelay = 1f;
 
-    private void Awake()
-    {
-        _trap = _obstacleObject.GetComponent<ITrap>();
-    }
-
     private void OnEnable()
     {
         _laserTrigger.OnPlayerDetected += HandlePlayerDetection;
+        _popupObstacle.OnResetComplete += HandleResetComplete;
     }
 
     private void OnDisable()
     {
         _laserTrigger.OnPlayerDetected -= HandlePlayerDetection;
+        _popupObstacle.OnResetComplete -= HandleResetComplete;
     }
 
     private void HandlePlayerDetection()
@@ -53,9 +49,8 @@ public class LaserTrap : MonoBehaviour
 
     private void ActivateObstacle()
     {
-        _trap.Activate();
+        _popupObstacle.Activate();
 
-        // 3. 자동 초기화 세팅
         if (_autoReset)
         {
             Invoke(nameof(ResetTrap), _resetDelay);
@@ -64,11 +59,13 @@ public class LaserTrap : MonoBehaviour
 
     private void ResetTrap()
     {
-        Debug.Log("🔄 TrapController: 함정 재장전.");
-        _trap.Reset();
+        _popupObstacle.Reset();
         _laserTrigger.SetLaserActive(true);
+        // 이동 재개는 복귀 완료 후 HandleResetComplete에서 처리
+    }
 
-        // 이동 재개
+    private void HandleResetComplete()
+    {
         if (_movingObstacle) _movingObstacle.SetPaused(false);
     }
 }
