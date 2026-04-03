@@ -1,10 +1,10 @@
+using Photon.Pun;
 using UnityEngine;
 
 public class LaserTrap : MonoBehaviour
 {
     [Header("Components")]
     [SerializeField] private LaserTrigger _laserTrigger;
-    
     [SerializeField] private PopupObstacle _popupObstacle;
 
     [Header("Movement (Optional)")]
@@ -17,7 +17,7 @@ public class LaserTrap : MonoBehaviour
 
     [Tooltip("체크 시 발동 후 자동으로 초기화")]
     [SerializeField] private bool _autoReset = true;
-    
+
     [Tooltip("자동 초기화 대기 시간")]
     [SerializeField] private float _resetDelay = 1f;
 
@@ -33,17 +33,24 @@ public class LaserTrap : MonoBehaviour
         _popupObstacle.OnResetComplete -= HandleResetComplete;
     }
 
+    /// <summary>
+    /// LaserTrigger 감지 콜백.
+    /// 네트워크 연결 시 Master Client만 처리 — 실제 발동은 LaserTrapSync RPC로 전파.
+    /// 오프라인이면 직접 실행.
+    /// </summary>
     private void HandlePlayerDetection()
     {
-        Debug.Log("🚨 TrapController: 플레이어 감지! 함정 프로세스 시작.");
+        if (PhotonNetwork.IsConnected && !PhotonNetwork.IsMasterClient) return;
+        ExecuteActivationSequence();
+    }
 
-        // 1. 중복 발동 방지를 위해 레이저부터 즉시 끕니다.
+    /// <summary>
+    /// 트랩 발동 시퀀스. Master에서 직접, Non-Master에서는 RPC를 통해 호출된다.
+    /// </summary>
+    public void ExecuteActivationSequence()
+    {
         _laserTrigger.SetLaserActive(false);
-
-        // 2. 이동 중이라면 정지
         if (_movingObstacle) _movingObstacle.SetPaused(true);
-
-        // 3. 장애물 발동 (지정된 딜레이 후)
         Invoke(nameof(ActivateObstacle), _activateDelay);
     }
 
@@ -61,7 +68,6 @@ public class LaserTrap : MonoBehaviour
     {
         _popupObstacle.Reset();
         _laserTrigger.SetLaserActive(true);
-        // 이동 재개는 복귀 완료 후 HandleResetComplete에서 처리
     }
 
     private void HandleResetComplete()
