@@ -1,6 +1,3 @@
-/// <summary>
-/// <see cref="CharacterCustomizationPart"/>의 UI용 한국어 표시 이름.
-/// </summary>
 public static class CharacterCustomizationPartNames
 {
     public static string GetDisplayName(CharacterCustomizationPart part)

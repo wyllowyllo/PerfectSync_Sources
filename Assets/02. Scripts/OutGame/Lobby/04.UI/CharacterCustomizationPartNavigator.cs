@@ -3,9 +3,6 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-/// <summary>
-/// 커스터마이징 부위를 enum 순서대로 순회하고, 현재 선택 부위 한글명을 표시합니다.
-/// </summary>
 public class CharacterCustomizationPartNavigator : MonoBehaviour
 {
     [SerializeField] private Button _previousButton;
@@ -20,8 +17,6 @@ public class CharacterCustomizationPartNavigator : MonoBehaviour
     public CharacterCustomizationPart CurrentPart => Parts[_index];
 
     public int CurrentPartIndex => _index;
-
-    /// <summary>현재 선택 인덱스가 바뀔 때마다 호출됩니다.</summary>
     public event Action<int> PartIndexChanged;
 
     private void Start()
