@@ -15,6 +15,7 @@ public class LaserTrigger : MonoBehaviour
     
     private LineRenderer _lineRenderer;
     private bool _isActive = true;
+    private bool _detectionEnabled = true;
 
     public event Action OnPlayerDetected;
 
@@ -24,16 +25,28 @@ public class LaserTrigger : MonoBehaviour
         _lineRenderer.positionCount = 2;
     }
 
+    public void SetDetectionEnabled(bool enabled)
+    {
+        _detectionEnabled = enabled;
+    }
+
     private void Update()
     {
         if (!_isActive) return;
 
         Vector3 startPos = _pointA.position;
         Vector3 endPos = _pointB.position;
-        Vector3 direction = (endPos - startPos).normalized;
-        float distance = Vector3.Distance(startPos, endPos);
 
         _lineRenderer.SetPosition(0, startPos);
+
+        if (!_detectionEnabled)
+        {
+            _lineRenderer.SetPosition(1, endPos);
+            return;
+        }
+
+        Vector3 direction = (endPos - startPos).normalized;
+        float distance = Vector3.Distance(startPos, endPos);
 
         if (Physics.Raycast(startPos, direction, out var hit, distance, _detectionLayer))
         {
