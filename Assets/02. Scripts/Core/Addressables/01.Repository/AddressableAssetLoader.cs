@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
@@ -13,6 +14,22 @@ public static class AddressableAssetLoader
         {
             await handle.Task;
             return new AddressableLoadResult<T>(handle.Result, handle);
+        }
+        catch (Exception)
+        {
+            if (handle.IsValid())
+                Addressables.Release(handle);
+            throw;
+        }
+    }
+
+    public static async Task<AddressableLoadListResult<T>> LoadAssetsAsync<T>(object key) where T : UnityEngine.Object
+    {
+        var handle = Addressables.LoadAssetsAsync<T>(key, null);
+        try
+        {
+            await handle.Task;
+            return new AddressableLoadListResult<T>(new List<T>(handle.Result), handle);
         }
         catch (Exception)
         {
