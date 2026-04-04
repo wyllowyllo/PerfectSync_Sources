@@ -1,4 +1,6 @@
+using System;
 using UnityEngine;
+using Random = UnityEngine.Random;
 
 namespace InGame.Obstacle
 {
@@ -17,17 +19,22 @@ namespace InGame.Obstacle
 
         private Rigidbody _rb;
         private MeshCollider[] _concaveMeshColliders;
-        private Vector3 _initialPosition;
-        private Quaternion _initialRotation;
+        private Transform _initialParent;
+        private Vector3 _initialLocalPosition;
+        private Quaternion _initialLocalRotation;
         private bool _isDestroyed;
 
         public bool IsDestroyed => _isDestroyed;
 
+        public event Action OnDestroyed;
+        public event Action OnRespawned;
+
         private void Awake()
         {
             _rb = GetComponent<Rigidbody>();
-            _initialPosition = transform.position;
-            _initialRotation = transform.rotation;
+            _initialParent = transform.parent;
+            _initialLocalPosition = transform.localPosition;
+            _initialLocalRotation = transform.localRotation;
 
             // 원래 concave인 MeshCollider만 캐싱 (원래 convex인 것은 건드리지 않음).
             var allMc = GetComponentsInChildren<MeshCollider>();
@@ -48,8 +55,17 @@ namespace InGame.Obstacle
             foreach (var script in _movementScripts)
             {
                 if (script != null)
+                {
+                    script.StopAllCoroutines();
                     script.enabled = false;
+                }
             }
+
+            OnDestroyed?.Invoke();
+
+            // 부모가 있으면 분리 (부모 MovingObstacle 등의 이동이 물리에 간섭하지 않도록).
+            if (_initialParent != null)
+                transform.SetParent(null, true);
 
             // Concave MeshCollider는 dynamic Rigidbody와 호환되지 않으므로 convex로 전환.
             foreach (var mc in _concaveMeshColliders)
@@ -82,7 +98,11 @@ namespace InGame.Obstacle
                     mc.convex = false;
             }
 
-            transform.SetPositionAndRotation(_initialPosition, _initialRotation);
+            // 원래 부모 아래로 복귀 후 로컬 좌표 복원.
+            if (_initialParent != null)
+                transform.SetParent(_initialParent, true);
+
+            transform.SetLocalPositionAndRotation(_initialLocalPosition, _initialLocalRotation);
 
             foreach (var script in _movementScripts)
             {
@@ -91,6 +111,7 @@ namespace InGame.Obstacle
             }
 
             _isDestroyed = false;
+            OnRespawned?.Invoke();
         }
 
         public void ApplyNetworkState(Vector3 position, Quaternion rotation)

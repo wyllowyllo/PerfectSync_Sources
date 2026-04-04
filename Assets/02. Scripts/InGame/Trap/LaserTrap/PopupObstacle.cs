@@ -1,16 +1,17 @@
 using System;
-using System.Collections;
 using InGame.Obstacle;
 using UnityEngine;
 
 /// <summary>
-/// 펀칭 장애물. 부모(Root)는 transform.position으로 이동하며 Rigidbody가 없으므로,
-/// 자식인 이 오브젝트의 kinematic Rigidbody는 부모 transform 계층을 통해 자동 추적된다.
-/// 펀칭 애니메이션 시에만 MovePosition으로 직접 이동하여 정확한 충돌 속도를 보장한다.
+/// 펀칭 장애물. FixedUpdate 상태 머신 기반.
+/// 부모(Root)의 transform 계층을 통해 이동하며,
+/// 공격/복귀 시 MovePosition으로 충돌 속도를 보장한다.
 /// </summary>
 [RequireComponent(typeof(Rigidbody))]
-public class PopupObstacle : MonoBehaviour, ITrap
+public class PopupObstacle : MonoBehaviour, ITrap, IDestroyDirectionProvider
 {
+    private enum State { Idle, Attacking, Holding, Retracting }
+
     [Header("Movement Settings")]
     [Tooltip("장애물이 도달할 목표 지점")]
     [SerializeField] private Transform _targetTransform;
@@ -23,7 +24,14 @@ public class PopupObstacle : MonoBehaviour, ITrap
 
     private Rigidbody _rigidbody;
     private Vector3 _startLocalPosition;
-    private bool _isActionProcess;
+    private State _state = State.Idle;
+    private float _elapsed;
+    private Vector3 _fromLocal;
+    private Vector3 _toLocal;
+    private float _duration;
+
+    // 공격 방향 캐싱 (파괴 시 넉백 방향 제공용).
+    private Vector3 _attackDirectionLocal;
 
     public event Action OnResetComplete;
 
@@ -32,50 +40,83 @@ public class PopupObstacle : MonoBehaviour, ITrap
         _rigidbody = GetComponent<Rigidbody>();
         _rigidbody.isKinematic = true;
         _startLocalPosition = transform.localPosition;
+
+        if (_targetTransform != null)
+            _attackDirectionLocal = (_targetTransform.localPosition - _startLocalPosition).normalized;
+    }
+
+    private void OnEnable()
+    {
+        _state = State.Idle;
+        _elapsed = 0f;
     }
 
     #region ITrap
 
     public void Activate()
     {
-        if (_isActionProcess) return;
-        StartCoroutine(MoveRoutine(_targetTransform.localPosition, _popupDuration, true));
+        if (_state != State.Idle) return;
+
+        _fromLocal = _startLocalPosition;
+        _toLocal = _targetTransform.localPosition;
+        _duration = _popupDuration;
+        _elapsed = 0f;
+        _state = State.Attacking;
     }
 
     public void Reset()
     {
-        if (_isActionProcess) return;
-        StartCoroutine(MoveRoutine(_startLocalPosition, _retractDuration, false));
+        if (_state != State.Holding) return;
+
+        _fromLocal = transform.localPosition;
+        _toLocal = _startLocalPosition;
+        _duration = _retractDuration;
+        _elapsed = 0f;
+        _state = State.Retracting;
     }
 
     #endregion
-    
+
+    #region IDestroyDirectionProvider
+
+    public Vector3 GetDestroyDirection()
+    {
+        Transform parent = transform.parent;
+        return parent != null
+            ? parent.TransformDirection(_attackDirectionLocal)
+            : _attackDirectionLocal;
+    }
+
+    #endregion
 
     #region Internal
 
-    private IEnumerator MoveRoutine(Vector3 targetLocal, float duration, bool isAttacking)
+    private void FixedUpdate()
     {
-        _isActionProcess = true;
-        float elapsedTime = 0f;
-        Vector3 fromLocal = transform.localPosition;
+        if (_state == State.Idle || _state == State.Holding) return;
+
+        _elapsed += Time.fixedDeltaTime;
+        float t = Mathf.Clamp01(_elapsed / _duration);
+
+        bool isAttacking = _state == State.Attacking;
+        float easedT = isAttacking ? Mathf.Sin(t * Mathf.PI * 0.5f) : t * t;
+
+        Vector3 nextLocal = Vector3.Lerp(_fromLocal, _toLocal, easedT);
         Transform parent = transform.parent;
-
-        while (elapsedTime < duration)
-        {
-            elapsedTime += Time.deltaTime;
-            float t = Mathf.Clamp01(elapsedTime / duration);
-            float easedT = isAttacking ? Mathf.Sin(t * Mathf.PI * 0.5f) : t * t;
-
-            Vector3 nextLocal = Vector3.Lerp(fromLocal, targetLocal, easedT);
+        if (parent != null)
             _rigidbody.MovePosition(parent.TransformPoint(nextLocal));
-            yield return null;
+
+        if (t < 1f) return;
+
+        if (isAttacking)
+        {
+            _state = State.Holding;
         }
-
-        _rigidbody.MovePosition(parent.TransformPoint(targetLocal));
-        _isActionProcess = false;
-
-        if (!isAttacking)
+        else
+        {
+            _state = State.Idle;
             OnResetComplete?.Invoke();
+        }
     }
 
     #endregion

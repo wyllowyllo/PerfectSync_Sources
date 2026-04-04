@@ -1,4 +1,4 @@
-using System.Collections;
+using InGame.Obstacle;
 using Photon.Pun;
 using Photon.Realtime;
 using UnityEngine;
@@ -12,7 +12,8 @@ public class LaserTrapController : MonoBehaviourPunCallbacks, IPunObservable
         Idle,
         Activating,
         Activated,
-        Resetting
+        Resetting,
+        SpikeDestroyed
     }
 
     [Header("Components")]
@@ -22,6 +23,10 @@ public class LaserTrapController : MonoBehaviourPunCallbacks, IPunObservable
     [Header("Movement (Optional)")]
     [Tooltip("이동 플랫폼 위에 있을 경우, 트랩 발동 시 이동 정지용")]
     [SerializeField] private MovingObstacle _movingObstacle;
+
+    [Header("Destroyable (Optional)")]
+    [Tooltip("스파이크에 부착된 DestroyableObstacle")]
+    [SerializeField] private DestroyableObstacle _destroyable;
 
     [Header("Trap Settings")]
     [Tooltip("감지 후 장애물 발동까지 딜레이")]
@@ -34,7 +39,7 @@ public class LaserTrapController : MonoBehaviourPunCallbacks, IPunObservable
     [SerializeField] private float _resetDelay = 1f;
 
     private TrapState _state = TrapState.Idle;
-    private Coroutine _activeSequence;
+    private float _timer;
 
     // Non-Master 위치 동기화.
     private Vector3 _networkPosition;
@@ -71,23 +76,63 @@ public class LaserTrapController : MonoBehaviourPunCallbacks, IPunObservable
         base.OnEnable();
         _laserTrigger.OnPlayerDetected += HandlePlayerDetection;
         _popupObstacle.OnResetComplete += HandleResetComplete;
+
+        if (_destroyable != null)
+        {
+            _destroyable.OnDestroyed += HandleSpikeDestroyed;
+            _destroyable.OnRespawned += HandleSpikeRespawned;
+        }
     }
 
     public override void OnDisable()
     {
         _laserTrigger.OnPlayerDetected -= HandlePlayerDetection;
         _popupObstacle.OnResetComplete -= HandleResetComplete;
-        StopActiveSequence();
+
+        if (_destroyable != null)
+        {
+            _destroyable.OnDestroyed -= HandleSpikeDestroyed;
+            _destroyable.OnRespawned -= HandleSpikeRespawned;
+        }
+
         base.OnDisable();
     }
 
     #endregion
 
-    #region Trap Activation (RPC)
+    #region Trap State Machine
+
+    private void Update()
+    {
+        if (_state == TrapState.Idle || _state == TrapState.Resetting
+            || _state == TrapState.SpikeDestroyed)
+            return;
+
+        _timer -= Time.deltaTime;
+        if (_timer > 0f) return;
+
+        switch (_state)
+        {
+            case TrapState.Activating:
+                _state = TrapState.Activated;
+                _popupObstacle.Activate();
+
+                if (_autoReset && IsMasterOrOffline())
+                    _timer = _resetDelay;
+                break;
+
+            case TrapState.Activated:
+                // 타이머 만료 = autoReset 대기 완료, Master만 진입.
+                ExecuteReset();
+                if (PhotonNetwork.IsConnected)
+                    photonView.RPC(nameof(RpcReset), RpcTarget.Others);
+                break;
+        }
+    }
 
     private void HandlePlayerDetection()
     {
-        if (PhotonNetwork.IsConnected && !PhotonNetwork.IsMasterClient) return;
+        if (!IsMasterOrOffline()) return;
         if (_state != TrapState.Idle) return;
 
         ExecuteActivation();
@@ -95,6 +140,54 @@ public class LaserTrapController : MonoBehaviourPunCallbacks, IPunObservable
         if (PhotonNetwork.IsConnected)
             photonView.RPC(nameof(RpcActivate), RpcTarget.Others);
     }
+
+    private void HandleResetComplete()
+    {
+        _state = TrapState.Idle;
+
+        if (_movingObstacle != null)
+            _movingObstacle.SetPaused(false);
+    }
+
+    private void ExecuteActivation()
+    {
+        _state = TrapState.Activating;
+        _timer = _activateDelay;
+        _laserTrigger.SetLaserActive(false);
+
+        if (_movingObstacle != null)
+            _movingObstacle.SetPaused(true);
+    }
+
+    private void ExecuteReset()
+    {
+        _state = TrapState.Resetting;
+        _popupObstacle.Reset();
+        _laserTrigger.SetLaserActive(true);
+    }
+
+    #endregion
+
+    #region Destroy / Respawn
+
+    private void HandleSpikeDestroyed()
+    {
+        _state = TrapState.SpikeDestroyed;
+        _laserTrigger.SetLaserActive(false);
+
+        if (_movingObstacle != null)
+            _movingObstacle.SetPaused(false);
+    }
+
+    private void HandleSpikeRespawned()
+    {
+        _state = TrapState.Idle;
+        _laserTrigger.SetLaserActive(true);
+    }
+
+    #endregion
+
+    #region RPC
 
     [PunRPC]
     private void RpcActivate()
@@ -108,64 +201,6 @@ public class LaserTrapController : MonoBehaviourPunCallbacks, IPunObservable
     {
         if (_state != TrapState.Activated) return;
         ExecuteReset();
-    }
-
-    private void ExecuteActivation()
-    {
-        StopActiveSequence();
-        _activeSequence = StartCoroutine(ActivationSequence());
-    }
-
-    private void ExecuteReset()
-    {
-        StopActiveSequence();
-        _state = TrapState.Resetting;
-        _popupObstacle.Reset();
-        _laserTrigger.SetLaserActive(true);
-    }
-
-    private IEnumerator ActivationSequence()
-    {
-        _state = TrapState.Activating;
-        _laserTrigger.SetLaserActive(false);
-
-        if (_movingObstacle != null)
-            _movingObstacle.SetPaused(true);
-
-        yield return new WaitForSeconds(_activateDelay);
-
-        _state = TrapState.Activated;
-        _popupObstacle.Activate();
-        _activeSequence = null;
-
-        if (!_autoReset) yield break;
-
-        // Reset 타이밍은 Master만 계산하여 RPC로 전파.
-        if (PhotonNetwork.IsConnected && !PhotonNetwork.IsMasterClient) yield break;
-
-        yield return new WaitForSeconds(_resetDelay);
-
-        ExecuteReset();
-
-        if (PhotonNetwork.IsConnected)
-            photonView.RPC(nameof(RpcReset), RpcTarget.Others);
-    }
-
-    private void HandleResetComplete()
-    {
-        _state = TrapState.Idle;
-
-        if (_movingObstacle != null)
-            _movingObstacle.SetPaused(false);
-    }
-
-    private void StopActiveSequence()
-    {
-        if (_activeSequence != null)
-        {
-            StopCoroutine(_activeSequence);
-            _activeSequence = null;
-        }
     }
 
     #endregion
@@ -216,11 +251,8 @@ public class LaserTrapController : MonoBehaviourPunCallbacks, IPunObservable
         if (_movingObstacle != null)
             _movingObstacle.enabled = iAmNewMaster;
 
-        if (iAmNewMaster && _state != TrapState.Idle)
-        {
-            StopActiveSequence();
+        if (iAmNewMaster && _state != TrapState.Idle && _state != TrapState.SpikeDestroyed)
             ForceReset();
-        }
     }
 
     private void ForceReset()
@@ -234,4 +266,9 @@ public class LaserTrapController : MonoBehaviourPunCallbacks, IPunObservable
     }
 
     #endregion
+
+    private bool IsMasterOrOffline()
+    {
+        return !PhotonNetwork.IsConnected || PhotonNetwork.IsMasterClient;
+    }
 }
