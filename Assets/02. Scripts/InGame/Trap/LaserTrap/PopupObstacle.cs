@@ -9,7 +9,7 @@ using UnityEngine;
 /// 펀칭 애니메이션 시에만 MovePosition으로 직접 이동하여 정확한 충돌 속도를 보장한다.
 /// </summary>
 [RequireComponent(typeof(Rigidbody))]
-public class PopupObstacle : MonoBehaviour, ITrap, IRecoilSource
+public class PopupObstacle : MonoBehaviour, ITrap
 {
     [Header("Movement Settings")]
     [Tooltip("장애물이 도달할 목표 지점")]
@@ -49,21 +49,7 @@ public class PopupObstacle : MonoBehaviour, ITrap, IRecoilSource
     }
 
     #endregion
-
-    #region IRecoilSource
-
-    public bool IsRotational => false;
-
-    public Vector3 GetRecoilDirection()
-    {
-        Transform parent = transform.parent;
-        if (!parent) return Vector3.forward;
-
-        Vector3 startWorld = parent.TransformPoint(_startLocalPosition);
-        return -(_targetTransform.position - startWorld).normalized;
-    }
-
-    #endregion
+    
 
     #region Internal
 

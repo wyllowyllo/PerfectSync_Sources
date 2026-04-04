@@ -34,6 +34,13 @@ namespace InGame.Player
         [Tooltip("공격자 바디 PunchScale 연출. 없으면 생략.")]
         [SerializeField] private PunchScaleEffect _punchScaleEffect;
 
+        [Header("Obstacle Destroy")]
+        [Tooltip("장애물에 가하는 힘 크기")]
+        [SerializeField] private float _obstacleDestroyForce = 8f;
+
+        [Tooltip("장애물 넉백 상향 비율 (0 = 수평, 1 = 완전 위)")]
+        [SerializeField, Range(0f, 1f)] private float _obstacleUpwardBias = 0.4f;
+
         private InvincibleModeController _invincibleController;
         private TeamModeSynchronizer _synchronizer;
         private bool _isAuthority;
@@ -45,9 +52,6 @@ namespace InGame.Player
 
         private readonly Collider[] _overlapBuffer = new Collider[MaxOverlapResults];
 
-        // 현재 프레임에서 freeze 중인 장애물 registry ID 집합.
-        private readonly HashSet<int> _currentlyFrozenIds = new();
-
         // FOV Kick 등 외부 연출 훅.
         public event Action OnHitLocal;
 
@@ -57,14 +61,6 @@ namespace InGame.Player
         {
             _invincibleController = controller;
             _synchronizer = synchronizer;
-
-            _invincibleController.OnInvincibleExit += HandleInvincibleExit;
-        }
-
-        private void OnDestroy()
-        {
-            if (_invincibleController != null)
-                _invincibleController.OnInvincibleExit -= HandleInvincibleExit;
         }
 
         private float EffectiveObstacleRadius =>
@@ -81,8 +77,6 @@ namespace InGame.Player
             int count = Physics.OverlapSphereNonAlloc(
                 transform.position, maxRadius, _overlapBuffer, _playerLayers | _obstacleLayers);
 
-            var detectedObstacleIds = new HashSet<int>();
-
             for (int i = 0; i < count; i++)
             {
                 var col = _overlapBuffer[i];
@@ -98,80 +92,46 @@ namespace InGame.Player
                 {
                     float dist = Vector3.Distance(transform.position, col.ClosestPoint(transform.position));
                     if (dist <= obstacleRadius)
-                        TryCollectFreezable(col, detectedObstacleIds);
+                        TryDestroyObstacle(col);
                 }
             }
-
-            ProcessObstacleFreezeChanges(detectedObstacleIds);
         }
 
-        // ── 장애물 Freeze ──────────────────────────────────────
+        // ── 장애물 파괴 ────────────────────────────────────────
 
-        private void TryCollectFreezable(Collider col, HashSet<int> detectedIds)
+        private void TryDestroyObstacle(Collider col)
         {
-            var freezable = col.GetComponentInParent<IFreezable>();
-            if (freezable == null) return;
+            var destroyable = col.GetComponentInParent<IDestroyable>();
+            if (destroyable == null) return;
+            if (destroyable.IsDestroyed) return;
 
-            var manager = ObstacleFreezeManager.Instance;
+            var manager = ObstacleDestroyManager.Instance;
             if (manager == null) return;
 
-            int id = manager.GetId(freezable);
+            int id = manager.GetId(destroyable);
             if (id < 0) return;
 
-            detectedIds.Add(id);
+            // 쿨다운 체크.
+            int key = id + 100000;
+            if (_lastHitTimes.TryGetValue(key, out float lastTime)
+                && Time.time - lastTime < HitCooldown)
+                return;
+
+            _lastHitTimes[key] = Time.time;
+
+            // Force 방향: 자신 → 장애물 + 상향 bias.
+            Vector3 obstaclePos = col.ClosestPoint(transform.position);
+            Vector3 direction = (obstaclePos - transform.position).normalized;
+            if (_obstacleUpwardBias > 0f)
+                direction = Vector3.Lerp(direction, Vector3.up, _obstacleUpwardBias).normalized;
+
+            Vector3 force = direction * _obstacleDestroyForce;
+            manager.RequestDestroy(id, force);
+
+            PlayHitFeedback(direction);
         }
 
-        private void ProcessObstacleFreezeChanges(HashSet<int> detectedIds)
-        {
-            var manager = ObstacleFreezeManager.Instance;
-            if (manager == null) return;
-
-            // 새로 감지된 장애물 → freeze.
-            var toFreeze = new List<int>();
-            foreach (int id in detectedIds)
-            {
-                if (!_currentlyFrozenIds.Contains(id))
-                    toFreeze.Add(id);
-            }
-
-            // 범위 이탈 장애물 → unfreeze.
-            var toUnfreeze = new List<int>();
-            foreach (int id in _currentlyFrozenIds)
-            {
-                if (!detectedIds.Contains(id))
-                    toUnfreeze.Add(id);
-            }
-
-            if (toFreeze.Count > 0)
-                manager.RequestFreeze(toFreeze.ToArray());
-
-            if (toUnfreeze.Count > 0)
-                manager.RequestUnfreeze(toUnfreeze.ToArray());
-
-            _currentlyFrozenIds.Clear();
-            foreach (int id in detectedIds)
-                _currentlyFrozenIds.Add(id);
-        }
-
-        private void HandleInvincibleExit()
-        {
-            if (!_isAuthority) return;
-
-            if (_currentlyFrozenIds.Count > 0)
-            {
-                var manager = ObstacleFreezeManager.Instance;
-                if (manager != null)
-                {
-                    var ids = new int[_currentlyFrozenIds.Count];
-                    _currentlyFrozenIds.CopyTo(ids);
-                    manager.RequestUnfreeze(ids);
-                }
-
-                _currentlyFrozenIds.Clear();
-            }
-        }
-
-// ── 플레이어 넉백 (기존) ────────────────────────────────
+        // ── 플레이어 넉백 (기존) ────────────────────────────────
 
         private void TryApplyKnockback(Collider other)
         {
@@ -209,6 +169,11 @@ namespace InGame.Player
 
             _synchronizer.BroadcastInvincibleHit(victimViewID, knockback, hitPoint, torque, (byte)EHitResponse.Ragdoll);
 
+            PlayHitFeedback(direction);
+        }
+
+        private void PlayHitFeedback(Vector3 direction)
+        {
             if (_impulseSource != null)
                 _impulseSource.GenerateImpulse(direction);
 
