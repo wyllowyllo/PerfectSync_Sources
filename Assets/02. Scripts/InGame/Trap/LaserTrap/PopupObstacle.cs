@@ -1,5 +1,4 @@
 using System;
-using InGame.Obstacle;
 using UnityEngine;
 
 /// <summary>
@@ -8,7 +7,7 @@ using UnityEngine;
 /// 공격/복귀 시 MovePosition으로 충돌 속도를 보장한다.
 /// </summary>
 [RequireComponent(typeof(Rigidbody))]
-public class PopupObstacle : MonoBehaviour, ITrap, IDestroyDirectionProvider
+public class PopupObstacle : MonoBehaviour, ITrap
 {
     private enum State { Idle, Attacking, Holding, Retracting }
 
@@ -30,9 +29,6 @@ public class PopupObstacle : MonoBehaviour, ITrap, IDestroyDirectionProvider
     private Vector3 _toLocal;
     private float _duration;
 
-    // 공격 방향 캐싱 (파괴 시 넉백 방향 제공용).
-    private Vector3 _attackDirectionLocal;
-
     public event Action OnResetComplete;
 
     private void Awake()
@@ -41,8 +37,6 @@ public class PopupObstacle : MonoBehaviour, ITrap, IDestroyDirectionProvider
         _rigidbody.isKinematic = true;
         _startLocalPosition = transform.localPosition;
 
-        if (_targetTransform != null)
-            _attackDirectionLocal = (_targetTransform.localPosition - _startLocalPosition).normalized;
     }
 
     private void OnEnable()
@@ -73,18 +67,6 @@ public class PopupObstacle : MonoBehaviour, ITrap, IDestroyDirectionProvider
         _duration = _retractDuration;
         _elapsed = 0f;
         _state = State.Retracting;
-    }
-
-    #endregion
-
-    #region IDestroyDirectionProvider
-
-    public Vector3 GetDestroyDirection()
-    {
-        Transform parent = transform.parent;
-        return parent != null
-            ? parent.TransformDirection(_attackDirectionLocal)
-            : _attackDirectionLocal;
     }
 
     #endregion

@@ -119,19 +119,9 @@ namespace InGame.Player
 
             _lastHitTimes[key] = Time.time;
 
-            // Force 방향: IDestroyDirectionProvider가 있으면 장애물 고유 방향, 없으면 자신 → 장애물.
-            var dirProvider = col.GetComponentInParent<IDestroyDirectionProvider>();
-            Vector3 direction;
-            if (dirProvider != null)
-            {
-                direction = dirProvider.GetDestroyDirection();
-            }
-            else
-            {
-                Vector3 obstaclePos = col.ClosestPoint(transform.position);
-                direction = (obstaclePos - transform.position).normalized;
-            }
-
+            // Force 방향: 자신 → 장애물 + 상향 bias.
+            Vector3 obstaclePos = col.ClosestPoint(transform.position);
+            Vector3 direction = (obstaclePos - transform.position).normalized;
             if (_obstacleUpwardBias > 0f)
                 direction = Vector3.Lerp(direction, Vector3.up, _obstacleUpwardBias).normalized;
 
