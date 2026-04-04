@@ -104,8 +104,7 @@ public class LaserTrapController : MonoBehaviourPunCallbacks, IPunObservable
 
     private void Update()
     {
-        if (_state == TrapState.Idle || _state == TrapState.Resetting
-            || _state == TrapState.SpikeDestroyed)
+        if (_state != TrapState.Activating && _state != TrapState.Activated)
             return;
 
         _timer -= Time.deltaTime;
@@ -118,11 +117,18 @@ public class LaserTrapController : MonoBehaviourPunCallbacks, IPunObservable
                 _popupObstacle.Activate();
 
                 if (_autoReset && IsMasterOrOffline())
+                {
                     _timer = _resetDelay;
+                }
+                else
+                {
+                    // Non-Master 또는 autoReset=false: 타이머 진행 안 함.
+                    _timer = float.MaxValue;
+                }
                 break;
 
             case TrapState.Activated:
-                // 타이머 만료 = autoReset 대기 완료, Master만 진입.
+                // Master만 여기 도달 (Non-Master는 timer=MaxValue).
                 ExecuteReset();
                 if (PhotonNetwork.IsConnected)
                     photonView.RPC(nameof(RpcReset), RpcTarget.Others);

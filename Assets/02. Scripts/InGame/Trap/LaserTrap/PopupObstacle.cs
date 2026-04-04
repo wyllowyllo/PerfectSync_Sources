@@ -60,7 +60,7 @@ public class PopupObstacle : MonoBehaviour, ITrap
 
     public void Reset()
     {
-        if (_state != State.Holding) return;
+        if (_state == State.Idle || _state == State.Retracting) return;
 
         _fromLocal = transform.localPosition;
         _toLocal = _startLocalPosition;
