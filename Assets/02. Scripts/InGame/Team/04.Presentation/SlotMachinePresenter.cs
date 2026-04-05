@@ -67,6 +67,7 @@ namespace InGame.Team
 
             _synchronizer.OnSlotSpinStarted += HandleSpinStart;
             _synchronizer.OnSlotResultReceived += HandleSpinResult;
+            _synchronizer.OnSlotFinishReceived += HandleSlotFinish;
         }
 
         private void OnDestroy()
@@ -78,6 +79,7 @@ namespace InGame.Team
             {
                 _synchronizer.OnSlotSpinStarted -= HandleSpinStart;
                 _synchronizer.OnSlotResultReceived -= HandleSpinResult;
+                _synchronizer.OnSlotFinishReceived -= HandleSlotFinish;
             }
         }
 
@@ -213,14 +215,27 @@ namespace InGame.Team
                 _pendingMatch = false;
             }
 
-            StartCoroutine(WaitForLandingAndFinish());
+            // Owner만 착지 감지 → RPC로 종료 브로드캐스트.
+            if (_synchronizer.photonView.IsMine)
+                StartCoroutine(WaitForLandingAndBroadcastFinish());
         }
 
-        private IEnumerator WaitForLandingAndFinish()
+        private IEnumerator WaitForLandingAndBroadcastFinish()
         {
             yield return new WaitUntil(IsAnyActiveBodyGrounded);
             yield return new WaitForSeconds(_postLandingDelay);
 
+            _synchronizer.BroadcastSlotFinish();
+        }
+
+        private void HandleSlotFinish()
+        {
+            StopAllCoroutines();
+            StartCoroutine(SlideOutAndDestroy());
+        }
+
+        private IEnumerator SlideOutAndDestroy()
+        {
             // 슬라이드아웃 + 스케일 축소 동시 진행.
             if (_activeSlotMachine != null)
             {

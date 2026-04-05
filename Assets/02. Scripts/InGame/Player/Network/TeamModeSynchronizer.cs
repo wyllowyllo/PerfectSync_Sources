@@ -42,6 +42,21 @@ namespace InGame.Player.Network
             OnSlotResultReceived?.Invoke(symbols, isMatch);
         }
 
+        // ── 슬롯머신 종료 (착지 후 제거) ────────────────────────
+
+        public event Action OnSlotFinishReceived;
+
+        public void BroadcastSlotFinish()
+        {
+            photonView.RPC(nameof(RpcSlotFinish), RpcTarget.All);
+        }
+
+        [PunRPC]
+        private void RpcSlotFinish()
+        {
+            OnSlotFinishReceived?.Invoke();
+        }
+
         // ── 무적 모드 상태 변경 ─────────────────────────────────
 
         public event Action<bool> OnInvincibleModeChanged;
