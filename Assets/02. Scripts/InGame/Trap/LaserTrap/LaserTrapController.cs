@@ -217,6 +217,12 @@ public class LaserTrapController : MonoBehaviourPunCallbacks, IPunObservable
     {
         if (photonView.IsMine || !_hasNetworkData) return;
 
+        // 스파이크 이동 중 parent transform 변경 금지.
+        // Kinematic child Rigidbody의 MovePosition 호출 후 parent transform.position이
+        // 변경되면 MovePosition이 무효화되어 충돌이 발생하지 않는다.
+        if (_state != TrapState.Idle && _state != TrapState.SpikeDestroyed)
+            return;
+
         float dist = Vector3.Distance(transform.position, _networkPosition);
 
         if (dist > SnapThreshold)
