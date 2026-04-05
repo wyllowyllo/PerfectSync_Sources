@@ -23,18 +23,22 @@ namespace InGame.Player.Ragdoll
         private bool _hasVelocity;
 
         private int _pelvisIndex;
+        private int[] _parentBoneIndex;
+        private float[] _maxBoneDistance;
 
         private const float DefaultReceiveInterval = 0.1f;
         private const float MaxInterpolationInterval = 0.2f;
         private const float MaxExtrapolationTime = 0.15f;
         private const float MinIntervalThreshold = 0.001f;
         private const float IntervalSmoothingFactor = 0.5f;
+        private const float BoneDistanceTolerance = 1.5f;
 
         public bool IsReceiving => _isReceiving;
 
         private void Start()
         {
             CachePelvisIndex();
+            CacheBoneChain();
         }
 
         private void CachePelvisIndex()
@@ -47,6 +51,39 @@ namespace InGame.Player.Ragdoll
                 {
                     _pelvisIndex = i;
                     return;
+                }
+            }
+        }
+
+        // 본 체인 부모-자식 관계 및 허용 거리 캐싱.
+        // GetComponentsInChildren 순서 = 계층 순회 순서이므로 부모가 자식보다 앞.
+        private void CacheBoneChain()
+        {
+            IReadOnlyList<Transform> bones = _ragdollRig.BoneTransforms;
+            int count = bones.Count;
+            _parentBoneIndex = new int[count];
+            _maxBoneDistance = new float[count];
+
+            var boneIndexMap = new Dictionary<Transform, int>(count);
+            for (int i = 0; i < count; i++)
+                boneIndexMap[bones[i]] = i;
+
+            for (int i = 0; i < count; i++)
+            {
+                _parentBoneIndex[i] = -1;
+
+                Transform ancestor = bones[i].parent;
+                while (ancestor != null)
+                {
+                    if (boneIndexMap.TryGetValue(ancestor, out int parentIdx))
+                    {
+                        _parentBoneIndex[i] = parentIdx;
+                        _maxBoneDistance[i] = Vector3.Distance(
+                            bones[i].position, bones[parentIdx].position) * BoneDistanceTolerance;
+                        break;
+                    }
+
+                    ancestor = ancestor.parent;
                 }
             }
         }
@@ -190,10 +227,32 @@ namespace InGame.Player.Ragdoll
                 }
             }
 
+            // 보간/외삽 후 부모-자식 본 거리가 허용치를 초과하면 클램핑.
+            // kinematic 본은 관절 구속이 없으므로 골격 늘어남 방지용 안전망.
+            EnforceBoneDistances(bones, count);
+
             // RootBody를 pelvis 위치로 이동 (카메라 추적용).
             // 스켈레톤이 분리되어 있으므로 rootBody 이동이 본에 영향을 주지 않음.
             if (_rootBody != null && count > 0)
                 _rootBody.MovePosition(_ragdollRig.PelvisTransform.position);
+        }
+
+        private void EnforceBoneDistances(IReadOnlyList<Transform> bones, int count)
+        {
+            if (_parentBoneIndex == null) return;
+
+            for (int i = 0; i < count; i++)
+            {
+                int parentIdx = _parentBoneIndex[i];
+                if (parentIdx < 0) continue;
+
+                Vector3 offset = bones[i].position - bones[parentIdx].position;
+                float sqrDist = offset.sqrMagnitude;
+                float maxDist = _maxBoneDistance[i];
+
+                if (sqrDist > maxDist * maxDist)
+                    bones[i].position = bones[parentIdx].position + offset * (maxDist / Mathf.Sqrt(sqrDist));
+            }
         }
 
         private void EnsureBuffers(int count)
