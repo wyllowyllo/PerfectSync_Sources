@@ -63,12 +63,6 @@ namespace InGame.Team
         [Tooltip("꽝: 앞으로 숙이는 각도 (시무룩)")]
         [SerializeField] private float _missDroopTilt = 20f;
 
-        [Header("VFX (프리팹 미할당 시 무시)")]
-        [Tooltip("잭팟 시 슬롯머신 위치에 재생할 one-shot 파티클")]
-        [SerializeField] private ParticleSystem _jackpotVfxPrefab;
-        [Tooltip("꽝 시 슬롯머신 위치에 재생할 one-shot 파티클")]
-        [SerializeField] private ParticleSystem _missVfxPrefab;
-
         [Header("Hovering")]
         [SerializeField] private float _bobAmplitude = 0.15f;
         [SerializeField] private float _bobFrequency = 1.5f;
@@ -237,9 +231,8 @@ namespace InGame.Team
                 _reactionTween?.Kill();
                 _activeSlotMachine.transform.localScale = _prefabBaseScale;
 
-                // VFX 재생.
-                SpawnOneShot(_pendingMatch ? _jackpotVfxPrefab : _missVfxPrefab,
-                    _activeSlotMachine.transform.position);
+                // VFX 재생 (SlotMachine이 자체 처리).
+                _activeSlotMachine.PlayResultVfx(_pendingMatch);
 
                 if (_pendingMatch)
                 {
@@ -374,13 +367,5 @@ namespace InGame.Team
             return false;
         }
 
-        private static void SpawnOneShot(ParticleSystem prefab, Vector3 position)
-        {
-            if (prefab == null) return;
-            var instance = Instantiate(prefab, position, Quaternion.identity);
-            instance.Play();
-            float lifetime = instance.main.duration + instance.main.startLifetime.constantMax;
-            Destroy(instance.gameObject, lifetime);
-        }
     }
 }
