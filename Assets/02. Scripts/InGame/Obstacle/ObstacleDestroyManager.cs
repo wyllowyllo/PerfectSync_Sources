@@ -76,6 +76,21 @@ namespace InGame.Obstacle
 
         // ── 요청 (authority 클라이언트에서 호출) ─────────────────
 
+        /// <summary>
+        /// Non-authority 클라이언트의 로컬 예측 파괴.
+        /// 네트워크 이벤트 없이 즉시 파괴만 적용한다.
+        /// 이후 실제 ObstacleDestroy 이벤트 도착 시 IsDestroyed로 중복 방지.
+        /// </summary>
+        public void PredictDestroy(int id, Vector3 force)
+        {
+            if (id < 0 || id >= _registry.Count) return;
+            if (_registry[id].IsDestroyed) return;
+
+            Vector3 randomTorque = Random.insideUnitSphere;
+            _registry[id].Destroy(force, randomTorque);
+            _destroyedIds.Add(id);
+        }
+
         public void RequestDestroy(int id, Vector3 force)
         {
             Vector3 randomTorque = Random.insideUnitSphere;

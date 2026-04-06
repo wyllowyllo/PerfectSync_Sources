@@ -71,14 +71,17 @@ namespace InGame.Player
 
         private void FixedUpdate()
         {
-            if (!_isAuthority) return;
             if (_invincibleController == null || !_invincibleController.IsInvincible) return;
 
             float obstacleRadius = EffectiveObstacleRadius;
-            float maxRadius = Mathf.Max(_detectionRadius, obstacleRadius);
+
+            // Authority: 플레이어 넉백 + 장애물 파괴.
+            // Non-authority: 장애물 로컬 예측 파괴만 (시각적 즉시 반응).
+            float maxRadius = _isAuthority ? Mathf.Max(_detectionRadius, obstacleRadius) : obstacleRadius;
+            LayerMask mask = _isAuthority ? (_playerLayers | _obstacleLayers) : _obstacleLayers;
 
             int count = Physics.OverlapSphereNonAlloc(
-                transform.position, maxRadius, _overlapBuffer, _playerLayers | _obstacleLayers);
+                transform.position, maxRadius, _overlapBuffer, mask);
 
             for (int i = 0; i < count; i++)
             {
@@ -129,9 +132,16 @@ namespace InGame.Player
                 direction = Vector3.Lerp(direction, Vector3.up, _obstacleUpwardBias).normalized;
 
             Vector3 force = direction * _obstacleDestroyForce;
-            manager.RequestDestroy(id, force);
 
-            PlayObstacleDestroyFeedback(direction);
+            if (_isAuthority)
+            {
+                manager.RequestDestroy(id, force);
+                PlayObstacleDestroyFeedback(direction);
+            }
+            else
+            {
+                manager.PredictDestroy(id, force);
+            }
         }
 
         // ── 플레이어 넉백 (기존) ────────────────────────────────
