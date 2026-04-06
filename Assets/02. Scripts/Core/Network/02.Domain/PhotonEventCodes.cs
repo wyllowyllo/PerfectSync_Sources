@@ -7,6 +7,8 @@ public static class PhotonEventCodes
     public const byte PartyStateSync = 114;
     public const byte MatchConfirmed = 120;
 
-    public const byte ObstacleFreeze = 130;
-    public const byte ObstacleUnfreeze = 131;
+    public const byte ObstacleDestroy = 130;
+    public const byte ObstacleRespawn = 131;
+    public const byte ObstaclePositionSync = 132;
+    public const byte ObstacleHide = 133;
 }

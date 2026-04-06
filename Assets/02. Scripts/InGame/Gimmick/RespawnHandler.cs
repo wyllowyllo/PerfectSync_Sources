@@ -13,7 +13,6 @@ namespace InGame.Gimmick
     {
         [Header("Respawn")]
         [SerializeField] private float _respawnDelay = 1.5f;
-        [SerializeField] private float _respawnHeightOffset = 1.5f;
 
         [Header("Respawn Invincibility")]
         [SerializeField] private float _invincibilityDuration = 3f;
@@ -99,7 +98,7 @@ namespace InGame.Gimmick
             int lastCheckpoint = GetLastCheckpointPassed();
             var checkpoint = FindCheckpoint(lastCheckpoint);
             if (checkpoint != null)
-                return checkpoint.transform.position + Vector3.up * _respawnHeightOffset;
+                return checkpoint.RespawnPosition;
 
             return transform.position;
         }
@@ -109,7 +108,7 @@ namespace InGame.Gimmick
             int lastCheckpoint = GetLastCheckpointPassed();
             var checkpoint = FindCheckpoint(lastCheckpoint);
             if (checkpoint != null)
-                return checkpoint.transform.rotation;
+                return checkpoint.RespawnRotation;
 
             return Quaternion.identity;
         }

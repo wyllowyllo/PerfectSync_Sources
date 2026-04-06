@@ -22,13 +22,71 @@ namespace InGame.Player.Ragdoll
         private Vector3[] _estimatedVelocities;
         private bool _hasVelocity;
 
+        private int _pelvisIndex;
+        private int[] _parentBoneIndex;
+        private float[] _maxBoneDistance;
+
         private const float DefaultReceiveInterval = 0.1f;
         private const float MaxInterpolationInterval = 0.2f;
         private const float MaxExtrapolationTime = 0.15f;
         private const float MinIntervalThreshold = 0.001f;
         private const float IntervalSmoothingFactor = 0.5f;
+        private const float BoneDistanceTolerance = 1.5f;
 
         public bool IsReceiving => _isReceiving;
+
+        private void Start()
+        {
+            CachePelvisIndex();
+            CacheBoneChain();
+        }
+
+        private void CachePelvisIndex()
+        {
+            IReadOnlyList<Transform> bones = _ragdollRig.BoneTransforms;
+            Transform pelvis = _ragdollRig.PelvisTransform;
+            for (int i = 0; i < bones.Count; i++)
+            {
+                if (bones[i] == pelvis)
+                {
+                    _pelvisIndex = i;
+                    return;
+                }
+            }
+        }
+
+        // 본 체인 부모-자식 관계 및 허용 거리 캐싱.
+        // GetComponentsInChildren 순서 = 계층 순회 순서이므로 부모가 자식보다 앞.
+        private void CacheBoneChain()
+        {
+            IReadOnlyList<Transform> bones = _ragdollRig.BoneTransforms;
+            int count = bones.Count;
+            _parentBoneIndex = new int[count];
+            _maxBoneDistance = new float[count];
+
+            var boneIndexMap = new Dictionary<Transform, int>(count);
+            for (int i = 0; i < count; i++)
+                boneIndexMap[bones[i]] = i;
+
+            for (int i = 0; i < count; i++)
+            {
+                _parentBoneIndex[i] = -1;
+
+                Transform ancestor = bones[i].parent;
+                while (ancestor != null)
+                {
+                    if (boneIndexMap.TryGetValue(ancestor, out int parentIdx))
+                    {
+                        _parentBoneIndex[i] = parentIdx;
+                        _maxBoneDistance[i] = Vector3.Distance(
+                            bones[i].position, bones[parentIdx].position) * BoneDistanceTolerance;
+                        break;
+                    }
+
+                    ancestor = ancestor.parent;
+                }
+            }
+        }
 
         public void StartReceiving()
         {
@@ -44,6 +102,19 @@ namespace InGame.Player.Ragdoll
 
         public void StopReceiving()
         {
+            // 외삽 위치가 아닌 마지막 확정 스냅샷으로 본을 복원.
+            // BlendToAnim 전환 시 SnapshotRagdollPoses()가 올바른 포즈를 캡처하도록 보장.
+            if (_hasSnapshot)
+            {
+                IReadOnlyList<Transform> bones = _ragdollRig.BoneTransforms;
+                int count = Mathf.Min(bones.Count, _currentSnapshot.BonePositions.Length);
+                for (int i = 0; i < count; i++)
+                {
+                    bones[i].position = _currentSnapshot.BonePositions[i];
+                    bones[i].rotation = _currentSnapshot.BoneRotations[i];
+                }
+            }
+
             _isReceiving = false;
             _hasSnapshot = false;
             _hasVelocity = false;
@@ -109,38 +180,79 @@ namespace InGame.Player.Ragdoll
 
             if (t <= 1f)
             {
-                // 보간 구간: 시각적 시작점 → 현재 스냅샷.
+                // 보간 구간: 펠비스 로컬 공간에서 보간.
+                // 월드 공간 독립 보간 시 빠른 회전에서 본 간 직선 경로가 달라
+                // 골격 거리가 깨지는 문제를 방지.
+                Vector3 fromPelvisPos = _interpFromPositions[_pelvisIndex];
+                Vector3 toPelvisPos = _currentSnapshot.BonePositions[_pelvisIndex];
+                Quaternion fromPelvisRot = _interpFromRotations[_pelvisIndex];
+                Quaternion toPelvisRot = _currentSnapshot.BoneRotations[_pelvisIndex];
+
+                Vector3 pelvisPos = Vector3.Lerp(fromPelvisPos, toPelvisPos, t);
+                Quaternion pelvisRot = Quaternion.Slerp(fromPelvisRot, toPelvisRot, t);
+                Quaternion fromPelvisInv = Quaternion.Inverse(fromPelvisRot);
+                Quaternion toPelvisInv = Quaternion.Inverse(toPelvisRot);
+
                 for (int i = 0; i < count; i++)
                 {
-                    bones[i].position = Vector3.Lerp(
-                        _interpFromPositions[i],
-                        _currentSnapshot.BonePositions[i],
-                        t);
                     bones[i].rotation = Quaternion.Slerp(
                         _interpFromRotations[i],
                         _currentSnapshot.BoneRotations[i],
                         t);
+
+                    if (i == _pelvisIndex)
+                    {
+                        bones[i].position = pelvisPos;
+                        continue;
+                    }
+
+                    Vector3 fromLocal = fromPelvisInv * (_interpFromPositions[i] - fromPelvisPos);
+                    Vector3 toLocal = toPelvisInv * (_currentSnapshot.BonePositions[i] - toPelvisPos);
+                    bones[i].position = pelvisPos + pelvisRot * Vector3.Lerp(fromLocal, toLocal, t);
                 }
             }
             else if (_hasVelocity)
             {
-                // 외삽 구간: 추정 속도 + 중력으로 다음 스냅샷 도착까지 예측.
+                // 외삽 구간: 펠비스 속도로 전체 스켈레톤을 일체 이동.
+                // 수신측은 kinematic이라 관절 구속이 없으므로, 본별 독립 외삽 시
+                // 빠른 회전/비행에서 골격이 발산(치즈 현상). 펠비스 기준 통일 이동으로 방지.
                 float extraTime = Mathf.Min(elapsed - interval, MaxExtrapolationTime);
-                Vector3 gravityDelta = 0.5f * Physics.gravity * (extraTime * extraTime);
+                Vector3 pelvisDelta = _estimatedVelocities[_pelvisIndex] * extraTime
+                    + 0.5f * Physics.gravity * (extraTime * extraTime);
 
                 for (int i = 0; i < count; i++)
                 {
-                    bones[i].position = _currentSnapshot.BonePositions[i]
-                        + _estimatedVelocities[i] * extraTime
-                        + gravityDelta;
+                    bones[i].position = _currentSnapshot.BonePositions[i] + pelvisDelta;
                     bones[i].rotation = _currentSnapshot.BoneRotations[i];
                 }
             }
+
+            // 보간/외삽 후 부모-자식 본 거리가 허용치를 초과하면 클램핑.
+            // kinematic 본은 관절 구속이 없으므로 골격 늘어남 방지용 안전망.
+            EnforceBoneDistances(bones, count);
 
             // RootBody를 pelvis 위치로 이동 (카메라 추적용).
             // 스켈레톤이 분리되어 있으므로 rootBody 이동이 본에 영향을 주지 않음.
             if (_rootBody != null && count > 0)
                 _rootBody.MovePosition(_ragdollRig.PelvisTransform.position);
+        }
+
+        private void EnforceBoneDistances(IReadOnlyList<Transform> bones, int count)
+        {
+            if (_parentBoneIndex == null) return;
+
+            for (int i = 0; i < count; i++)
+            {
+                int parentIdx = _parentBoneIndex[i];
+                if (parentIdx < 0) continue;
+
+                Vector3 offset = bones[i].position - bones[parentIdx].position;
+                float sqrDist = offset.sqrMagnitude;
+                float maxDist = _maxBoneDistance[i];
+
+                if (sqrDist > maxDist * maxDist)
+                    bones[i].position = bones[parentIdx].position + offset * (maxDist / Mathf.Sqrt(sqrDist));
+            }
         }
 
         private void EnsureBuffers(int count)

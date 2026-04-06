@@ -18,11 +18,15 @@ namespace InGame.Camera.PlayerCamera
         [Header("Ragdoll State Machines")]
         [SerializeField] private RagdollStateMachine _mergedRagdoll;
 
-        [Header("Proxy")]
+        [Header("Anchor")]
         [SerializeField] private Vector3 _targetOffset = new Vector3(0f, 0.7f, 0f);
+        [SerializeField] private float _animatedSmoothTime = 0.02f;
+        [SerializeField] private float _ragdollSmoothTime = 0.15f;
+        [SerializeField] private float _smoothTimeTransitionSpeed = 3f;
+        [SerializeField] private float _maxAnchorDistance = 8f;
 
-        [Header("Ragdoll Camera")]
-        [SerializeField] private Vector3 _ragdollPositionDamping = new Vector3(2f, 2.5f, 2f);
+        [Header("Ragdoll Orbital Damping")]
+        [SerializeField] private Vector3 _ragdollOrbitalDamping = new Vector3(1f, 1.5f, 1f);
 
         [Header("FOV Kick")]
         [SerializeField] private float _fovKickAmount = 5f;
@@ -32,16 +36,20 @@ namespace InGame.Camera.PlayerCamera
         [SerializeField] private float _activationFovPunch = -8f;
         [SerializeField] private float _activationFovDuration = 0.4f;
 
+        [Header("Obstacle Destroy FOV Kick")]
+        [SerializeField] private float _obstacleDestroyFovKick = 8f;
+        [SerializeField] private float _obstacleDestroyFovDuration = 0.25f;
+
         private CinemachineCamera _followCamera;
-        private CinemachineCamera _ragdollCamera;
-        private Rigidbody _animatedProxyRb;
-        private Rigidbody _ragdollProxyRb;
+        private CinemachineOrbitalFollow _orbitalFollow;
+        private Rigidbody _anchorRb;
         private Transform _activeTarget;
         private RagdollStateMachine _activeRagdoll;
-        private bool _isRagdollCameraActive;
 
-        private const int ActivePriority = 10;
-        private const int StandbyPriority = 0;
+        private Vector3 _anchorVelocity;
+        private Vector3 _defaultOrbitalDamping;
+        private float _currentSmoothTime;
+        private bool _wasRagdollManaged;
         private bool _initialized;
         private float _baseFov;
         private Tween _fovTween;
@@ -68,33 +76,37 @@ namespace InGame.Camera.PlayerCamera
 
             _initialized = true;
             _baseFov = _followCamera.Lens.FieldOfView;
+            _currentSmoothTime = _animatedSmoothTime;
 
             _contactDetector = GetComponentInChildren<InvincibleContactDetector>();
             if (_contactDetector != null)
+            {
                 _contactDetector.OnHitLocal += HandleInvincibleHit;
+                _contactDetector.OnObstacleDestroyLocal += HandleObstacleDestroy;
+            }
 
             _invincibleController = GetComponent<InvincibleModeController>();
             if (_invincibleController != null)
                 _invincibleController.OnInvincibleEnter += HandleInvincibleActivation;
 
-            _animatedProxyRb = CreateInterpolatedProxy("AnimatedCameraProxy");
-            _ragdollProxyRb = CreateInterpolatedProxy("RagdollCameraProxy");
+            _anchorRb = CreateInterpolatedProxy("CameraAnchor");
 
-            _ragdollCamera = CreateRagdollCamera();
-            SetupCameraTargets();
+            _orbitalFollow = _followCamera.GetComponent<CinemachineOrbitalFollow>();
+            if (_orbitalFollow != null)
+                _defaultOrbitalDamping = _orbitalFollow.TrackerSettings.PositionDamping;
 
             _activeTarget = _mergedRootBody;
             _activeRagdoll = _mergedRagdoll;
+
+            _followCamera.Follow = _anchorRb.transform;
+            _followCamera.LookAt = _anchorRb.transform;
+            InGameCameraManager.SetCameraPriority(_followCamera, ActivePriority);
 
             Cursor.lockState = CursorLockMode.Locked;
             Cursor.visible = false;
 
             if (_activeTarget != null)
-            {
-                Vector3 initPos = _activeTarget.position + _targetOffset;
-                _animatedProxyRb.position = initPos;
-                _ragdollProxyRb.position = initPos;
-            }
+                _anchorRb.position = _activeTarget.position + _targetOffset;
         }
 
         private bool IsMyTeam()
@@ -114,21 +126,18 @@ namespace InGame.Camera.PlayerCamera
             if (!_initialized) return;
 
             if (_contactDetector != null)
+            {
                 _contactDetector.OnHitLocal -= HandleInvincibleHit;
+                _contactDetector.OnObstacleDestroyLocal -= HandleObstacleDestroy;
+            }
 
             if (_invincibleController != null)
                 _invincibleController.OnInvincibleEnter -= HandleInvincibleActivation;
 
             _fovTween?.Kill();
 
-            if (_animatedProxyRb != null)
-                Destroy(_animatedProxyRb.gameObject);
-
-            if (_ragdollProxyRb != null)
-                Destroy(_ragdollProxyRb.gameObject);
-
-            if (_ragdollCamera != null)
-                Destroy(_ragdollCamera.gameObject);
+            if (_anchorRb != null)
+                Destroy(_anchorRb.gameObject);
         }
 
         private void FixedUpdate()
@@ -141,62 +150,39 @@ namespace InGame.Camera.PlayerCamera
 
             if (_activeTarget == null) return;
 
+            // IsRootManagedByRagdoll: Ragdolled, BlendToAnim, Dead 모두 true.
+            // BlendToAnim 동안에도 래그돌 스무딩을 유지하여 전환 걸림 방지.
+            bool isManaged = _activeRagdoll != null && _activeRagdoll.IsRootManagedByRagdoll;
+            float targetSmoothTime = isManaged ? _ragdollSmoothTime : _animatedSmoothTime;
+            _currentSmoothTime = Mathf.MoveTowards(
+                _currentSmoothTime, targetSmoothTime,
+                _smoothTimeTransitionSpeed * Time.fixedDeltaTime);
+
             Vector3 targetPos = _activeTarget.position + _targetOffset;
-            _animatedProxyRb.MovePosition(targetPos);
-            _ragdollProxyRb.MovePosition(targetPos);
+            Vector3 smoothed = Vector3.SmoothDamp(
+                _anchorRb.position, targetPos, ref _anchorVelocity,
+                _currentSmoothTime, Mathf.Infinity, Time.fixedDeltaTime);
+
+            // 앵커가 타겟에서 너무 멀어지면 강제로 끌어당겨 화면 이탈 방지.
+            Vector3 delta = smoothed - targetPos;
+            if (delta.sqrMagnitude > _maxAnchorDistance * _maxAnchorDistance)
+                smoothed = targetPos + delta.normalized * _maxAnchorDistance;
+
+            _anchorRb.MovePosition(smoothed);
         }
 
         private void LateUpdate()
         {
             if (!_initialized) return;
-            if (_activeRagdoll == null) return;
+            if (_activeRagdoll == null || _orbitalFollow == null) return;
 
-            bool shouldBeRagdoll = _activeRagdoll.IsPhysicsRagdoll;
-            if (shouldBeRagdoll == _isRagdollCameraActive) return;
+            bool isManaged = _activeRagdoll.IsRootManagedByRagdoll;
+            if (isManaged == _wasRagdollManaged) return;
 
-            _isRagdollCameraActive = shouldBeRagdoll;
-
-            CinemachineCamera from = shouldBeRagdoll ? _followCamera : _ragdollCamera;
-            CinemachineCamera to = shouldBeRagdoll ? _ragdollCamera : _followCamera;
-
-            SyncOrbitalAxes(from, to);
-            InGameCameraManager.SetCameraPriority(to, ActivePriority);
-            InGameCameraManager.SetCameraPriority(from, StandbyPriority);
-        }
-
-        private void SetupCameraTargets()
-        {
-            _followCamera.Follow = _animatedProxyRb.transform;
-            _followCamera.LookAt = _animatedProxyRb.transform;
-            _ragdollCamera.Follow = _ragdollProxyRb.transform;
-            _ragdollCamera.LookAt = _ragdollProxyRb.transform;
-
-            InGameCameraManager.SetCameraPriority(_followCamera, ActivePriority);
-            InGameCameraManager.SetCameraPriority(_ragdollCamera, StandbyPriority);
-        }
-
-        private CinemachineCamera CreateRagdollCamera()
-        {
-            var clone = Instantiate(_followCamera.gameObject);
-            clone.name = "CinemachineCamera_Ragdoll";
-
-            var cam = clone.GetComponent<CinemachineCamera>();
-
-            var orbital = clone.GetComponent<CinemachineOrbitalFollow>();
-            if (orbital != null)
-                orbital.TrackerSettings.PositionDamping = _ragdollPositionDamping;
-
-            return cam;
-        }
-
-        private static void SyncOrbitalAxes(CinemachineCamera source, CinemachineCamera target)
-        {
-            var sourceOrbital = source.GetComponent<CinemachineOrbitalFollow>();
-            var targetOrbital = target.GetComponent<CinemachineOrbitalFollow>();
-            if (sourceOrbital == null || targetOrbital == null) return;
-
-            targetOrbital.HorizontalAxis.Value = sourceOrbital.HorizontalAxis.Value;
-            targetOrbital.VerticalAxis.Value = sourceOrbital.VerticalAxis.Value;
+            _wasRagdollManaged = isManaged;
+            _orbitalFollow.TrackerSettings.PositionDamping = isManaged
+                ? _ragdollOrbitalDamping
+                : _defaultOrbitalDamping;
         }
 
         private void HandleInvincibleActivation()
@@ -245,6 +231,29 @@ namespace InGame.Camera.PlayerCamera
             ).SetEase(Ease.OutQuad);
         }
 
+        private void HandleObstacleDestroy()
+        {
+            if (_followCamera == null) return;
+
+            _fovTween?.Kill();
+
+            var lens = _followCamera.Lens;
+            lens.FieldOfView = _baseFov + _obstacleDestroyFovKick;
+            _followCamera.Lens = lens;
+
+            _fovTween = DOTween.To(
+                () => _followCamera.Lens.FieldOfView,
+                v =>
+                {
+                    var l = _followCamera.Lens;
+                    l.FieldOfView = v;
+                    _followCamera.Lens = l;
+                },
+                _baseFov,
+                _obstacleDestroyFovDuration
+            ).SetEase(Ease.OutQuad);
+        }
+
         private static Rigidbody CreateInterpolatedProxy(string name)
         {
             var obj = new GameObject(name);
@@ -254,5 +263,7 @@ namespace InGame.Camera.PlayerCamera
             rb.useGravity = false;
             return rb;
         }
+
+        private const int ActivePriority = 10;
     }
 }
