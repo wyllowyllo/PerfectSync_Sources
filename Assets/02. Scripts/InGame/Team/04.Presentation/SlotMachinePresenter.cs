@@ -19,15 +19,20 @@ namespace InGame.Team
         [Tooltip("카메라로부터의 거리")]
         [SerializeField] private float _displayDepth = 5f;
 
-        [Header("Entrance (오른쪽에서 등장)")]
+        [Header("Entrance (오른쪽 위에서 호를 그리며 등장)")]
         [Tooltip("등장 시작 뷰포트 X (1.0 이상 = 화면 바깥 오른쪽)")]
         [SerializeField] private float _entryOffscreenX = 1.4f;
-        [SerializeField] private float _appearDuration = 0.4f;
+        [Tooltip("타겟 Y보다 얼마나 위에서 시작할지 (호 궤적)")]
+        [SerializeField] private float _entryOffsetY = 0.1f;
+        [SerializeField] private float _appearDuration = 0.5f;
 
         [Header("Exit (위쪽으로 퇴장)")]
         [Tooltip("퇴장 목표 뷰포트 Y (1.0 이상 = 화면 바깥 위쪽)")]
         [SerializeField] private float _exitOffscreenY = 1.5f;
-        [SerializeField] private float _disappearDuration = 0.35f;
+        [Tooltip("퇴장 전 살짝 아래로 찍는 anticipation 크기")]
+        [SerializeField] private float _exitAnticipationDip = 0.03f;
+        [SerializeField] private float _exitAnticipationDuration = 0.1f;
+        [SerializeField] private float _disappearDuration = 0.25f;
 
         [Header("Timing")]
         [SerializeField] private float _postLandingDelay = 1.5f;
@@ -137,8 +142,8 @@ namespace InGame.Team
             var cam = GetCamera();
             if (cam == null) return;
 
-            // 화면 바깥 오른쪽에서 시작.
-            _currentViewportPos = new Vector2(_entryOffscreenX, _targetViewportPos.y);
+            // 화면 바깥 오른쪽 + 살짝 위에서 시작 (호 궤적).
+            _currentViewportPos = new Vector2(_entryOffscreenX, _targetViewportPos.y + _entryOffsetY);
             Vector3 spawnPos = cam.ViewportToWorldPoint(
                 new Vector3(_currentViewportPos.x, _currentViewportPos.y, _displayDepth));
 
@@ -150,13 +155,13 @@ namespace InGame.Team
             _scaleTween = _activeSlotMachine.transform.DOScale(_prefabBaseScale, _appearScaleDuration)
                 .SetEase(_appearScaleEase);
 
-            // 오른쪽에서 슬라이드인 (뷰포트 좌표 트윈) → 완료 후 스핀 시작.
+            // 오른쪽 위에서 호를 그리며 슬라이드인 (OutBack = 오버슈트 바운스).
             _activeTween = DOTween.To(
                     () => _currentViewportPos,
                     v => _currentViewportPos = v,
                     _targetViewportPos,
                     _appearDuration)
-                .SetEase(Ease.OutCubic)
+                .SetEase(Ease.OutBack)
                 .OnComplete(() =>
                 {
                     _activeSlotMachine.StartSpin();
@@ -236,20 +241,29 @@ namespace InGame.Team
             {
                 _scaleTween?.Kill();
 
-                // 위쪽으로 슬라이드아웃 (뷰포트 Y 트윈).
+                // 퇴장 시퀀스: anticipation dip → 빠르게 위로.
+                Vector2 dipPos = new(_currentViewportPos.x, _currentViewportPos.y - _exitAnticipationDip);
                 Vector2 exitPos = new(_currentViewportPos.x, _exitOffscreenY);
-                _activeTween = DOTween.To(
-                        () => _currentViewportPos,
-                        v => _currentViewportPos = v,
-                        exitPos,
-                        _disappearDuration)
-                    .SetEase(Ease.InCubic);
 
+                var seq = DOTween.Sequence();
+                // 1) 살짝 아래로 찍기 (anticipation).
+                seq.Append(DOTween.To(
+                    () => _currentViewportPos, v => _currentViewportPos = v,
+                    dipPos, _exitAnticipationDuration).SetEase(Ease.OutQuad));
+                // 2) 빠르게 위로 쏘아 올림.
+                seq.Append(DOTween.To(
+                    () => _currentViewportPos, v => _currentViewportPos = v,
+                    exitPos, _disappearDuration).SetEase(Ease.InQuart));
+
+                _activeTween = seq;
+
+                // 스케일 축소는 위로 날아가는 구간에서만.
                 _scaleTween = _activeSlotMachine.transform
                     .DOScale(Vector3.zero, _disappearScaleDuration)
+                    .SetDelay(_exitAnticipationDuration)
                     .SetEase(Ease.InBack);
 
-                yield return _activeTween.WaitForCompletion();
+                yield return seq.WaitForCompletion();
 
                 Destroy(_activeSlotMachine.gameObject);
                 _activeSlotMachine = null;
