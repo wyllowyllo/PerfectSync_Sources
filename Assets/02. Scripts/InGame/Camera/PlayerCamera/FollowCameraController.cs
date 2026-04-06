@@ -36,6 +36,10 @@ namespace InGame.Camera.PlayerCamera
         [SerializeField] private float _activationFovPunch = -8f;
         [SerializeField] private float _activationFovDuration = 0.4f;
 
+        [Header("Obstacle Destroy FOV Kick")]
+        [SerializeField] private float _obstacleDestroyFovKick = 8f;
+        [SerializeField] private float _obstacleDestroyFovDuration = 0.25f;
+
         private CinemachineCamera _followCamera;
         private CinemachineOrbitalFollow _orbitalFollow;
         private Rigidbody _anchorRb;
@@ -76,7 +80,10 @@ namespace InGame.Camera.PlayerCamera
 
             _contactDetector = GetComponentInChildren<InvincibleContactDetector>();
             if (_contactDetector != null)
+            {
                 _contactDetector.OnHitLocal += HandleInvincibleHit;
+                _contactDetector.OnObstacleDestroyLocal += HandleObstacleDestroy;
+            }
 
             _invincibleController = GetComponent<InvincibleModeController>();
             if (_invincibleController != null)
@@ -119,7 +126,10 @@ namespace InGame.Camera.PlayerCamera
             if (!_initialized) return;
 
             if (_contactDetector != null)
+            {
                 _contactDetector.OnHitLocal -= HandleInvincibleHit;
+                _contactDetector.OnObstacleDestroyLocal -= HandleObstacleDestroy;
+            }
 
             if (_invincibleController != null)
                 _invincibleController.OnInvincibleEnter -= HandleInvincibleActivation;
@@ -218,6 +228,29 @@ namespace InGame.Camera.PlayerCamera
                 },
                 _baseFov,
                 _fovKickDuration
+            ).SetEase(Ease.OutQuad);
+        }
+
+        private void HandleObstacleDestroy()
+        {
+            if (_followCamera == null) return;
+
+            _fovTween?.Kill();
+
+            var lens = _followCamera.Lens;
+            lens.FieldOfView = _baseFov + _obstacleDestroyFovKick;
+            _followCamera.Lens = lens;
+
+            _fovTween = DOTween.To(
+                () => _followCamera.Lens.FieldOfView,
+                v =>
+                {
+                    var l = _followCamera.Lens;
+                    l.FieldOfView = v;
+                    _followCamera.Lens = l;
+                },
+                _baseFov,
+                _obstacleDestroyFovDuration
             ).SetEase(Ease.OutQuad);
         }
 

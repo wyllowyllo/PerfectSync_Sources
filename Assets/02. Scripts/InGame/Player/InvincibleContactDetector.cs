@@ -55,6 +55,9 @@ namespace InGame.Player
         // FOV Kick 등 외부 연출 훅.
         public event Action OnHitLocal;
 
+        // 장애물 파괴 전용 연출 훅 (FOV 킥 분리용).
+        public event Action OnObstacleDestroyLocal;
+
         public void SetAuthority(bool isAuthority) => _isAuthority = isAuthority;
 
         public void Initialize(InvincibleModeController controller, TeamModeSynchronizer synchronizer)
@@ -128,7 +131,7 @@ namespace InGame.Player
             Vector3 force = direction * _obstacleDestroyForce;
             manager.RequestDestroy(id, force);
 
-            PlayHitFeedback(direction);
+            PlayObstacleDestroyFeedback(direction);
         }
 
         // ── 플레이어 넉백 (기존) ────────────────────────────────
@@ -170,6 +173,21 @@ namespace InGame.Player
             _synchronizer.BroadcastInvincibleHit(victimViewID, knockback, hitPoint, torque, (byte)EHitResponse.Ragdoll);
 
             PlayHitFeedback(direction);
+        }
+
+        private void PlayObstacleDestroyFeedback(Vector3 direction)
+        {
+            var hitstop = HitstopEffect.Instance;
+            if (hitstop != null)
+                hitstop.Play();
+
+            if (_impulseSource != null)
+                _impulseSource.GenerateImpulse(direction * 2.5f);
+
+            if (_punchScaleEffect != null)
+                _punchScaleEffect.Play();
+
+            OnObstacleDestroyLocal?.Invoke();
         }
 
         private void PlayHitFeedback(Vector3 direction)
