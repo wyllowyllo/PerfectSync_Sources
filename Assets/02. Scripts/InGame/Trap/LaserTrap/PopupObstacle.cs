@@ -1,92 +1,118 @@
-using System.Collections;
-using InGame.Obstacle;
+using System;
 using UnityEngine;
 
+/// <summary>
+/// 펀칭 장애물. FixedUpdate 상태 머신 기반.
+/// 부모(Root)의 transform 계층을 통해 이동하며,
+/// 공격/복귀 시 MovePosition으로 충돌 속도를 보장한다.
+/// </summary>
 [RequireComponent(typeof(Rigidbody))]
-public class PopupObstacle : MonoBehaviour, ITrap, IRecoilSource
+public class PopupObstacle : MonoBehaviour, ITrap
 {
+    private enum State { Idle, Attacking, Holding, Retracting }
+
     [Header("Movement Settings")]
     [Tooltip("장애물이 도달할 목표 지점")]
     [SerializeField] private Transform _targetTransform;
-    
+
     [Tooltip("튀어나올 때 소요 시간")]
-    [SerializeField] private float _popupDuration = 0.05f; 
+    [SerializeField] private float _popupDuration = 0.05f;
 
     [Tooltip("복귀할 때 소요 시간")]
     [SerializeField] private float _retractDuration = 1.0f;
 
     private Rigidbody _rigidbody;
-    private Vector3 _startWorldPosition;
-    private Vector3 _targetWorldPosition;
-    private bool _isActionProcess;
+    private Vector3 _startLocalPosition;
+    private State _state = State.Idle;
+    private float _elapsed;
+    private Vector3 _fromLocal;
+    private Vector3 _toLocal;
+    private float _duration;
+
+    public event Action OnResetComplete;
 
     private void Awake()
     {
         _rigidbody = GetComponent<Rigidbody>();
-        _rigidbody.isKinematic = true; 
+        _rigidbody.isKinematic = true;
+        _startLocalPosition = transform.localPosition;
 
-        _startWorldPosition = transform.position;
-        _targetWorldPosition = _targetTransform.position;
     }
 
-    public bool IsRotational => false;
-
-    public Vector3 GetRecoilDirection()
+    private void OnEnable()
     {
-        return -(_targetWorldPosition - _startWorldPosition).normalized;
+        _state = State.Idle;
+        _elapsed = 0f;
     }
+
+    #region ITrap
 
     public void Activate()
     {
-        if (_isActionProcess) return;
-        StartCoroutine(MoveRoutine(_targetWorldPosition, _popupDuration, true));
+        if (_state != State.Idle) return;
+
+        _fromLocal = _startLocalPosition;
+        _toLocal = _targetTransform.localPosition;
+        _duration = _popupDuration;
+        _elapsed = 0f;
+        _state = State.Attacking;
     }
 
     public void Reset()
     {
-        if (_isActionProcess) return;
-        StartCoroutine(MoveRoutine(_startWorldPosition, _retractDuration, false));
+        if (_state == State.Idle || _state == State.Retracting) return;
+
+        _fromLocal = transform.localPosition;
+        _toLocal = _startLocalPosition;
+        _duration = _retractDuration;
+        _elapsed = 0f;
+        _state = State.Retracting;
     }
 
-    private IEnumerator MoveRoutine(Vector3 targetPosition, float duration, bool isAttacking)
+    #endregion
+
+    #region Internal
+
+    private void FixedUpdate()
     {
-        _isActionProcess = true;
-        float elapsedTime = 0f;
-        
-        Vector3 currentPosition = _rigidbody.position; 
+        if (_state == State.Idle || _state == State.Holding) return;
 
-        while (elapsedTime < duration)
+        _elapsed += Time.fixedDeltaTime;
+        float t = Mathf.Clamp01(_elapsed / _duration);
+
+        bool isAttacking = _state == State.Attacking;
+        float easedT = isAttacking ? Mathf.Sin(t * Mathf.PI * 0.5f) : t * t;
+
+        Vector3 nextLocal = Vector3.Lerp(_fromLocal, _toLocal, easedT);
+        Transform parent = transform.parent;
+        if (parent != null)
+            _rigidbody.MovePosition(parent.TransformPoint(nextLocal));
+
+        if (t < 1f) return;
+
+        if (isAttacking)
         {
-            elapsedTime += Time.deltaTime;
-            float time = elapsedTime / duration;
-            float easedTime = isAttacking ? Mathf.Sin(time * Mathf.PI * 0.5f) : time * time;
-
-            Vector3 nextPosition = Vector3.Lerp(currentPosition, targetPosition, easedTime);
-            _rigidbody.MovePosition(nextPosition);
-            
-            yield return null;
+            _state = State.Holding;
         }
-
-        _rigidbody.MovePosition(targetPosition);
-        _isActionProcess = false;
+        else
+        {
+            _state = State.Idle;
+            OnResetComplete?.Invoke();
+        }
     }
-    
+
+    #endregion
+
 #if UNITY_EDITOR
-    // 유니티 에디터에서 목표 위치를 출력
     private void OnDrawGizmosSelected()
     {
         if (_targetTransform == null) return;
 
         Gizmos.color = Color.red;
-
-        Vector3 targetWorldPos = Application.isPlaying
-            ? _targetWorldPosition
-            : _targetTransform.position;
+        Vector3 targetWorldPos = _targetTransform.position;
 
         Gizmos.DrawLine(transform.position, targetWorldPos);
-
         Gizmos.matrix = Matrix4x4.TRS(targetWorldPos, transform.rotation, transform.localScale);
-
         Gizmos.DrawWireCube(Vector3.zero, Vector3.one);
     }
 #endif

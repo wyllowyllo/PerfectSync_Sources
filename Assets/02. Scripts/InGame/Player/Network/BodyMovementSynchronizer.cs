@@ -39,6 +39,7 @@ namespace InGame.Player.Network
         private const float SmoothTime = 0.08f;
         private const float MaxExtrapolationTime = 0.2f;
         private const float VelocityBlendFactor = 0.5f;
+        private const float GroundClampRayOriginOffset = 0.5f;
 
         private void Awake()
         {
@@ -124,6 +125,21 @@ namespace InGame.Player.Network
                     target = _correctionTarget;
                 }
 
+                // Remote의 kinematic 바디는 콜라이더가 위치를 보정해주지 않으므로,
+                // 보간/외삽이 지면 아래로 관통하는 것을 raycast로 방지.
+                if (_movement != null && _movement.GroundLayer.value != 0)
+                {
+                    float radius = _movement.GroundCheckRadius;
+                    float rayStartY = Mathf.Max(target.y, _networkPosition.y) + GroundClampRayOriginOffset;
+                    var rayOrigin = new Vector3(target.x, rayStartY, target.z);
+                    float rayDistance = rayStartY - target.y + radius;
+                    if (Physics.SphereCast(rayOrigin, radius, Vector3.down, out RaycastHit hit,
+                            rayDistance, _movement.GroundLayer))
+                    {
+                        target.y = Mathf.Max(target.y, hit.point.y);
+                    }
+                }
+
                 float dist = Vector3.Distance(_rootBody.position, target);
                 if (dist > SnapThreshold)
                 {
@@ -205,6 +221,10 @@ namespace InGame.Player.Network
                 Vector3 velocity = (Vector3)stream.ReceiveNext();
 
                 if (_ragdollController != null && _ragdollController.IsRootManagedByRagdoll) return;
+
+                // 공중 → 착지 전환 시 낙하 관성으로 인한 지면 관통 방지.
+                if (grounded && !_networkGrounded)
+                    _smoothVelocity = Vector3.zero;
 
                 _networkPosition = pos;
                 _networkVelocity = _firstSnapshot

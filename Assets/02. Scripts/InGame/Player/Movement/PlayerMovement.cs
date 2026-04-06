@@ -70,6 +70,8 @@ namespace InGame.Player.Movement
         public float AirControlBoost { get => _airControlBoost; set => _airControlBoost = value; }
         public float BuffSpeedMultiplier { get => _buffSpeedMultiplier; set => _buffSpeedMultiplier = value; }
         public float CurrentSpeed => _currentVelocity.magnitude;
+        public float GroundCheckRadius => _groundCheckRadius;
+        public LayerMask GroundLayer => _groundLayer;
 
         private void Awake()
         {
