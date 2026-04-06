@@ -134,7 +134,7 @@ public class TitleSceneUIController : MonoBehaviour
 
     public void ShowLoginPopup()
     {
-        KillIntroSequence();
+        KillIntroSequence(snapToTargetScale: true);
         HideTapPrompt();
 
         if (_skipButton != null)
@@ -153,11 +153,35 @@ public class TitleSceneUIController : MonoBehaviour
             _loginPopupOvershoot);
     }
 
-    private void KillIntroSequence()
+    private void KillIntroSequence(bool snapToTargetScale = false)
     {
         if (_introSequence != null && _introSequence.IsActive())
             _introSequence.Kill();
         _introSequence = null;
+
+        if (snapToTargetScale)
+            SnapIntroVisualsToTargetScale();
+    }
+
+    private void SnapIntroVisualsToTargetScale()
+    {
+        if (_logoImage != null)
+        {
+            _logoImage.DOKill();
+            _logoImage.localScale = Vector3.one * _logoTargetScale;
+        }
+
+        if (_characterImage1 != null)
+        {
+            _characterImage1.DOKill();
+            _characterImage1.localScale = Vector3.one * _character1TargetScale;
+        }
+
+        if (_characterImage2 != null)
+        {
+            _characterImage2.DOKill();
+            _characterImage2.localScale = Vector3.one * _character2TargetScale;
+        }
     }
 
     private void KillLoginPopupTween()
