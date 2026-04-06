@@ -51,9 +51,23 @@ namespace InGame.Team
         [SerializeField] private float _jackpotBounceDuration = 0.4f;
         [Tooltip("잭팟: 추가 스케일 펀치 비율")]
         [SerializeField] private float _jackpotScalePunchRatio = 0.5f;
+        [Tooltip("잭팟: 좌우 흔들림 각도 (덩실덩실)")]
+        [SerializeField] private float _jackpotDanceTilt = 15f;
+        [Tooltip("잭팟: 좌우 뷰포트 X 스웨이 크기")]
+        [SerializeField] private float _jackpotSwayX = 0.02f;
+        [SerializeField] private int _jackpotDanceSwings = 3;
+        [SerializeField] private float _jackpotDanceSpeed = 0.15f;
         [Tooltip("꽝: 뷰포트 Y 처짐 크기")]
         [SerializeField] private float _missDroopY = 0.03f;
         [SerializeField] private float _missDroopDuration = 0.5f;
+        [Tooltip("꽝: 앞으로 숙이는 각도 (시무룩)")]
+        [SerializeField] private float _missDroopTilt = 20f;
+
+        [Header("VFX (프리팹 미할당 시 무시)")]
+        [Tooltip("잭팟 시 슬롯머신 위치에 재생할 one-shot 파티클")]
+        [SerializeField] private ParticleSystem _jackpotVfxPrefab;
+        [Tooltip("꽝 시 슬롯머신 위치에 재생할 one-shot 파티클")]
+        [SerializeField] private ParticleSystem _missVfxPrefab;
 
         [Header("Hovering")]
         [SerializeField] private float _bobAmplitude = 0.15f;
@@ -72,6 +86,8 @@ namespace InGame.Team
         private Vector3 _prefabBaseScale;
 
         private Vector2 _currentViewportPos;
+        private float _reactionTiltX;
+        private float _reactionTiltZ;
 
         // 2단계 스핀: 결과가 슬라이드인보다 먼저 도착할 경우 큐잉.
         private int[] _pendingResult;
@@ -127,9 +143,9 @@ namespace InGame.Team
             Quaternion lookRot = Quaternion.LookRotation(dirToCamera, Vector3.up);
             Quaternion yFront = Quaternion.Euler(90f, 0f, 0f); // +Y → +Z(카메라 방향)
 
-            // 미세 틸트 흔들림.
-            float tiltZ = Mathf.Sin(Time.time * _tiltFrequency * Mathf.PI * 2f) * _tiltAmplitude;
-            float tiltX = Mathf.Cos(Time.time * _tiltFrequency * 0.7f * Mathf.PI * 2f) * _tiltAmplitude * 0.5f;
+            // 미세 틸트 흔들림 + 결과 반응 틸트.
+            float tiltZ = Mathf.Sin(Time.time * _tiltFrequency * Mathf.PI * 2f) * _tiltAmplitude + _reactionTiltZ;
+            float tiltX = Mathf.Cos(Time.time * _tiltFrequency * 0.7f * Mathf.PI * 2f) * _tiltAmplitude * 0.5f + _reactionTiltX;
             Quaternion wobble = Quaternion.Euler(tiltX, 0f, tiltZ);
 
             _activeSlotMachine.transform.rotation = lookRot * yFront * wobble;
@@ -151,6 +167,8 @@ namespace InGame.Team
             _pendingResult = null;
             _spinStarted = false;
             _pendingMatch = false;
+            _reactionTiltX = 0f;
+            _reactionTiltZ = 0f;
 
             var cam = GetCamera();
             if (cam == null) return;
@@ -219,32 +237,67 @@ namespace InGame.Team
                 _reactionTween?.Kill();
                 _activeSlotMachine.transform.localScale = _prefabBaseScale;
 
+                // VFX 재생.
+                SpawnOneShot(_pendingMatch ? _jackpotVfxPrefab : _missVfxPrefab,
+                    _activeSlotMachine.transform.position);
+
                 if (_pendingMatch)
                 {
-                    // ── 잭팟: 강한 스케일 펀치 + 뷰포트 위로 튀어오르기.
+                    // ── 잭팟: 스케일 펀치 + 위로 바운스 + 덩실덩실 춤.
                     _scaleTween = _activeSlotMachine.transform
                         .DOPunchScale(_prefabBaseScale * _jackpotScalePunchRatio, _jackpotBounceDuration, 1, 0.3f);
 
                     float baseY = _currentViewportPos.y;
-                    _reactionTween = DOTween.Sequence()
-                        .Append(DOTween.To(
-                            () => _currentViewportPos.y, y => _currentViewportPos.y = y,
-                            baseY + _jackpotBounceY, _jackpotBounceDuration * 0.3f).SetEase(Ease.OutQuad))
-                        .Append(DOTween.To(
-                            () => _currentViewportPos.y, y => _currentViewportPos.y = y,
-                            baseY, _jackpotBounceDuration * 0.7f).SetEase(Ease.OutBounce));
+                    float baseX = _currentViewportPos.x;
+                    var seq = DOTween.Sequence();
+
+                    // 위로 바운스.
+                    seq.Append(DOTween.To(
+                        () => _currentViewportPos.y, y => _currentViewportPos.y = y,
+                        baseY + _jackpotBounceY, _jackpotBounceDuration * 0.3f).SetEase(Ease.OutQuad));
+                    seq.Append(DOTween.To(
+                        () => _currentViewportPos.y, y => _currentViewportPos.y = y,
+                        baseY, _jackpotBounceDuration * 0.7f).SetEase(Ease.OutBounce));
+
+                    // 좌우 스웨이 (뷰포트 X + Z틸트 동시 — 덩실덩실).
+                    var dance = DOTween.Sequence();
+                    for (int i = 0; i < _jackpotDanceSwings; i++)
+                    {
+                        float dir = (i % 2 == 0) ? 1f : -1f;
+                        dance.Append(DOTween.To(
+                            () => _reactionTiltZ, z => _reactionTiltZ = z,
+                            _jackpotDanceTilt * dir, _jackpotDanceSpeed).SetEase(Ease.InOutSine));
+                        dance.Join(DOTween.To(
+                            () => _currentViewportPos.x, x => _currentViewportPos.x = x,
+                            baseX + _jackpotSwayX * dir, _jackpotDanceSpeed).SetEase(Ease.InOutSine));
+                    }
+                    // 원위치 복귀.
+                    dance.Append(DOTween.To(
+                        () => _reactionTiltZ, z => _reactionTiltZ = z,
+                        0f, _jackpotDanceSpeed * 1.5f).SetEase(Ease.OutSine));
+                    dance.Join(DOTween.To(
+                        () => _currentViewportPos.x, x => _currentViewportPos.x = x,
+                        baseX, _jackpotDanceSpeed * 1.5f).SetEase(Ease.OutSine));
+
+                    seq.Join(dance);
+                    _reactionTween = seq;
                 }
                 else
                 {
-                    // ── 꽝: 펀치 없이 쪼그라들며 축 처짐.
+                    // ── 꽝: 쪼그라들며 + 처지며 + 고개 숙이기.
                     _scaleTween = _activeSlotMachine.transform
                         .DOScale(_prefabBaseScale * 0.85f, _missDroopDuration)
                         .SetEase(Ease.InOutSine);
 
                     float baseY = _currentViewportPos.y;
-                    _reactionTween = DOTween.To(
+                    var seq = DOTween.Sequence();
+                    seq.Append(DOTween.To(
                         () => _currentViewportPos.y, y => _currentViewportPos.y = y,
-                        baseY - _missDroopY, _missDroopDuration).SetEase(Ease.InOutSine);
+                        baseY - _missDroopY, _missDroopDuration).SetEase(Ease.InOutSine));
+                    seq.Join(DOTween.To(
+                        () => _reactionTiltX, x => _reactionTiltX = x,
+                        _missDroopTilt, _missDroopDuration).SetEase(Ease.InOutSine));
+                    _reactionTween = seq;
                 }
             }
 
@@ -319,6 +372,15 @@ namespace InGame.Team
             }
 
             return false;
+        }
+
+        private static void SpawnOneShot(ParticleSystem prefab, Vector3 position)
+        {
+            if (prefab == null) return;
+            var instance = Instantiate(prefab, position, Quaternion.identity);
+            instance.Play();
+            float lifetime = instance.main.duration + instance.main.startLifetime.constantMax;
+            Destroy(instance.gameObject, lifetime);
         }
     }
 }
