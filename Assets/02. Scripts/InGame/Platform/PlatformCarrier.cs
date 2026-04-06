@@ -1,16 +1,21 @@
 using System.Collections.Generic;
+using Core;
 using UnityEngine;
 
 namespace InGame.Race.Platform
 {
     /// <summary>
     /// 이동/회전하는 플랫폼 위의 Rigidbody를 함께 운반.
-    /// RotationScript 등 어떤 이동/회전 방식과도 조합 가능.
-    /// 플랫폼의 기존 Collider로 충돌 감지 (Trigger 불필요).
+    /// PlayerMovement 이후 실행되어 velocity 주입 방식으로 동작하며,
+    /// 물리 보간(interpolation)과 자연스럽게 조화.
     /// </summary>
-    [DefaultExecutionOrder(1)]
+    [DefaultExecutionOrder(ExecutionOrderConstants.PlatformCarrier)]
     public class PlatformCarrier : MonoBehaviour
     {
+        [Header("Centrifugal Force")]
+        [SerializeField] private bool _applyCentrifugalForce;
+        [SerializeField] private float _centrifugalMultiplier = 1f;
+
         private readonly List<Rigidbody> _riders = new();
         private Vector3 _prevPosition;
         private Quaternion _prevRotation;
@@ -41,6 +46,8 @@ namespace InGame.Race.Platform
 
         private void CarryRiders(Vector3 deltaPos, Quaternion deltaRot, bool hasRotated)
         {
+            float dt = Time.fixedDeltaTime;
+
             for (int i = _riders.Count - 1; i >= 0; i--)
             {
                 if (_riders[i] == null)
@@ -54,14 +61,33 @@ namespace InGame.Race.Platform
                 if (hasRotated)
                 {
                     Vector3 offset = rb.position - _prevPosition;
-                    rb.position = deltaRot * offset + transform.position;
-                    rb.MoveRotation(deltaRot * rb.rotation);
+                    Vector3 rotatedPos = deltaRot * offset + transform.position;
+                    rb.linearVelocity += (rotatedPos - rb.position) / dt;
+
+                    if (_applyCentrifugalForce)
+                        ApplyCentrifugalForce(rb, deltaRot);
                 }
                 else
                 {
-                    rb.position += deltaPos;
+                    rb.linearVelocity += deltaPos / dt;
                 }
             }
+        }
+
+        private void ApplyCentrifugalForce(Rigidbody rb, Quaternion deltaRot)
+        {
+            deltaRot.ToAngleAxis(out float angleDeg, out Vector3 axis);
+            float angularSpeed = angleDeg * Mathf.Deg2Rad / Time.fixedDeltaTime;
+
+            Vector3 toRider = rb.position - transform.position;
+            Vector3 radial = toRider - Vector3.Project(toRider, axis);
+            float radius = radial.magnitude;
+
+            if (radius < 0.01f) return;
+
+            // F = m * w^2 * r
+            float force = rb.mass * angularSpeed * angularSpeed * radius * _centrifugalMultiplier;
+            rb.AddForce(radial.normalized * force, ForceMode.Force);
         }
 
         private void OnCollisionEnter(Collision collision)
