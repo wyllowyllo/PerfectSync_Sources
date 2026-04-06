@@ -67,4 +67,10 @@ public class CharacterCustomizationPartNavigator : MonoBehaviour
 
         PartIndexChanged?.Invoke(_index);
     }
+
+    public void ResetToFirst()
+    {
+        _index = 0;
+        RefreshView();
+    }
 }
