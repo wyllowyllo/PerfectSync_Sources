@@ -22,24 +22,20 @@ public class PartyInvitePopup : LobbyPopupBase
     [Header("토스트 (상대 거절 시)")]
     [SerializeField] private string _partyInviteDeclinedToast = "상대가 파티 초대를 거절했습니다.";
 
-    private void Start()
-    {
-        if (LobbyPartyService.Instance != null)
-        {
-            LobbyPartyService.Instance.OnPartyInviteReceived += HandlePartyInviteReceived;
-            LobbyPartyService.Instance.OnPartyInviteResponded += HandlePartyInviteResponded;
-            LobbyPartyService.Instance.OnPendingPartyInviteInvalidated += HandlePendingPartyInviteInvalidated;
-        }
-    }
+    public string PartyInviteDeclinedToast => _partyInviteDeclinedToast;
 
-    private void OnDestroy()
+    public void SetInviteMessage(int inviterActor, string inviterUserId)
     {
-        if (LobbyPartyService.Instance != null)
+        string displayName = inviterUserId;
+        if (PhotonNetwork.InRoom && PhotonNetwork.CurrentRoom != null)
         {
-            LobbyPartyService.Instance.OnPartyInviteReceived -= HandlePartyInviteReceived;
-            LobbyPartyService.Instance.OnPartyInviteResponded -= HandlePartyInviteResponded;
-            LobbyPartyService.Instance.OnPendingPartyInviteInvalidated -= HandlePendingPartyInviteInvalidated;
+            Player inviter = PhotonNetwork.CurrentRoom.GetPlayer(inviterActor);
+            if (inviter != null && !string.IsNullOrEmpty(inviter.NickName))
+                displayName = inviter.NickName;
         }
+
+        if (_partyInviteMessageText != null)
+            _partyInviteMessageText.text = string.Format(_partyInviteMessageFormat, displayName);
     }
 
     private void OnEnable()
@@ -61,34 +57,6 @@ public class PartyInvitePopup : LobbyPopupBase
     public void DismissAsCancel()
     {
         LobbyPartyService.Instance?.RespondToPendingPartyInvite(false);
-        Hide();
-        PartyInviteClosedOnlyRequested?.Invoke();
-    }
-
-    private void HandlePartyInviteReceived(int inviterActor, string inviterUserId)
-    {
-        string displayName = inviterUserId;
-        if (PhotonNetwork.InRoom && PhotonNetwork.CurrentRoom != null)
-        {
-            Player inviter = PhotonNetwork.CurrentRoom.GetPlayer(inviterActor);
-            if (inviter != null && !string.IsNullOrEmpty(inviter.NickName))
-                displayName = inviter.NickName;
-        }
-
-        if (_partyInviteMessageText != null)
-            _partyInviteMessageText.text = string.Format(_partyInviteMessageFormat, displayName);
-
-        OpenPartyInviteFlowRequested?.Invoke();
-    }
-
-    private void HandlePartyInviteResponded(bool accepted)
-    {
-        if (!accepted)
-            TransientToastRequested?.Invoke(_partyInviteDeclinedToast);
-    }
-
-    private void HandlePendingPartyInviteInvalidated()
-    {
         Hide();
         PartyInviteClosedOnlyRequested?.Invoke();
     }
