@@ -108,6 +108,10 @@ public class NicknameChangePopup : LobbyPopupBase
         }
 
         LobbyManager.Instance.OnNicknameConfirmed(trimmed);
+
+        // Firebase에 닉네임 저장
+        _ = FirebaseCustomizationRepository.SaveNickname(trimmed);
+
         ClosePopup();
     }
 

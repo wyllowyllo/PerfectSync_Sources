@@ -51,7 +51,14 @@ public class PhotonServerManager : SingletonPunCallbacks<PhotonServerManager>
 
     private static void ApplySessionAuthUserId()
     {
-        string uid = UserIdGenerator.CreateSessionUserId();
+        string uid = null;
+
+        if (AuthService.Instance != null && AuthService.Instance.IsLoggedIn)
+            uid = AuthService.Instance.CurrentUserId;
+
+        if (string.IsNullOrEmpty(uid))
+            uid = UserIdGenerator.CreateSessionUserId();
+
         PhotonNetwork.AuthValues = new Photon.Realtime.AuthenticationValues(uid);
     }
 

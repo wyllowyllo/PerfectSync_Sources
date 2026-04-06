@@ -161,6 +161,72 @@ public class LobbyPartyService : SingletonPunCallbacks<LobbyPartyService>, IOnEv
         return true;
     }
 
+    public bool TryFindPlayerByInviteCode(string inviteCode, out Player player)
+    {
+        player = null;
+        if (string.IsNullOrEmpty(inviteCode) || !PhotonNetwork.InRoom)
+            return false;
+
+        string normalizedCode = inviteCode.Trim().ToUpperInvariant();
+
+        foreach (var p in PhotonNetwork.PlayerList)
+        {
+            if (p.CustomProperties.TryGetValue("inviteCode", out object codeObj) &&
+                codeObj is string code &&
+                code == normalizedCode)
+            {
+                player = p;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// 초대 코드로 파티 초대를 보냅니다.
+    /// </summary>
+    public bool TrySendPartyInviteByInviteCode(string inviteCodeInput, out string errorMessage)
+    {
+        errorMessage = null;
+        Debug.Log($"{PartyInviteDebugTag} TrySendPartyInviteByInviteCode begin");
+
+        if (!PhotonNetwork.InRoom)
+        {
+            errorMessage = "방에 있지 않습니다.";
+            return false;
+        }
+
+        string trimmed = (inviteCodeInput ?? string.Empty).Trim().ToUpperInvariant();
+        if (string.IsNullOrEmpty(trimmed))
+        {
+            errorMessage = "초대 코드를 입력해 주세요.";
+            return false;
+        }
+
+        if (trimmed.Length > 10)
+        {
+            errorMessage = "입력이 너무 깁니다.";
+            return false;
+        }
+
+        if (!TryFindPlayerByInviteCode(trimmed, out var target))
+        {
+            errorMessage = "같은 로비에 해당 초대 코드를 가진 플레이어가 없습니다.";
+            return false;
+        }
+
+        if (target == PhotonNetwork.LocalPlayer)
+        {
+            errorMessage = "자기 자신은 초대할 수 없습니다.";
+            return false;
+        }
+
+        _outgoingInviteTargetActor = target.ActorNumber;
+        SendPartyInvite(target);
+        return true;
+    }
+
     /// <summary>초대 수신 팝업에서 호출. 거절 시 초대한 쪽에 알림 이벤트가 갑니다.</summary>
     public void RespondToPendingPartyInvite(bool accept)
     {

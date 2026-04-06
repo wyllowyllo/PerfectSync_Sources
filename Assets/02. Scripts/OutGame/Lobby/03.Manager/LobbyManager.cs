@@ -3,6 +3,7 @@ using System.Collections;
 using UnityEngine;
 using Photon.Pun;
 using Photon.Realtime;
+using System.Threading.Tasks;
 using Hashtable = ExitGames.Client.Photon.Hashtable;
 
 [DefaultExecutionOrder(-100)]
@@ -18,11 +19,18 @@ public class LobbyManager : SingletonMonoBehaviour<LobbyManager>
     public event Action<int, int> PlayerCountChanged;
     public event Action<bool> LeaveButtonInteractableChanged;
     public event Action<string> NicknameFieldSet;
+    public event Action<string> InviteCodeChanged;
+
+    [Header("Firebase 커스터마이징 복원")]
+    [SerializeField] private CustomizationPartItemsActivator _partItemsActivator;
 
     private LobbyStartSequence _startSequence;
     private bool _isGameStarting;
     private bool _pendingQueueAfterLobbyJoin;
     private string _pendingNicknameForQueue;
+
+    private string _currentInviteCode;
+    public string CurrentInviteCode => _currentInviteCode;
 
     protected override void Awake()
     {
@@ -54,6 +62,12 @@ public class LobbyManager : SingletonMonoBehaviour<LobbyManager>
 
         if (LobbyRoomConnector.Instance != null)
             LobbyRoomConnector.Instance.EnsureInLobbyWhenConnected();
+
+        // 초대 코드 발급
+        AssignNewInviteCode();
+
+        // Firebase 커스터마이징 + 닉네임 로드
+        StartCoroutine(CoLoadCustomizationFromFirebase());
     }
 
     protected override void OnDestroy()
@@ -223,6 +237,59 @@ public class LobbyManager : SingletonMonoBehaviour<LobbyManager>
         {
             PlayerCountChanged?.Invoke(snap.PlayerCount, snap.MaxPlayers);
             MatchingStatusChanged?.Invoke(snap.Kind == RoomKind.Lobby ? "로비에 있습니다." : "매칭을 찾고 있습니다...");
+        }
+    }
+
+    private void AssignNewInviteCode()
+    {
+        _currentInviteCode = InviteCodeGenerator.Generate();
+        InviteCodeChanged?.Invoke(_currentInviteCode);
+
+        if (PhotonNetwork.LocalPlayer != null)
+        {
+            var ht = new Hashtable { { "inviteCode", _currentInviteCode } };
+            PhotonNetwork.LocalPlayer.SetCustomProperties(ht);
+        }
+
+        Debug.Log($"[Lobby] 새 초대 코드 발급: {_currentInviteCode}");
+    }
+
+    private IEnumerator CoLoadCustomizationFromFirebase()
+    {
+        if (!FirebaseInitializer.Instance.IsInitialized)
+            yield break;
+
+        var task = FirebaseCustomizationRepository.Load();
+
+        while (!task.IsCompleted)
+            yield return null;
+
+        if (task.IsFaulted)
+        {
+            Debug.LogError($"[Lobby] 커스터마이징 로드 실패: {task.Exception}");
+            yield break;
+        }
+
+        CustomizationSaveData data = task.Result;
+
+        // 닉네임 복원
+        if (!string.IsNullOrEmpty(data.Nickname))
+        {
+            PhotonNetwork.NickName = data.Nickname;
+            NicknameFieldSet?.Invoke(data.Nickname);
+        }
+
+        // 커스터마이징 파츠 복원
+        if (_partItemsActivator != null)
+        {
+            foreach (CharacterCustomizationPart part in System.Enum.GetValues(typeof(CharacterCustomizationPart)))
+            {
+                int index = data.GetPartIndex(part);
+                _partItemsActivator.SetPartItemIndex(part, index);
+                CustomizationPhotonKeys.SetLocalPlayerSlotIndex(part, index);
+            }
+
+            Debug.Log("[Lobby] Firebase 커스터마이징 복원 완료");
         }
     }
 }

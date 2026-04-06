@@ -11,42 +11,42 @@ public class UserInfoUI : MonoBehaviour
     [SerializeField] private TMP_Text _nicknameText;
     [SerializeField] private Button _editNicknameButton;
 
-    [Header("User ID")]
-    [SerializeField] private TMP_Text _userIdText;
-    [SerializeField] private Button _copyUserIdButton;
-    [SerializeField] private string _userIdPrefix = "UserID : ";
+    [Header("초대 코드")]
+    [SerializeField] private TMP_Text _inviteCodeText;
+    [SerializeField] private Button _copyInviteCodeButton;
+    [SerializeField] private string _inviteCodePrefix = "초대 코드 : ";
 
-    private string _userId;
+    private string _inviteCode;
 
     private void Start()
     {
         if (_editNicknameButton != null)
             _editNicknameButton.onClick.AddListener(OnEditNicknameClicked);
-        if (_copyUserIdButton != null)
-            _copyUserIdButton.onClick.AddListener(OnCopyUserIdClicked);
+        if (_copyInviteCodeButton != null)
+            _copyInviteCodeButton.onClick.AddListener(OnCopyInviteCodeClicked);
 
         SubscribeDataEvents();
         RefreshNicknameDisplay();
-        TryApplyExistingUserId();
+        RefreshInviteCodeDisplay();
     }
 
     private void OnDisable()
     {
         if (_editNicknameButton != null)
             _editNicknameButton.onClick.RemoveListener(OnEditNicknameClicked);
-        if (_copyUserIdButton != null)
-            _copyUserIdButton.onClick.RemoveListener(OnCopyUserIdClicked);
+        if (_copyInviteCodeButton != null)
+            _copyInviteCodeButton.onClick.RemoveListener(OnCopyInviteCodeClicked);
 
         UnsubscribeDataEvents();
     }
 
     private void SubscribeDataEvents()
     {
-        if (PhotonServerManager.Instance != null)
-            PhotonServerManager.Instance.OnLocalUserIdReady += HandleUserIdReady;
-
         if (LobbyManager.Instance != null)
+        {
             LobbyManager.Instance.NicknameFieldSet += HandleNicknameFieldSet;
+            LobbyManager.Instance.InviteCodeChanged += HandleInviteCodeChanged;
+        }
 
         if (LobbyRoomConnector.Instance != null)
             LobbyRoomConnector.Instance.OnLobbyRoomJoined += HandleLobbyRoomJoined;
@@ -54,28 +54,20 @@ public class UserInfoUI : MonoBehaviour
 
     private void UnsubscribeDataEvents()
     {
-        if (PhotonServerManager.Instance != null)
-            PhotonServerManager.Instance.OnLocalUserIdReady -= HandleUserIdReady;
-
         if (LobbyManager.Instance != null)
+        {
             LobbyManager.Instance.NicknameFieldSet -= HandleNicknameFieldSet;
+            LobbyManager.Instance.InviteCodeChanged -= HandleInviteCodeChanged;
+        }
 
         if (LobbyRoomConnector.Instance != null)
             LobbyRoomConnector.Instance.OnLobbyRoomJoined -= HandleLobbyRoomJoined;
     }
 
-    private void TryApplyExistingUserId()
+    private void HandleInviteCodeChanged(string code)
     {
-        if (PhotonServerManager.Instance != null && PhotonNetwork.IsConnectedAndReady)
-            HandleUserIdReady(GetCurrentPhotonUserIdString());
-        else
-            RefreshUserIdDisplay();
-    }
-
-    private void HandleUserIdReady(string userId)
-    {
-        _userId = userId ?? string.Empty;
-        RefreshUserIdDisplay();
+        _inviteCode = code ?? string.Empty;
+        RefreshInviteCodeDisplay();
     }
 
     private void HandleNicknameFieldSet(string nickname)
@@ -86,15 +78,6 @@ public class UserInfoUI : MonoBehaviour
     private void HandleLobbyRoomJoined()
     {
         RefreshNicknameDisplay();
-    }
-
-    private static string GetCurrentPhotonUserIdString()
-    {
-        if (PhotonNetwork.LocalPlayer != null && !string.IsNullOrEmpty(PhotonNetwork.LocalPlayer.UserId))
-            return PhotonNetwork.LocalPlayer.UserId;
-        if (PhotonNetwork.AuthValues != null && !string.IsNullOrEmpty(PhotonNetwork.AuthValues.UserId))
-            return PhotonNetwork.AuthValues.UserId;
-        return string.Empty;
     }
 
     private void RefreshNicknameDisplay(string nickname = null)
@@ -109,14 +92,14 @@ public class UserInfoUI : MonoBehaviour
         _nicknameText.text = string.IsNullOrEmpty(display) ? EmptyDisplay : display;
     }
 
-    private void RefreshUserIdDisplay()
+    private void RefreshInviteCodeDisplay()
     {
-        if (_userIdText == null)
+        if (_inviteCodeText == null)
             return;
 
-        _userIdText.text = string.IsNullOrEmpty(_userId)
+        _inviteCodeText.text = string.IsNullOrEmpty(_inviteCode)
             ? EmptyDisplay
-            : _userIdPrefix + _userId;
+            : _inviteCodePrefix + _inviteCode;
     }
 
     private void OnEditNicknameClicked()
@@ -124,12 +107,12 @@ public class UserInfoUI : MonoBehaviour
         LobbyUiEvents.RequestNicknameChangePopup();
     }
 
-    private void OnCopyUserIdClicked()
+    private void OnCopyInviteCodeClicked()
     {
-        if (string.IsNullOrEmpty(_userId))
+        if (string.IsNullOrEmpty(_inviteCode))
             return;
 
-        GUIUtility.systemCopyBuffer = _userId;
-        LobbyUiEvents.RequestTransientToast("복사 완료");
+        GUIUtility.systemCopyBuffer = _inviteCode;
+        LobbyUiEvents.RequestTransientToast("초대 코드 복사 완료");
     }
 }

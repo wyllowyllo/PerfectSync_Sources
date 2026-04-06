@@ -128,6 +128,9 @@ public class CustomizationItem : InfiniteScrollItem
         // --- REMOVE:LocalPartPreview (end) ---
 
         CustomizationPhotonKeys.SetLocalPlayerSlotIndex(_definition.Part, _definition.SlotItemIndex);
+
+        // Firebase에 파츠 번호 저장
+        _ = FirebaseCustomizationRepository.SavePart(_definition.Part, _definition.SlotItemIndex);
     }
 
     public void SetDefinition(CustomizationItemDefinition definition)
