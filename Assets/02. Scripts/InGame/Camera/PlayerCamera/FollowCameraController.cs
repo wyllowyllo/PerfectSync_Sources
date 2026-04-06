@@ -12,6 +12,9 @@ namespace InGame.Camera.PlayerCamera
     [DefaultExecutionOrder(ExecutionOrderConstants.CinemachineCameraManager)]
     public class FollowCameraController : MonoBehaviourPun
     {
+        /// <summary>CinemachineBrain이 구동하는 실제 렌더 카메라. 초기화 후 사용 가능.</summary>
+        public UnityEngine.Camera OutputCamera => _outputCamera;
+
         [Header("Root Bodies")]
         [SerializeField] private Transform _mergedRootBody;
 
@@ -51,6 +54,7 @@ namespace InGame.Camera.PlayerCamera
         private float _currentSmoothTime;
         private bool _wasRagdollManaged;
         private bool _initialized;
+        private UnityEngine.Camera _outputCamera;
         private float _baseFov;
         private Tween _fovTween;
         private InvincibleContactDetector _contactDetector;
@@ -75,6 +79,7 @@ namespace InGame.Camera.PlayerCamera
             }
 
             _initialized = true;
+            _outputCamera = UnityEngine.Camera.main;
             _baseFov = _followCamera.Lens.FieldOfView;
             _currentSmoothTime = _animatedSmoothTime;
 
