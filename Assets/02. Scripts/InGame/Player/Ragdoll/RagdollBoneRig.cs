@@ -20,6 +20,9 @@ namespace InGame.Player.Ragdoll
 
         private bool _isPhysicsActive;
 
+        private const int RagdollSolverIterations = 8;
+        private const int RagdollSolverVelocityIterations = 2;
+
         public IReadOnlyList<Rigidbody> Rigidbodies => _ragdollRbs;
         public IReadOnlyList<Transform> BoneTransforms => _ragdollBoneTransforms;
         public Transform PelvisTransform => _pelvis;
@@ -47,7 +50,11 @@ namespace InGame.Player.Ragdoll
             _isPhysicsActive = true;
 
             for (int i = 0; i < _ragdollRbs.Length; i++)
+            {
+                _ragdollRbs[i].solverIterations = RagdollSolverIterations;
+                _ragdollRbs[i].solverVelocityIterations = RagdollSolverVelocityIterations;
                 _ragdollRbs[i].linearVelocity = inheritedVelocity;
+            }
         }
 
         // Kinematic 활성화 (Remote — BoneReceiver가 본 위치를 직접 설정).
