@@ -1,30 +1,23 @@
-using System.Collections;
 using InGame.Gimmick;
 using UnityEngine;
 
 namespace InGame.Player.Rendering
 {
-    // RespawnHandler의 무적 이벤트를 구독하여 캐릭터 블링크 연출.
+    // RespawnHandler의 무적 이벤트를 구독하여 리스폰 무적 VFX를 재생한다.
     // MergedBody 하위에 부착.
     public class RespawnBlinkEffect : MonoBehaviour
     {
-        [SerializeField] private float _blinkInterval = 0.15f;
+        [SerializeField] private ParticleSystem _blinkEffectPrefab;
 
-        private Renderer[] _renderers;
-        private Coroutine _blinkCoroutine;
-
-        private void Awake()
-        {
-            _renderers = GetComponentsInChildren<Renderer>(true);
-        }
+        private ParticleSystem _blinkEffectInstance;
 
         private void Start()
         {
             var respawnHandler = GetComponentInParent<RespawnHandler>();
             if (respawnHandler == null) return;
 
-            respawnHandler.OnRespawnInvincibleStart += StartBlink;
-            respawnHandler.OnRespawnInvincibleEnd += StopBlink;
+            respawnHandler.OnRespawnInvincibleStart += StartEffect;
+            respawnHandler.OnRespawnInvincibleEnd += StopEffect;
         }
 
         private void OnDestroy()
@@ -32,49 +25,25 @@ namespace InGame.Player.Rendering
             var respawnHandler = GetComponentInParent<RespawnHandler>();
             if (respawnHandler == null) return;
 
-            respawnHandler.OnRespawnInvincibleStart -= StartBlink;
-            respawnHandler.OnRespawnInvincibleEnd -= StopBlink;
+            respawnHandler.OnRespawnInvincibleStart -= StartEffect;
+            respawnHandler.OnRespawnInvincibleEnd -= StopEffect;
         }
 
-        private void StartBlink()
+        private void StartEffect()
         {
-            if (_blinkCoroutine != null)
-                StopCoroutine(_blinkCoroutine);
+            if (_blinkEffectPrefab == null || _blinkEffectInstance != null) return;
 
-            _blinkCoroutine = StartCoroutine(BlinkCoroutine());
+            _blinkEffectInstance = Instantiate(_blinkEffectPrefab, transform);
+            _blinkEffectInstance.Play();
         }
 
-        private void StopBlink()
+        private void StopEffect()
         {
-            if (_blinkCoroutine != null)
-            {
-                StopCoroutine(_blinkCoroutine);
-                _blinkCoroutine = null;
-            }
+            if (_blinkEffectInstance == null) return;
 
-            SetRenderersVisible(true);
-        }
-
-        private IEnumerator BlinkCoroutine()
-        {
-            var wait = new WaitForSeconds(_blinkInterval);
-            bool visible = true;
-
-            while (true)
-            {
-                visible = !visible;
-                SetRenderersVisible(visible);
-                yield return wait;
-            }
-        }
-
-        private void SetRenderersVisible(bool visible)
-        {
-            foreach (var renderer in _renderers)
-            {
-                if (renderer != null)
-                    renderer.enabled = visible;
-            }
+            _blinkEffectInstance.Stop();
+            Destroy(_blinkEffectInstance.gameObject);
+            _blinkEffectInstance = null;
         }
     }
 }
