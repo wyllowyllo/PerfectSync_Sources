@@ -17,6 +17,9 @@ namespace InGame.Obstacle
         [Tooltip("파괴 후 장애물이 리스폰되기까지 총 시간 (초)")]
         [SerializeField] private float _respawnDelay = 5f;
 
+        [Tooltip("리스폰 전 깜빡임 예고 시간 (초)")]
+        [SerializeField] private float _warningDuration = 0.5f;
+
         private readonly List<IDestroyable> _registry = new();
         private readonly Dictionary<IDestroyable, int> _idLookup = new();
 
@@ -123,6 +126,13 @@ namespace InGame.Obstacle
                     var data = (object[])photonEvent.CustomData;
                     int id = (int)data[0];
                     ApplyHide(id);
+                    break;
+                }
+                case PhotonEventCodes.ObstacleRespawnWarning:
+                {
+                    var data = (object[])photonEvent.CustomData;
+                    int id = (int)data[0];
+                    ApplyRespawnWarning(id);
                     break;
                 }
                 case PhotonEventCodes.ObstacleRespawn:
@@ -233,10 +243,14 @@ namespace InGame.Obstacle
             yield return new WaitForSeconds(_hideDelay);
             RequestHide(id);
 
-            // Phase 2: 숨김 후 리스폰 대기.
-            float remaining = _respawnDelay - _hideDelay;
-            if (remaining > 0f)
-                yield return new WaitForSeconds(remaining);
+            // Phase 2: 숨김 후 리스폰 예고 대기.
+            float warningStart = _respawnDelay - _hideDelay - _warningDuration;
+            if (warningStart > 0f)
+                yield return new WaitForSeconds(warningStart);
+
+            // Phase 3: 깜빡임 예고.
+            RequestRespawnWarning(id);
+            yield return new WaitForSeconds(_warningDuration);
 
             _respawnTimers.Remove(id);
             RequestRespawn(id);
@@ -268,6 +282,23 @@ namespace InGame.Obstacle
 
             _registry[id].Hide();
             _hiddenIds.Add(id);
+        }
+
+        private void RequestRespawnWarning(int id)
+        {
+            ApplyRespawnWarning(id);
+
+            var content = new object[] { id };
+            var opts = new RaiseEventOptions { Receivers = ReceiverGroup.Others };
+            PhotonNetwork.RaiseEvent(PhotonEventCodes.ObstacleRespawnWarning, content, opts,
+                SendOptions.SendReliable);
+        }
+
+        private void ApplyRespawnWarning(int id)
+        {
+            if (id < 0 || id >= _registry.Count) return;
+
+            _registry[id].PrepareRespawn();
         }
 
         private void ApplyRespawn(int id)

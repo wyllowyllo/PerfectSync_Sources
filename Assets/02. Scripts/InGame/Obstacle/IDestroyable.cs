@@ -8,6 +8,7 @@ namespace InGame.Obstacle
         bool IsHidden { get; }
         void Destroy(Vector3 force, bool isMaster);
         void Hide();
+        void PrepareRespawn();
         void Respawn();
         void ApplyNetworkState(Vector3 position, Quaternion rotation);
     }
