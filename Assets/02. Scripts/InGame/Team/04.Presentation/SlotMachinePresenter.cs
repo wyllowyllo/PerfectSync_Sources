@@ -45,6 +45,16 @@ namespace InGame.Team
         [SerializeField] private float _spinCompletePunchDuration = 0.3f;
         [SerializeField] private float _disappearScaleDuration = 0.25f;
 
+        [Header("Result Reaction")]
+        [Tooltip("잭팟: 뷰포트 Y 바운스 크기")]
+        [SerializeField] private float _jackpotBounceY = 0.06f;
+        [SerializeField] private float _jackpotBounceDuration = 0.4f;
+        [Tooltip("잭팟: 추가 스케일 펀치 비율")]
+        [SerializeField] private float _jackpotScalePunchRatio = 0.5f;
+        [Tooltip("꽝: 뷰포트 Y 처짐 크기")]
+        [SerializeField] private float _missDroopY = 0.03f;
+        [SerializeField] private float _missDroopDuration = 0.5f;
+
         [Header("Hovering")]
         [SerializeField] private float _bobAmplitude = 0.15f;
         [SerializeField] private float _bobFrequency = 1.5f;
@@ -58,6 +68,7 @@ namespace InGame.Team
         private SlotMachine _activeSlotMachine;
         private Tween _activeTween;
         private Tween _scaleTween;
+        private Tween _reactionTween;
         private Vector3 _prefabBaseScale;
 
         private Vector2 _currentViewportPos;
@@ -84,6 +95,7 @@ namespace InGame.Team
         {
             _activeTween?.Kill();
             _scaleTween?.Kill();
+            _reactionTween?.Kill();
 
             if (_synchronizer != null)
             {
@@ -129,6 +141,7 @@ namespace InGame.Team
         {
             _activeTween?.Kill();
             _scaleTween?.Kill();
+            _reactionTween?.Kill();
             if (_activeSlotMachine != null)
             {
                 Destroy(_activeSlotMachine.gameObject);
@@ -202,11 +215,37 @@ namespace InGame.Team
             {
                 _activeSlotMachine.OnSpinComplete -= OnSpinComplete;
 
-                // 릴 정지 "쿵" 스케일 펀치.
                 _scaleTween?.Kill();
+                _reactionTween?.Kill();
                 _activeSlotMachine.transform.localScale = _prefabBaseScale;
-                _scaleTween = _activeSlotMachine.transform
-                    .DOPunchScale(_prefabBaseScale * _spinCompletePunchRatio, _spinCompletePunchDuration, 1, 0.5f);
+
+                if (_pendingMatch)
+                {
+                    // ── 잭팟: 강한 스케일 펀치 + 뷰포트 위로 튀어오르기.
+                    _scaleTween = _activeSlotMachine.transform
+                        .DOPunchScale(_prefabBaseScale * _jackpotScalePunchRatio, _jackpotBounceDuration, 1, 0.3f);
+
+                    float baseY = _currentViewportPos.y;
+                    _reactionTween = DOTween.Sequence()
+                        .Append(DOTween.To(
+                            () => _currentViewportPos.y, y => _currentViewportPos.y = y,
+                            baseY + _jackpotBounceY, _jackpotBounceDuration * 0.3f).SetEase(Ease.OutQuad))
+                        .Append(DOTween.To(
+                            () => _currentViewportPos.y, y => _currentViewportPos.y = y,
+                            baseY, _jackpotBounceDuration * 0.7f).SetEase(Ease.OutBounce));
+                }
+                else
+                {
+                    // ── 꽝: 펀치 없이 쪼그라들며 축 처짐.
+                    _scaleTween = _activeSlotMachine.transform
+                        .DOScale(_prefabBaseScale * 0.85f, _missDroopDuration)
+                        .SetEase(Ease.InOutSine);
+
+                    float baseY = _currentViewportPos.y;
+                    _reactionTween = DOTween.To(
+                        () => _currentViewportPos.y, y => _currentViewportPos.y = y,
+                        baseY - _missDroopY, _missDroopDuration).SetEase(Ease.InOutSine);
+                }
             }
 
             // 릴 정지 후 매치 결과에 따라 무적 모드 전환.
