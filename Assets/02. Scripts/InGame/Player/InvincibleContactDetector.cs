@@ -179,7 +179,7 @@ namespace InGame.Player
         {
             var hitstop = HitstopEffect.Instance;
             if (hitstop != null)
-                hitstop.Play();
+                hitstop.PlayHeavy();
 
             if (_impulseSource != null)
                 _impulseSource.GenerateImpulse(direction * 2.5f);
@@ -192,6 +192,10 @@ namespace InGame.Player
 
         private void PlayHitFeedback(Vector3 direction)
         {
+            var hitstop = HitstopEffect.Instance;
+            if (hitstop != null)
+                hitstop.PlayLight();
+
             if (_impulseSource != null)
                 _impulseSource.GenerateImpulse(direction);
 

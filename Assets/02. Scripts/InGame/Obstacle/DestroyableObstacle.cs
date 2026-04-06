@@ -22,10 +22,15 @@ namespace InGame.Obstacle
         private Vector3 _initialLocalPosition;
         private Quaternion _initialLocalRotation;
         private bool _isDestroyed;
+        private bool _isHidden;
+        private Renderer[] _renderers;
+        private Collider[] _colliders;
 
         public bool IsDestroyed => _isDestroyed;
+        public bool IsHidden => _isHidden;
 
         public event Action OnDestroyed;
+        public event Action OnHidden;
         public event Action OnRespawned;
 
         private void Awake()
@@ -34,7 +39,8 @@ namespace InGame.Obstacle
             _initialParent = transform.parent;
             _initialLocalPosition = transform.localPosition;
             _initialLocalRotation = transform.localRotation;
-
+            _renderers = GetComponentsInChildren<Renderer>(true);
+            _colliders = GetComponentsInChildren<Collider>(true);
         }
 
         public void Destroy(Vector3 force, bool isMaster)
@@ -65,8 +71,11 @@ namespace InGame.Obstacle
             }
         }
 
-        public void Respawn()
+        public void Hide()
         {
+            if (!_isDestroyed || _isHidden) return;
+            _isHidden = true;
+
             if (_rb != null)
             {
                 _rb.isKinematic = true;
@@ -74,11 +83,24 @@ namespace InGame.Obstacle
                 _rb.angularVelocity = Vector3.zero;
             }
 
+            SetVisible(false);
+            OnHidden?.Invoke();
+        }
+
+        public void Respawn()
+        {
             // 원래 부모 아래로 복귀 후 로컬 좌표 복원.
             if (_initialParent != null)
                 transform.SetParent(_initialParent, true);
 
             transform.SetLocalPositionAndRotation(_initialLocalPosition, _initialLocalRotation);
+
+            if (_rb != null)
+            {
+                _rb.isKinematic = true;
+                _rb.linearVelocity = Vector3.zero;
+                _rb.angularVelocity = Vector3.zero;
+            }
 
             foreach (var script in _movementScripts)
             {
@@ -86,8 +108,23 @@ namespace InGame.Obstacle
                     script.enabled = true;
             }
 
+            SetVisible(true);
+            _isHidden = false;
             _isDestroyed = false;
             OnRespawned?.Invoke();
+        }
+
+        private void SetVisible(bool visible)
+        {
+            foreach (var rend in _renderers)
+            {
+                if (rend != null) rend.enabled = visible;
+            }
+
+            foreach (var col in _colliders)
+            {
+                if (col != null) col.enabled = visible;
+            }
         }
 
         public void ApplyNetworkState(Vector3 position, Quaternion rotation)
