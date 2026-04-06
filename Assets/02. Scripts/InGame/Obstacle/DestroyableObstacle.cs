@@ -2,7 +2,6 @@ using System;
 using System.Collections;
 using DG.Tweening;
 using UnityEngine;
-using Random = UnityEngine.Random;
 
 namespace InGame.Obstacle
 {
@@ -24,8 +23,6 @@ namespace InGame.Obstacle
         [Header("Respawn Animation")]
         [SerializeField] private float _warningBlinkInterval = 0.1f;
         [SerializeField] private float _respawnScaleDuration = 0.3f;
-
-        private const float CorrectionFactor = 0.2f;
 
         private Rigidbody _rb;
         private Transform _initialParent;
@@ -59,7 +56,7 @@ namespace InGame.Obstacle
             _colliders = GetComponentsInChildren<Collider>(true);
         }
 
-        public void Destroy(Vector3 force, bool isMaster)
+        public void Destroy(Vector3 force, Vector3 randomTorque)
         {
             if (_isDestroyed) return;
             _isDestroyed = true;
@@ -82,11 +79,11 @@ namespace InGame.Obstacle
             if (_initialParent != null)
                 transform.SetParent(null, true);
 
-            if (isMaster && _rb != null)
+            if (_rb != null)
             {
                 _rb.isKinematic = false;
                 _rb.AddForce(force * _destroyForceMultiplier, ForceMode.Impulse);
-                _rb.AddTorque(Random.insideUnitSphere * _torqueStrength, ForceMode.Impulse);
+                _rb.AddTorque(randomTorque * _torqueStrength, ForceMode.Impulse);
             }
         }
 
@@ -164,14 +161,6 @@ namespace InGame.Obstacle
             _isHidden = false;
             _isDestroyed = false;
             OnRespawned?.Invoke();
-        }
-
-        public void ApplyNetworkState(Vector3 position, Quaternion rotation)
-        {
-            if (!_isDestroyed) return;
-
-            transform.position = Vector3.Lerp(transform.position, position, CorrectionFactor);
-            transform.rotation = Quaternion.Slerp(transform.rotation, rotation, CorrectionFactor);
         }
 
         // ── 내부 유틸 ──────────────────────────────────────────

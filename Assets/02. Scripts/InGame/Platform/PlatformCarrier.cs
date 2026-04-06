@@ -13,7 +13,7 @@ namespace InGame.Race.Platform
     public class PlatformCarrier : MonoBehaviour
     {
         [Header("Centrifugal Force")]
-        [SerializeField] private bool _applyCentrifugalForce;
+        [SerializeField] private bool _applyCentrifugalForce = true;
         [SerializeField] private float _centrifugalMultiplier = 1f;
 
         private readonly List<Rigidbody> _riders = new();
