@@ -31,6 +31,7 @@ namespace InGame.Team
         public event Action OnInvincibleExit;
 
         public bool IsInvincible => _isInvincible;
+        public float RemainingTime => _timer;
         public float KnockbackForce => _knockbackForce;
         public float KnockbackUpwardBias => _knockbackUpwardBias;
 
