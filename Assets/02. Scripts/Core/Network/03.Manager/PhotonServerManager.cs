@@ -54,7 +54,7 @@ public class PhotonServerManager : SingletonPunCallbacks<PhotonServerManager>
         string uid = null;
 
         if (AuthService.Instance != null && AuthService.Instance.IsLoggedIn)
-            uid = AuthService.Instance.CurrentUserId;
+            uid = AuthService.Instance.CurrentUserEmail;
 
         if (string.IsNullOrEmpty(uid))
             uid = UserIdGenerator.CreateSessionUserId();

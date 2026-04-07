@@ -16,7 +16,7 @@ public static class FirebaseCustomizationRepository
     {
         try
         {
-            string userId = FirebaseAuthRepository.GetCurrentUserId();
+            string userId = FirebaseAuthRepository.GetCurrentUserEmail();
             if (string.IsNullOrEmpty(userId))
             {
                 Debug.LogWarning("[FirebaseCustomization] 로그인되지 않아 저장할 수 없습니다.");
@@ -41,7 +41,7 @@ public static class FirebaseCustomizationRepository
     {
         try
         {
-            string userId = FirebaseAuthRepository.GetCurrentUserId();
+            string userId = FirebaseAuthRepository.GetCurrentUserEmail();
             if (string.IsNullOrEmpty(userId))
                 return;
 
@@ -69,7 +69,7 @@ public static class FirebaseCustomizationRepository
     {
         try
         {
-            string userId = FirebaseAuthRepository.GetCurrentUserId();
+            string userId = FirebaseAuthRepository.GetCurrentUserEmail();
             if (string.IsNullOrEmpty(userId))
                 return;
 
@@ -93,7 +93,7 @@ public static class FirebaseCustomizationRepository
     {
         try
         {
-            string userId = FirebaseAuthRepository.GetCurrentUserId();
+            string userId = FirebaseAuthRepository.GetCurrentUserEmail();
             if (string.IsNullOrEmpty(userId))
             {
                 Debug.LogWarning("[FirebaseCustomization] 로그인되지 않아 기본값 반환");

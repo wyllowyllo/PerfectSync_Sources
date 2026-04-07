@@ -5,7 +5,7 @@ using UnityEngine.UI;
 public class LoginPanel : MonoBehaviour
 {
     [Header("입력 필드")]
-    [SerializeField] private TMP_InputField _userIdInput;
+    [SerializeField] private TMP_InputField _emailInput;
     [SerializeField] private TMP_InputField _passwordInput;
 
     [Header("버튼")]
@@ -24,7 +24,7 @@ public class LoginPanel : MonoBehaviour
     {
         _loginButton.onClick.AddListener(OnLoginClicked);
         _registerButton.onClick.AddListener(OnRegisterClicked);
-        ClearMessage();
+        ShowMessage("로그인 정보를 입력해주세요.");
     }
 
     private void OnDisable()
@@ -37,32 +37,33 @@ public class LoginPanel : MonoBehaviour
     {
         if (_isProcessing) return;
 
-        string userId = _userIdInput.text?.Trim();
+        string email = _emailInput.text?.Trim();
         string password = _passwordInput.text;
-
-        if (!ValidateInput(userId, password))
-            return;
 
         SetProcessing(true);
         ShowMessage("로그인 중...");
 
-        AuthService.Instance.RequestLogin(userId, password, OnAuthComplete);
+        AuthService.Instance.RequestLogin(email, password, OnAuthComplete);
     }
 
     private void OnRegisterClicked()
     {
         if (_isProcessing) return;
 
-        string userId = _userIdInput.text?.Trim();
+        string email = _emailInput.text?.Trim();
         string password = _passwordInput.text;
 
-        if (!ValidateInput(userId, password))
+        var (isValid, errorMessage) = PasswordValidator.Validate(password);
+        if (!isValid)
+        {
+            ShowMessage(errorMessage);
             return;
+        }
 
         SetProcessing(true);
         ShowMessage("회원가입 중...");
 
-        AuthService.Instance.RequestRegister(userId, password, OnAuthComplete);
+        AuthService.Instance.RequestRegister(email, password, OnAuthComplete);
     }
 
     private void OnAuthComplete(AuthResult result)
@@ -78,35 +79,6 @@ public class LoginPanel : MonoBehaviour
         {
             ShowMessage(result.ErrorMessage);
         }
-    }
-
-    private bool ValidateInput(string userId, string password)
-    {
-        if (string.IsNullOrEmpty(userId))
-        {
-            ShowMessage("ID를 입력해주세요.");
-            return false;
-        }
-
-        if (userId.Length < 3)
-        {
-            ShowMessage("ID는 3자 이상이어야 합니다.");
-            return false;
-        }
-
-        if (string.IsNullOrEmpty(password))
-        {
-            ShowMessage("비밀번호를 입력해주세요.");
-            return false;
-        }
-
-        if (password.Length < 6)
-        {
-            ShowMessage("비밀번호는 6자 이상이어야 합니다.");
-            return false;
-        }
-
-        return true;
     }
 
     private void TransitionToLobby()

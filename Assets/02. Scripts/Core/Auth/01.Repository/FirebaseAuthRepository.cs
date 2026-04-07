@@ -7,20 +7,16 @@ using Firebase;
 
 public static class FirebaseAuthRepository
 {
-    private const string EmailSuffix = "@perfectsync.local";
-
-    private static string ToEmail(string userId) => userId + EmailSuffix;
-
 #if !UNITY_WEBGL || UNITY_EDITOR
-    public static async Task<AuthResult> Register(string userId, string password)
+    public static async Task<AuthResult> Register(string email, string password)
     {
         try
         {
             var result = await FirebaseInitializer.Instance.Auth
-                .CreateUserWithEmailAndPasswordAsync(ToEmail(userId), password);
+                .CreateUserWithEmailAndPasswordAsync(email, password);
 
-            Debug.Log($"[FirebaseAuth] 회원가입 성공: {userId}");
-            return new AuthResult { Success = true, UserId = userId };
+            Debug.Log($"[FirebaseAuth] 회원가입 성공: {email}");
+            return new AuthResult { Success = true, Email = email };
         }
         catch (FirebaseException e)
         {
@@ -29,15 +25,15 @@ public static class FirebaseAuthRepository
         }
     }
 
-    public static async Task<AuthResult> Login(string userId, string password)
+    public static async Task<AuthResult> Login(string email, string password)
     {
         try
         {
             var result = await FirebaseInitializer.Instance.Auth
-                .SignInWithEmailAndPasswordAsync(ToEmail(userId), password);
+                .SignInWithEmailAndPasswordAsync(email, password);
 
-            Debug.Log($"[FirebaseAuth] 로그인 성공: {userId}");
-            return new AuthResult { Success = true, UserId = userId };
+            Debug.Log($"[FirebaseAuth] 로그인 성공: {email}");
+            return new AuthResult { Success = true, Email = email };
         }
         catch (FirebaseException e)
         {
@@ -52,40 +48,37 @@ public static class FirebaseAuthRepository
         Debug.Log("[FirebaseAuth] 로그아웃 완료");
     }
 
-    /// <summary>현재 로그인된 유저의 UserId (이메일에서 suffix 제거).</summary>
-    public static string GetCurrentUserId()
+    /// <summary>현재 로그인된 유저의 이메일.</summary>
+    public static string GetCurrentUserEmail()
     {
         var user = FirebaseInitializer.Instance.Auth.CurrentUser;
         if (user == null || string.IsNullOrEmpty(user.Email))
             return null;
 
-        string email = user.Email;
-        if (email.EndsWith(EmailSuffix))
-            return email.Substring(0, email.Length - EmailSuffix.Length);
-
-        return email;
+        return user.Email;
     }
 
     private static string GetErrorMessage(FirebaseException e)
     {
         return e.ErrorCode switch
         {
-            (int)AuthError.EmailAlreadyInUse => "이미 사용 중인 ID입니다.",
-            (int)AuthError.InvalidEmail => "유효하지 않은 ID 형식입니다.",
-            (int)AuthError.WeakPassword => "비밀번호가 너무 약합니다. (6자 이상)",
-            (int)AuthError.WrongPassword => "ID 또는 비밀번호를 확인해주세요.",
-            (int)AuthError.UserNotFound => "ID 또는 비밀번호를 확인해주세요.",
-            _ => "인증 오류가 발생했습니다."
+            (int)AuthError.EmailAlreadyInUse => "이미 사용 중인 이메일입니다.",
+            (int)AuthError.InvalidEmail      => "유효하지 않은 이메일 형식입니다.",
+            (int)AuthError.WeakPassword      => $"비밀번호가 조건을 충족하지 않습니다.\n{e.Message}",
+            (int)AuthError.WrongPassword     => "이메일 또는 비밀번호를 확인해주세요.",
+            (int)AuthError.UserNotFound      => "이메일 또는 비밀번호를 확인해주세요.",
+            (int)AuthError.Failure           => "이메일 또는 비밀번호를 확인해주세요.",
+            _ => $"인증 오류가 발생했습니다. ({e.Message})"
         };
     }
 #else
-    public static Task<AuthResult> Register(string userId, string password)
+    public static Task<AuthResult> Register(string email, string password)
     {
         Debug.LogWarning("[FirebaseAuth] WebGL: Firebase 사용 불가");
         return Task.FromResult(new AuthResult { Success = false, ErrorMessage = "WebGL에서는 사용할 수 없습니다." });
     }
 
-    public static Task<AuthResult> Login(string userId, string password)
+    public static Task<AuthResult> Login(string email, string password)
     {
         Debug.LogWarning("[FirebaseAuth] WebGL: Firebase 사용 불가");
         return Task.FromResult(new AuthResult { Success = false, ErrorMessage = "WebGL에서는 사용할 수 없습니다." });
@@ -96,6 +89,6 @@ public static class FirebaseAuthRepository
         Debug.LogWarning("[FirebaseAuth] WebGL: Firebase 사용 불가");
     }
 
-    public static string GetCurrentUserId() => null;
+    public static string GetCurrentUserEmail() => null;
 #endif
 }

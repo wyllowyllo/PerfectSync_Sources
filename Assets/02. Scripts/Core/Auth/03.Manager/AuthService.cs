@@ -9,7 +9,7 @@ public class AuthService : MonoBehaviour
     public static AuthService Instance => s_instance;
 
     public bool IsLoggedIn { get; private set; }
-    public string CurrentUserId { get; private set; }
+    public string CurrentUserEmail { get; private set; }
 
     public event Action<string> OnLoginSuccess;
 
@@ -26,21 +26,21 @@ public class AuthService : MonoBehaviour
         }
     }
 
-    public void RequestLogin(string userId, string password, Action<AuthResult> callback)
+    public void RequestLogin(string email, string password, Action<AuthResult> callback)
     {
-        StartCoroutine(CoWaitFirebaseAndExecute(() => FirebaseAuthRepository.Login(userId, password), callback));
+        StartCoroutine(CoWaitFirebaseAndExecute(() => FirebaseAuthRepository.Login(email, password), callback));
     }
 
-    public void RequestRegister(string userId, string password, Action<AuthResult> callback)
+    public void RequestRegister(string email, string password, Action<AuthResult> callback)
     {
-        StartCoroutine(CoWaitFirebaseAndExecute(() => FirebaseAuthRepository.Register(userId, password), callback));
+        StartCoroutine(CoWaitFirebaseAndExecute(() => FirebaseAuthRepository.Register(email, password), callback));
     }
 
     public void Logout()
     {
         FirebaseAuthRepository.Logout();
         IsLoggedIn = false;
-        CurrentUserId = null;
+        CurrentUserEmail = null;
     }
 
     private IEnumerator CoWaitFirebaseAndExecute(Func<Task<AuthResult>> authTask, Action<AuthResult> callback)
@@ -65,8 +65,8 @@ public class AuthService : MonoBehaviour
         if (result.Success)
         {
             IsLoggedIn = true;
-            CurrentUserId = result.UserId;
-            OnLoginSuccess?.Invoke(result.UserId);
+            CurrentUserEmail = result.Email;
+            OnLoginSuccess?.Invoke(result.Email);
         }
 
         callback?.Invoke(result);
