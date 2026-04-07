@@ -67,10 +67,13 @@ namespace InGame.Player.Test
                 }
             }
 
-            // MergedBody Transform 캐싱
+            // MergedBody Transform 캐싱 — 실제 이동하는 RootBody(Rigidbody)를 추적
             GameObject mergedBody = _inputRouter.MergedBody;
             if (mergedBody != null)
-                _mergedBodyTransform = mergedBody.transform;
+            {
+                var rb = mergedBody.GetComponentInChildren<Rigidbody>();
+                _mergedBodyTransform = rb != null ? rb.transform : mergedBody.transform;
+            }
 
             // 화살표 생성 (월드 공간에 독립 배치 — 부모 transform 영향 제거)
             _hostArrow = InputArrowBuilder.CreateArrow("HostArrow", HostColor, null);
