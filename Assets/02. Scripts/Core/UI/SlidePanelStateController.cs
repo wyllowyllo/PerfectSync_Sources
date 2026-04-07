@@ -1,8 +1,12 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
 public class SlidePanelStateController : MonoBehaviour
 {
+    public static event Action SwitchToCustomizingStarted;
+    public static event Action SwitchToNormalCompleted;
+
     [SerializeField] private SlideUiStateDefinition[] _states;
     [SerializeField] private string _initialStateId = SlideStateIds.Normal;
 
@@ -50,16 +54,68 @@ public class SlidePanelStateController : MonoBehaviour
         HashSet<UISlidePanelTransition> oldVisible = BuildPanelSetForState(_currentStateId);
         HashSet<UISlidePanelTransition> newVisible = BuildPanelSetForState(stateId);
 
+        int remaining = 0;
+
         foreach (UISlidePanelTransition p in oldVisible)
         {
             if (!newVisible.Contains(p))
-                p.PlayExit();
+                remaining++;
         }
 
         foreach (UISlidePanelTransition p in newVisible)
         {
             if (!oldVisible.Contains(p))
+                remaining++;
+        }
+
+        void OnAllTransitionsCompleted()
+        {
+            if (stateId == SlideStateIds.Normal)
+                SwitchToNormalCompleted?.Invoke();
+        }
+
+        if (remaining <= 0)
+        {
+            _currentStateId = stateId;
+            OnAllTransitionsCompleted();
+            return;
+        }
+
+        void OnOneTransitionCompleted()
+        {
+            remaining--;
+            if (remaining <= 0)
+                OnAllTransitionsCompleted();
+        }
+
+        foreach (UISlidePanelTransition p in oldVisible)
+        {
+            if (!newVisible.Contains(p))
+            {
+                Action handler = null;
+                handler = () =>
+                {
+                    p.ExitCompleted -= handler;
+                    OnOneTransitionCompleted();
+                };
+                p.ExitCompleted += handler;
+                p.PlayExit();
+            }
+        }
+
+        foreach (UISlidePanelTransition p in newVisible)
+        {
+            if (!oldVisible.Contains(p))
+            {
+                Action handler = null;
+                handler = () =>
+                {
+                    p.EnterCompleted -= handler;
+                    OnOneTransitionCompleted();
+                };
+                p.EnterCompleted += handler;
                 p.PlayEnter();
+            }
         }
 
         _currentStateId = stateId;
@@ -72,6 +128,7 @@ public class SlidePanelStateController : MonoBehaviour
 
     public void SwitchToCustomizing()
     {
+        SwitchToCustomizingStarted?.Invoke();
         SwitchToState(SlideStateIds.Customizing);
     }
 

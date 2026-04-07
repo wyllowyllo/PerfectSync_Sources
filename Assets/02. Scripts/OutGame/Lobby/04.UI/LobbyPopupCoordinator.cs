@@ -1,4 +1,5 @@
 using System.Collections;
+using Photon.Realtime;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -28,6 +29,11 @@ public class LobbyPopupCoordinator : MonoBehaviour
     [SerializeField] private Button _openSettingsButton;
     [SerializeField] private Button _openInviteFriendsButton;
 
+    [Header("Lobby Nickname Objects (Customization 토글)")]
+    [SerializeField] private GameObject _myNickname;
+    [SerializeField] private GameObject _friendNickname;
+
+    private bool _nicknameObjectsDesiredActive = true;
     private Coroutine _transientToastCoroutine;
 
     private void Start()
@@ -47,15 +53,22 @@ public class LobbyPopupCoordinator : MonoBehaviour
             LobbyPartyService.Instance.OnPartyInviteReceived += HandlePartyInviteReceived;
             LobbyPartyService.Instance.OnPartyInviteResponded += HandlePartyInviteResponded;
             LobbyPartyService.Instance.OnPendingPartyInviteInvalidated += HandlePendingInviteInvalidated;
+            LobbyPartyService.Instance.OnPartyPartnerLinked += HandlePartyPartnerLinked;
+            LobbyPartyService.Instance.OnPartyCleared += HandlePartyCleared;
         }
 
         EscMenuPopup.CloseAllPopupsAndEscMenuRequested += OnEscMenuCloseAllRequested;
         EscMenuPopup.OpenSettingsFromEscMenuRequested += OnEscMenuOpenSettingsRequested;
         EscMenuPopup.OpenQuitFromEscMenuRequested += OnEscMenuOpenQuitRequested;
         QuitPopup.CancelRequested += OnQuitCancelRequested;
+
+        SlidePanelStateController.SwitchToCustomizingStarted += HideNickname;
+        SlidePanelStateController.SwitchToNormalCompleted += ShowNickname;
+
+        RefreshNicknameObjectsActive();
     }
 
-    private void OnDestroy()
+    private void OnDisable()
     {
         if (_openSettingsButton != null)
             _openSettingsButton.onClick.RemoveListener(OnOpenSettingsButtonClicked);
@@ -72,12 +85,17 @@ public class LobbyPopupCoordinator : MonoBehaviour
             LobbyPartyService.Instance.OnPartyInviteReceived -= HandlePartyInviteReceived;
             LobbyPartyService.Instance.OnPartyInviteResponded -= HandlePartyInviteResponded;
             LobbyPartyService.Instance.OnPendingPartyInviteInvalidated -= HandlePendingInviteInvalidated;
+            LobbyPartyService.Instance.OnPartyPartnerLinked -= HandlePartyPartnerLinked;
+            LobbyPartyService.Instance.OnPartyCleared -= HandlePartyCleared;
         }
 
         EscMenuPopup.CloseAllPopupsAndEscMenuRequested -= OnEscMenuCloseAllRequested;
         EscMenuPopup.OpenSettingsFromEscMenuRequested -= OnEscMenuOpenSettingsRequested;
         EscMenuPopup.OpenQuitFromEscMenuRequested -= OnEscMenuOpenQuitRequested;
         QuitPopup.CancelRequested -= OnQuitCancelRequested;
+
+        SlidePanelStateController.SwitchToCustomizingStarted -= HideNickname;
+        SlidePanelStateController.SwitchToNormalCompleted -= ShowNickname;
     }
 
     private void Update()
@@ -117,6 +135,39 @@ public class LobbyPopupCoordinator : MonoBehaviour
     {
         HideAllBackgroundPopups();
         HidePopupBackground();
+    }
+
+    public void ShowNickname()
+    {
+        _nicknameObjectsDesiredActive = true;
+        RefreshNicknameObjectsActive();
+    }
+
+    public void HideNickname()
+    {
+        _nicknameObjectsDesiredActive = false;
+        RefreshNicknameObjectsActive();
+    }
+
+    private void RefreshNicknameObjectsActive()
+    {
+        bool hasParty = LobbyPartyService.Instance != null && LobbyPartyService.Instance.LocalPlayerHasParty;
+        bool active = _nicknameObjectsDesiredActive;
+
+        if (_myNickname != null)
+            _myNickname.SetActive(active);
+        if (_friendNickname != null)
+            _friendNickname.SetActive(active && hasParty);
+    }
+
+    private void HandlePartyPartnerLinked(Player _)
+    {
+        RefreshNicknameObjectsActive();
+    }
+
+    private void HandlePartyCleared()
+    {
+        RefreshNicknameObjectsActive();
     }
 
     private LobbyPopupBase GetBackgroundPopup(LobbyPopupKind kind)
