@@ -51,6 +51,7 @@ namespace InGame.Player
         private const int MaxOverlapResults = 8;
 
         private readonly Collider[] _overlapBuffer = new Collider[MaxOverlapResults];
+        private readonly List<(Collider mine, Collider other)> _ignoredPlayerPairs = new();
 
         // FOV Kick 등 외부 연출 훅.
         public event Action OnHitLocal;
@@ -68,12 +69,17 @@ namespace InGame.Player
             // Non-authority는 RPC 수신 시 넉백 피드백 재생 (authority는 로컬에서 이미 재생).
             if (!_isAuthority)
                 _synchronizer.OnInvincibleHitApplied += HandleRemoteHitFeedback;
+
+            _invincibleController.OnInvincibleExit += RestoreIgnoredCollisions;
         }
 
         private void OnDestroy()
         {
             if (_synchronizer != null)
                 _synchronizer.OnInvincibleHitApplied -= HandleRemoteHitFeedback;
+
+            if (_invincibleController != null)
+                _invincibleController.OnInvincibleExit -= RestoreIgnoredCollisions;
         }
 
         private void HandleRemoteHitFeedback(Vector3 direction)
@@ -199,8 +205,42 @@ namespace InGame.Player
 
             _synchronizer.BroadcastInvincibleHit(victimViewID, knockback, hitPoint, torque, (byte)EHitResponse.Ragdoll);
 
+            IgnoreCollisionWithTarget(other);
             PlayHitFeedback(direction);
         }
+
+        // ── 충돌 무시 관리 ────────────────────────────────────────
+
+        private void IgnoreCollisionWithTarget(Collider targetCollider)
+        {
+            var myColliders = _invincibleController.GetComponentsInChildren<Collider>(true);
+            var targetView = targetCollider.GetComponentInParent<PhotonView>();
+            if (targetView == null) return;
+
+            var targetColliders = targetView.GetComponentsInChildren<Collider>(true);
+
+            foreach (var myCol in myColliders)
+            {
+                foreach (var otherCol in targetColliders)
+                {
+                    if (myCol == null || otherCol == null) continue;
+                    Physics.IgnoreCollision(myCol, otherCol, true);
+                    _ignoredPlayerPairs.Add((myCol, otherCol));
+                }
+            }
+        }
+
+        private void RestoreIgnoredCollisions()
+        {
+            foreach (var (mine, other) in _ignoredPlayerPairs)
+            {
+                if (mine != null && other != null)
+                    Physics.IgnoreCollision(mine, other, false);
+            }
+            _ignoredPlayerPairs.Clear();
+        }
+
+        // ── 피드백 ────────────────────────────────────────────────
 
         private void PlayObstacleDestroyFeedback(Vector3 direction)
         {
