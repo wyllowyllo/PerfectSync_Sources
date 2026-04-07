@@ -74,6 +74,9 @@ namespace InGame.Player.Network
 
         // ── 무적 넉백 (가해자 → 피해자) ─────────────────────────
 
+        /// <summary>RPC 수신 시 넉백 방향을 전달. 공격자 측 피드백 연출용.</summary>
+        public event Action<Vector3> OnInvincibleHitApplied;
+
         public void BroadcastInvincibleHit(int victimViewID, Vector3 knockback, Vector3 hitPoint, Vector3 torque, byte response)
         {
             photonView.RPC(nameof(RpcInvincibleHit), RpcTarget.All,
@@ -91,6 +94,8 @@ namespace InGame.Player.Network
 
             var hit = new HitData(knockback, hitPoint, torque, (EHitResponse)response);
             ragdoll.ApplyHit(hit);
+
+            OnInvincibleHitApplied?.Invoke(knockback.normalized);
         }
     }
 }

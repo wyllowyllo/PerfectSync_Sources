@@ -64,6 +64,22 @@ namespace InGame.Player
         {
             _invincibleController = controller;
             _synchronizer = synchronizer;
+
+            // Non-authority는 RPC 수신 시 넉백 피드백 재생 (authority는 로컬에서 이미 재생).
+            if (!_isAuthority)
+                _synchronizer.OnInvincibleHitApplied += HandleRemoteHitFeedback;
+        }
+
+        private void OnDestroy()
+        {
+            if (_synchronizer != null)
+                _synchronizer.OnInvincibleHitApplied -= HandleRemoteHitFeedback;
+        }
+
+        private void HandleRemoteHitFeedback(Vector3 direction)
+        {
+            if (_invincibleController == null || !_invincibleController.IsInvincible) return;
+            PlayHitFeedback(direction);
         }
 
         private float EffectiveObstacleRadius =>
@@ -136,12 +152,13 @@ namespace InGame.Player
             if (_isAuthority)
             {
                 manager.RequestDestroy(id, force);
-                PlayObstacleDestroyFeedback(direction);
             }
             else
             {
                 manager.PredictDestroy(id, force);
             }
+
+            PlayObstacleDestroyFeedback(direction);
         }
 
         // ── 플레이어 넉백 (기존) ────────────────────────────────
