@@ -17,6 +17,13 @@ namespace InGame.Player
 
         public event Action<HitData> OnHitDetected;
 
+        public void ApplyExternalHit(HitData hit)
+        {
+            if (IsAnySourceInvincible()) return;
+            if (!_isAuthority) return;
+            OnHitDetected?.Invoke(hit);
+        }
+
         public void AddInvincibilitySource(IInvincibilitySource source)
         {
             if (!_invincibilitySources.Contains(source))
