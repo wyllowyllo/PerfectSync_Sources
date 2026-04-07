@@ -22,6 +22,10 @@ namespace InGame.Team
         [Tooltip("넉백 방향의 상향 비율 (0 = 수평, 1 = 완전 위)")]
         [SerializeField, Range(0f, 1f)] private float _knockbackUpwardBias = 0.3f;
 
+        [Header("Collision")]
+        [Tooltip("충돌 무시할 장애물 레이어")]
+        [SerializeField] private LayerMask _obstacleLayers;
+
         private TeamModeSynchronizer _synchronizer;
         private PlayerMovement _movement;
         private bool _isInvincible;
@@ -81,7 +85,7 @@ namespace InGame.Team
             if (_movement != null)
                 _movement.BuffSpeedMultiplier = _speedMultiplier;
 
-            SetPlayerCollisionIgnored(true);
+            RefreshAllInvincibleCollisions();
             OnInvincibleEnter?.Invoke();
         }
 
@@ -93,44 +97,95 @@ namespace InGame.Team
             if (_movement != null)
                 _movement.BuffSpeedMultiplier = 1f;
 
-            SetPlayerCollisionIgnored(false);
+            RefreshAllInvincibleCollisions();
             OnInvincibleExit?.Invoke();
         }
 
         /// <summary>
-        /// 무적 플레이어의 콜라이더와 다른 팀 플레이어 콜라이더 간 물리 충돌을 토글한다.
-        /// 물리 충돌을 끄면 무적 플레이어가 적을 관통하며, InvincibleContactDetector가
-        /// OverlapSphere로 독립 감지하여 넉백 RPC를 발사한다.
+        /// 모든 무적 컨트롤러의 충돌 무시 상태를 재계산한다.
+        /// - 무적 플레이어끼리는 물리 충돌을 유지한다 (서로 막힘, 넉백 없음).
+        /// - 비무적 플레이어와는 충돌을 무시한다 (관통 + OverlapSphere 넉백).
+        /// - 장애물과는 충돌을 무시한다 (관통 + OverlapSphere 파괴).
         /// </summary>
-        private void SetPlayerCollisionIgnored(bool ignore)
+        private static void RefreshAllInvincibleCollisions()
         {
-            if (!ignore)
+            var all = FindObjectsByType<InvincibleModeController>(FindObjectsSortMode.None);
+
+            // 1. 기존 충돌 무시 모두 복원.
+            foreach (var c in all)
             {
-                foreach (var (mine, other) in _ignoredPairs)
+                foreach (var (mine, other) in c._ignoredPairs)
                 {
                     if (mine != null && other != null)
                         Physics.IgnoreCollision(mine, other, false);
                 }
-                _ignoredPairs.Clear();
-                return;
+                c._ignoredPairs.Clear();
             }
 
-            _ignoredPairs.Clear();
-
-            var myColliders = GetComponentsInChildren<Collider>(true);
-
-            foreach (var otherController in FindObjectsByType<InvincibleModeController>(FindObjectsSortMode.None))
+            // 무적 컨트롤러가 하나도 활성이 아니면 복원만 하고 종료.
+            bool anyInvincible = false;
+            foreach (var c in all)
             {
-                if (otherController == this) continue;
+                if (c._isInvincible) { anyInvincible = true; break; }
+            }
+            if (!anyInvincible) return;
 
-                var otherColliders = otherController.GetComponentsInChildren<Collider>(true);
-                foreach (var myCol in myColliders)
+            // 2. 장애물 콜라이더 수집.
+            LayerMask obstacleMask = 0;
+            foreach (var c in all)
+            {
+                if (c._obstacleLayers != 0) { obstacleMask = c._obstacleLayers; break; }
+            }
+
+            List<Collider> obstacleColliders = null;
+            if (obstacleMask != 0)
+            {
+                var allColliders = FindObjectsByType<Collider>(FindObjectsSortMode.None);
+                obstacleColliders = new List<Collider>();
+                foreach (var col in allColliders)
                 {
-                    foreach (var otherCol in otherColliders)
+                    if (col != null && ((1 << col.gameObject.layer) & obstacleMask) != 0)
+                        obstacleColliders.Add(col);
+                }
+            }
+
+            // 3. 무적 컨트롤러별 충돌 무시 재설정.
+            foreach (var c in all)
+            {
+                if (!c._isInvincible) continue;
+
+                var myColliders = c.GetComponentsInChildren<Collider>(true);
+
+                // 3a. 비무적 플레이어와 충돌 무시.
+                foreach (var other in all)
+                {
+                    if (other == c) continue;
+                    if (other._isInvincible) continue;
+
+                    var otherColliders = other.GetComponentsInChildren<Collider>(true);
+                    foreach (var myCol in myColliders)
                     {
-                        if (myCol == null || otherCol == null) continue;
-                        Physics.IgnoreCollision(myCol, otherCol, true);
-                        _ignoredPairs.Add((myCol, otherCol));
+                        foreach (var otherCol in otherColliders)
+                        {
+                            if (myCol == null || otherCol == null) continue;
+                            Physics.IgnoreCollision(myCol, otherCol, true);
+                            c._ignoredPairs.Add((myCol, otherCol));
+                        }
+                    }
+                }
+
+                // 3b. 장애물과 충돌 무시.
+                if (obstacleColliders != null)
+                {
+                    foreach (var obstacleCol in obstacleColliders)
+                    {
+                        if (obstacleCol == null) continue;
+                        foreach (var myCol in myColliders)
+                        {
+                            if (myCol == null) continue;
+                            Physics.IgnoreCollision(myCol, obstacleCol, true);
+                            c._ignoredPairs.Add((myCol, obstacleCol));
+                        }
                     }
                 }
             }
