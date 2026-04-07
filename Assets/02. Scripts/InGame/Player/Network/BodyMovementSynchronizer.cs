@@ -2,6 +2,7 @@ using Core;
 using InGame.Player.Animation;
 using InGame.Player.Movement;
 using InGame.Player.Ragdoll;
+using InGame.Race.Platform;
 using Photon.Pun;
 using UnityEngine;
 
@@ -33,6 +34,10 @@ namespace InGame.Player.Network
         private bool _networkGrounded;
         private bool _firstSnapshot = true;
         private Vector3 _smoothVelocity;
+
+        // 플랫폼 원형 외삽용.
+        private Vector3 _platformAngularVelocity;
+        private Vector3 _platformPivot;
 
         private const float SnapThreshold = 5f;
         private const float InterpolationFactor = 0.3f;
@@ -116,7 +121,24 @@ namespace InGame.Player.Network
                     float elapsed = Mathf.Min(
                         Mathf.Abs((float)(PhotonNetwork.Time - _lastReceiveServerTime)),
                         MaxExtrapolationTime);
-                    target = _networkPosition + _networkVelocity * elapsed;
+
+                    if (_platformAngularVelocity.sqrMagnitude > 1e-6f)
+                    {
+                        // 원형 외삽: 회전 발판 위에서 원호 궤적을 따라 예측.
+                        float angle = _platformAngularVelocity.magnitude * elapsed * Mathf.Rad2Deg;
+                        Quaternion rot = Quaternion.AngleAxis(angle, _platformAngularVelocity.normalized);
+                        Vector3 offset = _networkPosition - _platformPivot;
+                        target = rot * offset + _platformPivot;
+
+                        // 플레이어 자체 이동분만 선형으로 추가.
+                        Vector3 tangentialVel = Vector3.Cross(_platformAngularVelocity, offset);
+                        target += (_networkVelocity - tangentialVel) * elapsed;
+                    }
+                    else
+                    {
+                        target = _networkPosition + _networkVelocity * elapsed;
+                    }
+
                     if (!_networkGrounded)
                         target += 0.5f * Physics.gravity * (elapsed * elapsed);
                 }
@@ -211,6 +233,10 @@ namespace InGame.Player.Network
                 stream.SendNext(_movement != null ? _movement.CurrentSpeed : 0f);
                 stream.SendNext(_movement != null && _movement.Grounded);
                 stream.SendNext(_rootBody.linearVelocity);
+
+                PlatformCarrier.TryGetMotionForRider(_rootBody, out Vector3 angVel, out Vector3 pivot);
+                stream.SendNext(angVel);
+                stream.SendNext(pivot);
             }
             else
             {
@@ -219,12 +245,17 @@ namespace InGame.Player.Network
                 float speed = (float)stream.ReceiveNext();
                 bool grounded = (bool)stream.ReceiveNext();
                 Vector3 velocity = (Vector3)stream.ReceiveNext();
+                Vector3 angVel = (Vector3)stream.ReceiveNext();
+                Vector3 pivot = (Vector3)stream.ReceiveNext();
 
                 if (_ragdollController != null && _ragdollController.IsRootManagedByRagdoll) return;
 
                 // 공중 → 착지 전환 시 낙하 관성으로 인한 지면 관통 방지.
                 if (grounded && !_networkGrounded)
                     _smoothVelocity = Vector3.zero;
+
+                _platformAngularVelocity = angVel;
+                _platformPivot = pivot;
 
                 _networkPosition = pos;
                 _networkVelocity = _firstSnapshot

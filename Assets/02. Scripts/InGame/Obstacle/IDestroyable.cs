@@ -6,9 +6,9 @@ namespace InGame.Obstacle
     {
         bool IsDestroyed { get; }
         bool IsHidden { get; }
-        void Destroy(Vector3 force, bool isMaster);
+        void Destroy(Vector3 force, Vector3 randomTorque);
         void Hide();
+        void PrepareRespawn();
         void Respawn();
-        void ApplyNetworkState(Vector3 position, Quaternion rotation);
     }
 }

@@ -64,10 +64,10 @@ public class LaserTrapController : MonoBehaviourPunCallbacks, IPunObservable
 
     private void ConfigureForNetwork()
     {
-        bool isMaster = PhotonNetwork.IsMasterClient;
-        _laserTrigger.SetDetectionEnabled(isMaster);
+        // 모든 클라이언트에서 레이저 감지 활성화 (로컬 플레이어 위치로 즉시 감지).
+        _laserTrigger.SetDetectionEnabled(true);
 
-        if (_movingObstacle != null && !isMaster)
+        if (_movingObstacle != null && !PhotonNetwork.IsMasterClient)
             _movingObstacle.enabled = false;
     }
 
@@ -138,7 +138,6 @@ public class LaserTrapController : MonoBehaviourPunCallbacks, IPunObservable
 
     private void HandlePlayerDetection()
     {
-        if (!IsMasterOrOffline()) return;
         if (_state != TrapState.Idle) return;
 
         ExecuteActivation();
@@ -258,7 +257,6 @@ public class LaserTrapController : MonoBehaviourPunCallbacks, IPunObservable
     public override void OnMasterClientSwitched(Player newMasterClient)
     {
         bool iAmNewMaster = PhotonNetwork.IsMasterClient;
-        _laserTrigger.SetDetectionEnabled(iAmNewMaster);
 
         if (_movingObstacle != null)
             _movingObstacle.enabled = iAmNewMaster;

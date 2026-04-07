@@ -51,6 +51,7 @@ namespace InGame.Player
         private const int MaxOverlapResults = 8;
 
         private readonly Collider[] _overlapBuffer = new Collider[MaxOverlapResults];
+        private readonly List<(Collider mine, Collider other)> _ignoredPlayerPairs = new();
 
         // FOV Kick 등 외부 연출 훅.
         public event Action OnHitLocal;
@@ -64,6 +65,27 @@ namespace InGame.Player
         {
             _invincibleController = controller;
             _synchronizer = synchronizer;
+
+            // Non-authority는 RPC 수신 시 넉백 피드백 재생 (authority는 로컬에서 이미 재생).
+            if (!_isAuthority)
+                _synchronizer.OnInvincibleHitApplied += HandleRemoteHitFeedback;
+
+            _invincibleController.OnInvincibleExit += RestoreIgnoredCollisions;
+        }
+
+        private void OnDestroy()
+        {
+            if (_synchronizer != null)
+                _synchronizer.OnInvincibleHitApplied -= HandleRemoteHitFeedback;
+
+            if (_invincibleController != null)
+                _invincibleController.OnInvincibleExit -= RestoreIgnoredCollisions;
+        }
+
+        private void HandleRemoteHitFeedback(Vector3 direction)
+        {
+            if (_invincibleController == null || !_invincibleController.IsInvincible) return;
+            PlayHitFeedback(direction);
         }
 
         private float EffectiveObstacleRadius =>
@@ -71,14 +93,17 @@ namespace InGame.Player
 
         private void FixedUpdate()
         {
-            if (!_isAuthority) return;
             if (_invincibleController == null || !_invincibleController.IsInvincible) return;
 
             float obstacleRadius = EffectiveObstacleRadius;
-            float maxRadius = Mathf.Max(_detectionRadius, obstacleRadius);
+
+            // Authority: 플레이어 넉백 + 장애물 파괴.
+            // Non-authority: 장애물 로컬 예측 파괴만 (시각적 즉시 반응).
+            float maxRadius = _isAuthority ? Mathf.Max(_detectionRadius, obstacleRadius) : obstacleRadius;
+            LayerMask mask = _isAuthority ? (_playerLayers | _obstacleLayers) : _obstacleLayers;
 
             int count = Physics.OverlapSphereNonAlloc(
-                transform.position, maxRadius, _overlapBuffer, _playerLayers | _obstacleLayers);
+                transform.position, maxRadius, _overlapBuffer, mask);
 
             for (int i = 0; i < count; i++)
             {
@@ -129,7 +154,15 @@ namespace InGame.Player
                 direction = Vector3.Lerp(direction, Vector3.up, _obstacleUpwardBias).normalized;
 
             Vector3 force = direction * _obstacleDestroyForce;
-            manager.RequestDestroy(id, force);
+
+            if (_isAuthority)
+            {
+                manager.RequestDestroy(id, force);
+            }
+            else
+            {
+                manager.PredictDestroy(id, force);
+            }
 
             PlayObstacleDestroyFeedback(direction);
         }
@@ -172,8 +205,42 @@ namespace InGame.Player
 
             _synchronizer.BroadcastInvincibleHit(victimViewID, knockback, hitPoint, torque, (byte)EHitResponse.Ragdoll);
 
+            IgnoreCollisionWithTarget(other);
             PlayHitFeedback(direction);
         }
+
+        // ── 충돌 무시 관리 ────────────────────────────────────────
+
+        private void IgnoreCollisionWithTarget(Collider targetCollider)
+        {
+            var myColliders = _invincibleController.GetComponentsInChildren<Collider>(true);
+            var targetView = targetCollider.GetComponentInParent<PhotonView>();
+            if (targetView == null) return;
+
+            var targetColliders = targetView.GetComponentsInChildren<Collider>(true);
+
+            foreach (var myCol in myColliders)
+            {
+                foreach (var otherCol in targetColliders)
+                {
+                    if (myCol == null || otherCol == null) continue;
+                    Physics.IgnoreCollision(myCol, otherCol, true);
+                    _ignoredPlayerPairs.Add((myCol, otherCol));
+                }
+            }
+        }
+
+        private void RestoreIgnoredCollisions()
+        {
+            foreach (var (mine, other) in _ignoredPlayerPairs)
+            {
+                if (mine != null && other != null)
+                    Physics.IgnoreCollision(mine, other, false);
+            }
+            _ignoredPlayerPairs.Clear();
+        }
+
+        // ── 피드백 ────────────────────────────────────────────────
 
         private void PlayObstacleDestroyFeedback(Vector3 direction)
         {

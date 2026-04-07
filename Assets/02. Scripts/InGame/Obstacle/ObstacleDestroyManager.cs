@@ -17,17 +17,17 @@ namespace InGame.Obstacle
         [Tooltip("파괴 후 장애물이 리스폰되기까지 총 시간 (초)")]
         [SerializeField] private float _respawnDelay = 5f;
 
+        [Tooltip("리스폰 전 깜빡임 예고 시간 (초)")]
+        [SerializeField] private float _warningDuration = 0.5f;
+
         private readonly List<IDestroyable> _registry = new();
         private readonly Dictionary<IDestroyable, int> _idLookup = new();
 
-        // 현재 destroyed 상태인 장애물 ID 집합 (위치 스트림용).
+        // 현재 destroyed 상태인 장애물 ID 집합.
         private readonly HashSet<int> _destroyedIds = new();
 
         // MasterClient 타이머 (hide + respawn).
         private readonly Dictionary<int, Coroutine> _respawnTimers = new();
-
-        // 숨김 처리된 장애물 (위치 스트림 제외용).
-        private readonly HashSet<int> _hiddenIds = new();
 
         private void Start()
         {
@@ -76,17 +76,32 @@ namespace InGame.Obstacle
 
         // ── 요청 (authority 클라이언트에서 호출) ─────────────────
 
+        /// <summary>
+        /// Non-authority 클라이언트의 로컬 예측 파괴.
+        /// 네트워크 이벤트 없이 즉시 파괴만 적용한다.
+        /// 이후 실제 ObstacleDestroy 이벤트 도착 시 IsDestroyed로 중복 방지.
+        /// </summary>
+        public void PredictDestroy(int id, Vector3 force)
+        {
+            if (id < 0 || id >= _registry.Count) return;
+            if (_registry[id].IsDestroyed) return;
+
+            Vector3 randomTorque = Random.insideUnitSphere;
+            _registry[id].Destroy(force, randomTorque);
+            _destroyedIds.Add(id);
+        }
+
         public void RequestDestroy(int id, Vector3 force)
         {
-            bool isMaster = PhotonNetwork.IsMasterClient;
-            ApplyDestroy(id, force, isMaster);
+            Vector3 randomTorque = Random.insideUnitSphere;
+            ApplyDestroy(id, force, randomTorque);
 
-            var content = new object[] { id, force };
+            var content = new object[] { id, force, randomTorque };
             var opts = new RaiseEventOptions { Receivers = ReceiverGroup.Others };
             PhotonNetwork.RaiseEvent(PhotonEventCodes.ObstacleDestroy, content, opts,
                 SendOptions.SendReliable);
 
-            if (isMaster)
+            if (PhotonNetwork.IsMasterClient)
                 StartRespawnTimer(id);
         }
 
@@ -111,10 +126,10 @@ namespace InGame.Obstacle
                     var data = (object[])photonEvent.CustomData;
                     int id = (int)data[0];
                     var force = (Vector3)data[1];
-                    bool isMaster = PhotonNetwork.IsMasterClient;
-                    ApplyDestroy(id, force, isMaster);
+                    var randomTorque = (Vector3)data[2];
+                    ApplyDestroy(id, force, randomTorque);
 
-                    if (isMaster && !_respawnTimers.ContainsKey(id))
+                    if (PhotonNetwork.IsMasterClient && !_respawnTimers.ContainsKey(id))
                         StartRespawnTimer(id);
                     break;
                 }
@@ -125,16 +140,18 @@ namespace InGame.Obstacle
                     ApplyHide(id);
                     break;
                 }
+                case PhotonEventCodes.ObstacleRespawnWarning:
+                {
+                    var data = (object[])photonEvent.CustomData;
+                    int id = (int)data[0];
+                    ApplyRespawnWarning(id);
+                    break;
+                }
                 case PhotonEventCodes.ObstacleRespawn:
                 {
                     var data = (object[])photonEvent.CustomData;
                     int id = (int)data[0];
                     ApplyRespawn(id);
-                    break;
-                }
-                case PhotonEventCodes.ObstaclePositionSync:
-                {
-                    ApplyPositionSync(photonEvent.CustomData);
                     break;
                 }
             }
@@ -152,73 +169,6 @@ namespace InGame.Obstacle
             }
         }
 
-        // ── 위치 스트림 (Master → Others) ───────────────────────
-
-        private void FixedUpdate()
-        {
-            if (!PhotonNetwork.IsMasterClient) return;
-            if (_destroyedIds.Count == 0) return;
-
-            // hidden 상태인 장애물은 위치 스트림 불필요.
-            int activeCount = 0;
-            foreach (int id in _destroyedIds)
-            {
-                if (!_hiddenIds.Contains(id)) activeCount++;
-            }
-
-            if (activeCount == 0) return;
-
-            // 데이터 직렬화: [count, id0, posX, posY, posZ, rotX, rotY, rotZ, rotW, id1, ...]
-            var data = new object[1 + activeCount * 8];
-            data[0] = activeCount;
-
-            int idx = 1;
-            foreach (int id in _destroyedIds)
-            {
-                if (_hiddenIds.Contains(id)) continue;
-                if (id < 0 || id >= _registry.Count) continue;
-
-                var destroyable = _registry[id] as MonoBehaviour;
-                if (destroyable == null) continue;
-
-                var t = destroyable.transform;
-                var pos = t.position;
-                var rot = t.rotation;
-
-                data[idx++] = id;
-                data[idx++] = pos.x;
-                data[idx++] = pos.y;
-                data[idx++] = pos.z;
-                data[idx++] = rot.x;
-                data[idx++] = rot.y;
-                data[idx++] = rot.z;
-                data[idx++] = rot.w;
-            }
-
-            var opts = new RaiseEventOptions { Receivers = ReceiverGroup.Others };
-            PhotonNetwork.RaiseEvent(PhotonEventCodes.ObstaclePositionSync, data, opts,
-                SendOptions.SendUnreliable);
-        }
-
-        private void ApplyPositionSync(object customData)
-        {
-            if (PhotonNetwork.IsMasterClient) return;
-
-            var data = (object[])customData;
-            int count = (int)data[0];
-
-            int idx = 1;
-            for (int i = 0; i < count; i++)
-            {
-                int id = (int)data[idx++];
-                var pos = new Vector3((float)data[idx++], (float)data[idx++], (float)data[idx++]);
-                var rot = new Quaternion((float)data[idx++], (float)data[idx++], (float)data[idx++], (float)data[idx++]);
-
-                if (id >= 0 && id < _registry.Count)
-                    _registry[id].ApplyNetworkState(pos, rot);
-            }
-        }
-
         // ── 리스폰 타이머 ───────────────────────────────────────
 
         private void StartRespawnTimer(int id)
@@ -233,10 +183,14 @@ namespace InGame.Obstacle
             yield return new WaitForSeconds(_hideDelay);
             RequestHide(id);
 
-            // Phase 2: 숨김 후 리스폰 대기.
-            float remaining = _respawnDelay - _hideDelay;
-            if (remaining > 0f)
-                yield return new WaitForSeconds(remaining);
+            // Phase 2: 숨김 후 리스폰 예고 대기.
+            float warningStart = _respawnDelay - _hideDelay - _warningDuration;
+            if (warningStart > 0f)
+                yield return new WaitForSeconds(warningStart);
+
+            // Phase 3: 깜빡임 예고.
+            RequestRespawnWarning(id);
+            yield return new WaitForSeconds(_warningDuration);
 
             _respawnTimers.Remove(id);
             RequestRespawn(id);
@@ -244,11 +198,11 @@ namespace InGame.Obstacle
 
         // ── 내부 ────────────────────────────────────────────────
 
-        private void ApplyDestroy(int id, Vector3 force, bool isMaster)
+        private void ApplyDestroy(int id, Vector3 force, Vector3 randomTorque)
         {
             if (id < 0 || id >= _registry.Count) return;
 
-            _registry[id].Destroy(force, isMaster);
+            _registry[id].Destroy(force, randomTorque);
             _destroyedIds.Add(id);
         }
 
@@ -267,7 +221,23 @@ namespace InGame.Obstacle
             if (id < 0 || id >= _registry.Count) return;
 
             _registry[id].Hide();
-            _hiddenIds.Add(id);
+        }
+
+        private void RequestRespawnWarning(int id)
+        {
+            ApplyRespawnWarning(id);
+
+            var content = new object[] { id };
+            var opts = new RaiseEventOptions { Receivers = ReceiverGroup.Others };
+            PhotonNetwork.RaiseEvent(PhotonEventCodes.ObstacleRespawnWarning, content, opts,
+                SendOptions.SendReliable);
+        }
+
+        private void ApplyRespawnWarning(int id)
+        {
+            if (id < 0 || id >= _registry.Count) return;
+
+            _registry[id].PrepareRespawn();
         }
 
         private void ApplyRespawn(int id)
@@ -276,7 +246,6 @@ namespace InGame.Obstacle
 
             _registry[id].Respawn();
             _destroyedIds.Remove(id);
-            _hiddenIds.Remove(id);
 
             if (_respawnTimers.TryGetValue(id, out var coroutine))
             {

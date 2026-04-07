@@ -167,22 +167,24 @@ namespace InGame.Player.Movement
             if (_ragdollController.CurrentState != ERagdollState.Animated)
                 return;
 
-            // 다이브 중에는 물리 임펄스가 수평 속도를 제어하도록 덮어쓰지 않음.
-            if (_playerJump.IsDiving)
-                return;
-
             Vector3 velocity = _rootBody.linearVelocity;
-            if (_momentumBlend > 0f)
+
+            // 다이브 중에는 물리 임펄스가 수평 속도를 제어하도록 덮어쓰지 않음.
+            if (!_playerJump.IsDiving)
             {
-                // 발사 모멘텀 → 입력 제어로 부드럽게 전환.
-                velocity.x = Mathf.Lerp(_currentVelocity.x, velocity.x, _momentumBlend);
-                velocity.z = Mathf.Lerp(_currentVelocity.z, velocity.z, _momentumBlend);
+                if (_momentumBlend > 0f)
+                {
+                    // 발사 모멘텀 → 입력 제어로 부드럽게 전환.
+                    velocity.x = Mathf.Lerp(_currentVelocity.x, velocity.x, _momentumBlend);
+                    velocity.z = Mathf.Lerp(_currentVelocity.z, velocity.z, _momentumBlend);
+                }
+                else
+                {
+                    velocity.x = _currentVelocity.x;
+                    velocity.z = _currentVelocity.z;
+                }
             }
-            else
-            {
-                velocity.x = _currentVelocity.x;
-                velocity.z = _currentVelocity.z;
-            }
+
             velocity.y += (-_gravity - Physics.gravity.y) * Time.fixedDeltaTime;
             velocity.y = Mathf.Max(velocity.y, -_maxFallSpeed);
             _rootBody.linearVelocity = velocity;
