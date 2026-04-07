@@ -7,18 +7,11 @@ using Hashtable = ExitGames.Client.Photon.Hashtable;
 
 public class LobbyPartyService : SingletonPunCallbacks<LobbyPartyService>, IOnEventCallback
 {
-    // PARTY_INVITE_DEBUG_REMOVE: 아래 태그·Debug.Log 일괄 삭제
     private const string PartyInviteDebugTag = "[PARTY_INVITE_DEBUG]";
-
-    /// <summary>초대 수신 시 (초대한 액터 번호, 표시용 User ID 문자열).</summary>
     public event Action<int, string> OnPartyInviteReceived;
-    /// <summary>내가 보낸 초대에 대한 응답 (수락 여부).</summary>
     public event Action<bool> OnPartyInviteResponded;
-    /// <summary>파티가 맺어진 뒤 상대 <see cref="Player"/> (닉네임 표시용).</summary>
     public event Action<Player> OnPartyPartnerLinked;
-    /// <summary>로컬 파티 상태가 비워졌을 때 (해산·퇴장 등).</summary>
     public event Action OnPartyCleared;
-    /// <summary>초대 대기 중이던 상대가 방을 나갔을 때 (수신 측 팝업 닫기 등).</summary>
     public event Action OnPendingPartyInviteInvalidated;
 
     private int _outgoingInviteTargetActor = -1;
@@ -112,9 +105,31 @@ public class LobbyPartyService : SingletonPunCallbacks<LobbyPartyService>, IOnEv
         return false;
     }
 
-    /// <summary>
-    /// 로비에 있는 상대에게 파티 초대만 보냅니다. 상대가 수락하면 맺어집니다.
-    /// </summary>
+    /// <summary>현재 로컬 플레이어와 같은 파티에 속한 다른 <see cref="Player"/>가 있으면 반환합니다.</summary>
+    public bool TryGetPartyPartner(out Player partner)
+    {
+        partner = null;
+        if (!PhotonNetwork.InRoom || PhotonNetwork.LocalPlayer == null)
+            return false;
+
+        string myParty = GetPartyId(PhotonNetwork.LocalPlayer);
+        if (string.IsNullOrEmpty(myParty))
+            return false;
+
+        foreach (Player p in PhotonNetwork.PlayerList)
+        {
+            if (p == PhotonNetwork.LocalPlayer)
+                continue;
+            if (GetPartyId(p) == myParty)
+            {
+                partner = p;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public bool TrySendPartyInviteByUserId(string userIdInput, out string errorMessage)
     {
         errorMessage = null;

@@ -3,7 +3,6 @@ using System.Collections;
 using UnityEngine;
 using Photon.Pun;
 using Photon.Realtime;
-using System.Threading.Tasks;
 using Hashtable = ExitGames.Client.Photon.Hashtable;
 
 [DefaultExecutionOrder(-100)]
@@ -21,8 +20,11 @@ public class LobbyManager : SingletonMonoBehaviour<LobbyManager>
     public event Action<string> NicknameFieldSet;
     public event Action<string> InviteCodeChanged;
 
-    [Header("Firebase 커스터마이징 복원")]
+    [Header("Firebase 커스터마이징 복원 · 로비 로컬 캐릭터 프리뷰")]
     [SerializeField] private CustomizationPartItemsActivator _partItemsActivator;
+
+    /// <summary>로비에서 커스터마이징을 적용하는 단일 <see cref="CustomizationPartItemsActivator"/> (다른 스크립트는 이 참조를 공유).</summary>
+    public CustomizationPartItemsActivator PartItemsActivator => _partItemsActivator;
 
     private LobbyStartSequence _startSequence;
     private bool _isGameStarting;

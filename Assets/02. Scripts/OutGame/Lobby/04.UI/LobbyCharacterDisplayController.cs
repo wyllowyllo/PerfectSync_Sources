@@ -1,20 +1,28 @@
+using System;
+using ExitGames.Client.Photon;
 using Photon.Pun;
 using Photon.Realtime;
 using UnityEngine;
+using Hashtable = ExitGames.Client.Photon.Hashtable;
 
-public class LobbyCharacterDisplayController : MonoBehaviour
+public class LobbyCharacterDisplayController : MonoBehaviourPunCallbacks
 {
     [SerializeField] private LobbyCharacterNicknameView _localCharacter;
     [SerializeField] private LobbyCharacterNicknameView _partyCharacter;
+    [Header("파티원 외형 (로컬은 LobbyManager.PartItemsActivator 공유)")]
+    [SerializeField] private CustomizationPartItemsActivator _partyPartActivator;
 
     private bool _started;
+    private bool _lobbyEventsHooked;
 
-    private void OnEnable()
+    public override void OnEnable()
     {
+        base.OnEnable();
+
         if (!_started)
             return;
 
-        SubscribeEvents();
+        SubscribeLobbyEvents();
 
         if (IsInLobbyRoom())
             ApplyLocalNickname(PhotonNetwork.NickName);
@@ -22,20 +30,26 @@ public class LobbyCharacterDisplayController : MonoBehaviour
 
     private void Start()
     {
-        SubscribeEvents();
+        SubscribeLobbyEvents();
         _started = true;
 
         if (IsInLobbyRoom())
             ApplyLocalNickname(PhotonNetwork.NickName);
     }
 
-    private void OnDisable()
+    public override void OnDisable()
     {
-        UnsubscribeEvents();
+        UnsubscribeLobbyEvents();
+        base.OnDisable();
     }
 
-    private void SubscribeEvents()
+    private void SubscribeLobbyEvents()
     {
+        if (_lobbyEventsHooked)
+            return;
+
+        _lobbyEventsHooked = true;
+
         if (LobbyRoomConnector.Instance != null)
             LobbyRoomConnector.Instance.OnLobbyRoomJoined += HandleLobbyRoomJoined;
 
@@ -49,8 +63,13 @@ public class LobbyCharacterDisplayController : MonoBehaviour
         }
     }
 
-    private void UnsubscribeEvents()
+    private void UnsubscribeLobbyEvents()
     {
+        if (!_lobbyEventsHooked)
+            return;
+
+        _lobbyEventsHooked = false;
+
         if (LobbyRoomConnector.Instance != null)
             LobbyRoomConnector.Instance.OnLobbyRoomJoined -= HandleLobbyRoomJoined;
 
@@ -64,6 +83,47 @@ public class LobbyCharacterDisplayController : MonoBehaviour
         }
     }
 
+    public override void OnPlayerPropertiesUpdate(Player targetPlayer, Hashtable changedProps)
+    {
+        base.OnPlayerPropertiesUpdate(targetPlayer, changedProps);
+
+        if (targetPlayer == null || changedProps == null || changedProps.Count == 0)
+            return;
+
+        if (!HasCustomizationPropertyChange(changedProps))
+            return;
+
+        if (targetPlayer.IsLocal)
+        {
+            CustomizationPartItemsActivator localActivator = LobbyManager.Instance != null
+                ? LobbyManager.Instance.PartItemsActivator
+                : null;
+            LobbyCustomizationPhotonApplier.ApplyFromPlayer(PhotonNetwork.LocalPlayer, localActivator);
+            return;
+        }
+
+        if (_partyPartActivator == null ||
+            LobbyPartyService.Instance == null ||
+            !LobbyPartyService.Instance.LocalPlayerHasParty ||
+            !LobbyPartyService.Instance.TryGetPartyPartner(out Player partner) ||
+            partner == null ||
+            targetPlayer.ActorNumber != partner.ActorNumber)
+            return;
+
+        LobbyCustomizationPhotonApplier.ApplyFromPlayer(partner, _partyPartActivator);
+    }
+
+    private static bool HasCustomizationPropertyChange(Hashtable changedProps)
+    {
+        foreach (CharacterCustomizationPart part in Enum.GetValues(typeof(CharacterCustomizationPart)))
+        {
+            if (changedProps.ContainsKey(CustomizationPhotonKeys.GetKey(part)))
+                return true;
+        }
+
+        return false;
+    }
+
     private void HandlePartyPartnerLinked(Player partner)
     {
         if (_partyCharacter == null || partner == null)
@@ -72,15 +132,24 @@ public class LobbyCharacterDisplayController : MonoBehaviour
         string nick = partner.NickName ?? string.Empty;
         _partyCharacter.SetVisible(true);
         _partyCharacter.SetNickname(nick);
+
+        CustomizationPartItemsActivator localActivator = LobbyManager.Instance != null
+            ? LobbyManager.Instance.PartItemsActivator
+            : null;
+        LobbyCustomizationPhotonApplier.ApplyFromPlayer(PhotonNetwork.LocalPlayer, localActivator);
+        LobbyCustomizationPhotonApplier.ApplyFromPlayer(partner, _partyPartActivator);
     }
 
     private void HandlePartyCleared()
     {
-        if (_partyCharacter == null)
-            return;
+        if (_partyCharacter != null)
+        {
+            _partyCharacter.ClearNickname();
+            _partyCharacter.SetVisible(false);
+        }
 
-        _partyCharacter.ClearNickname();
-        _partyCharacter.SetVisible(false);
+        if (_partyPartActivator != null)
+            _partyPartActivator.ApplyDefaultCustomization();
     }
 
     private void HandleLobbyRoomJoined()
