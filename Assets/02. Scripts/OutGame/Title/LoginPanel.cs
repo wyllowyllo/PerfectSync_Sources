@@ -15,6 +15,9 @@ public class LoginPanel : MonoBehaviour
     [Header("메시지")]
     [SerializeField] private TMP_Text _messageText;
 
+    [Header("로딩")]
+    [SerializeField] private GameObject _loadingIndicator;
+
     [Header("씬 전환")]
     [SerializeField] private string _lobbySceneName = "Lobby";
 
@@ -22,15 +25,24 @@ public class LoginPanel : MonoBehaviour
 
     private void OnEnable()
     {
-        _loginButton.onClick.AddListener(OnLoginClicked);
-        _registerButton.onClick.AddListener(OnRegisterClicked);
+        SetLoadingVisible(false);
         ShowMessage("로그인 정보를 입력해주세요.");
+    }
+
+    private void Start()
+    {
+        if (_loginButton != null)
+            _loginButton.onClick.AddListener(OnLoginClicked);
+        if (_registerButton != null)
+            _registerButton.onClick.AddListener(OnRegisterClicked);
     }
 
     private void OnDisable()
     {
-        _loginButton.onClick.RemoveListener(OnLoginClicked);
-        _registerButton.onClick.RemoveListener(OnRegisterClicked);
+        if (_loginButton != null)
+            _loginButton.onClick.RemoveListener(OnLoginClicked);
+        if (_registerButton != null)
+            _registerButton.onClick.RemoveListener(OnRegisterClicked);
     }
 
     private void OnLoginClicked()
@@ -41,7 +53,8 @@ public class LoginPanel : MonoBehaviour
         string password = _passwordInput.text;
 
         SetProcessing(true);
-        ShowMessage("로그인 중...");
+        SetLoadingVisible(true);
+        ShowMessage(string.Empty);
 
         AuthService.Instance.RequestLogin(email, password, OnAuthComplete);
     }
@@ -61,7 +74,8 @@ public class LoginPanel : MonoBehaviour
         }
 
         SetProcessing(true);
-        ShowMessage("회원가입 중...");
+        SetLoadingVisible(true);
+        ShowMessage(string.Empty);
 
         AuthService.Instance.RequestRegister(email, password, OnAuthComplete);
     }
@@ -72,11 +86,12 @@ public class LoginPanel : MonoBehaviour
 
         if (result.Success)
         {
-            ShowMessage("성공! 로비로 이동합니다...");
+            SetLoadingVisible(true);
             TransitionToLobby();
         }
         else
         {
+            SetLoadingVisible(false);
             ShowMessage(result.ErrorMessage);
         }
     }
@@ -106,5 +121,11 @@ public class LoginPanel : MonoBehaviour
     {
         if (_messageText != null)
             _messageText.text = string.Empty;
+    }
+
+    private void SetLoadingVisible(bool visible)
+    {
+        if (_loadingIndicator != null)
+            _loadingIndicator.SetActive(visible);
     }
 }
