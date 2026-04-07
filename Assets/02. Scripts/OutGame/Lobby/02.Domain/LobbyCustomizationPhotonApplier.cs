@@ -1,9 +1,6 @@
 using Photon.Realtime;
-using UnityEngine;
 
-/// <summary>
-/// Photon <see cref="Player.CustomProperties"/>의 커스터마이징 키를 <see cref="CustomizationPartItemsActivator"/>에 반영합니다.
-/// </summary>
+
 public static class LobbyCustomizationPhotonApplier
 {
     public static void ApplyFromPlayer(Player player, CustomizationPartItemsActivator activator)

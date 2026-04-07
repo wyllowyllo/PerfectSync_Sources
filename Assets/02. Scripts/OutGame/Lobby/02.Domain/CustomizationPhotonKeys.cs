@@ -24,12 +24,22 @@ public static class CustomizationPhotonKeys
         if (player == null || !player.CustomProperties.TryGetValue(GetKey(part), out object v) || v == null)
             return false;
 
-        if (v is int i)
+        switch (v)
         {
-            slotIndex = i;
-            return true;
+            case int i:
+                slotIndex = i;
+                return true;
+            case byte b:
+                slotIndex = b;
+                return true;
+            case short s:
+                slotIndex = s;
+                return true;
+            case long l:
+                slotIndex = (int)l;
+                return true;
+            default:
+                return false;
         }
-
-        return false;
     }
 }
