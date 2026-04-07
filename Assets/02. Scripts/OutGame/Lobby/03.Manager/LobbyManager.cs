@@ -134,6 +134,17 @@ public class LobbyManager : SingletonMonoBehaviour<LobbyManager>
         ShowMatchingScreenRequested?.Invoke();
     }
 
+    public void CancelMatchReady()
+    {
+        if (!PhotonNetwork.InRoom || PhotonNetwork.LocalPlayer == null)
+            return;
+
+        PhotonNetwork.LocalPlayer.SetCustomProperties(
+            new Hashtable { { LobbyMatchmakingKeys.Ready, false } });
+        MatchingStatusChanged?.Invoke(string.Empty);
+        MatchButtonInteractableChanged?.Invoke(true);
+    }
+
     public void RequestLeaveRoom()
     {
         if (PhotonNetwork.InRoom &&

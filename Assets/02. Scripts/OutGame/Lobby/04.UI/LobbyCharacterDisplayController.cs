@@ -33,6 +33,11 @@ public class LobbyCharacterDisplayController : MonoBehaviourPunCallbacks
         SubscribeLobbyEvents();
         _started = true;
 
+        if (_localCharacter != null)
+            _localCharacter.SetReadyCheck(false);
+        if (_partyCharacter != null)
+            _partyCharacter.SetReadyCheck(false);
+
         if (IsInLobbyRoom())
             ApplyLocalNickname(PhotonNetwork.NickName);
     }
@@ -108,6 +113,10 @@ public class LobbyCharacterDisplayController : MonoBehaviourPunCallbacks
 
         bool nicknameChanged = changedProps.ContainsKey(ActorProperties.PlayerName);
         bool customizationChanged = HasCustomizationPropertyChange(changedProps);
+        bool readyChanged = changedProps.ContainsKey(LobbyMatchmakingKeys.Ready);
+
+        if (readyChanged)
+            RefreshReadyChecks();
 
         if (!nicknameChanged && !customizationChanged)
             return;
@@ -176,10 +185,34 @@ public class LobbyCharacterDisplayController : MonoBehaviourPunCallbacks
         {
             _partyCharacter.ClearNickname();
             _partyCharacter.SetVisible(false);
+            _partyCharacter.SetReadyCheck(false);
         }
 
         if (_partyPartActivator != null)
             _partyPartActivator.ApplyDefaultCustomization();
+    }
+
+    private void RefreshReadyChecks()
+    {
+        bool localReady = PhotonNetwork.LocalPlayer != null &&
+            PhotonNetwork.LocalPlayer.CustomProperties.TryGetValue(
+                LobbyMatchmakingKeys.Ready, out object lv) && lv is bool lb && lb;
+
+        if (_localCharacter != null)
+            _localCharacter.SetReadyCheck(localReady);
+
+        bool partnerReady = false;
+        if (LobbyPartyService.Instance != null &&
+            LobbyPartyService.Instance.LocalPlayerHasParty &&
+            LobbyPartyService.Instance.TryGetPartyPartner(out Player partner) &&
+            partner != null)
+        {
+            partnerReady = partner.CustomProperties.TryGetValue(
+                LobbyMatchmakingKeys.Ready, out object pv) && pv is bool pb && pb;
+        }
+
+        if (_partyCharacter != null)
+            _partyCharacter.SetReadyCheck(partnerReady);
     }
 
     private void HandleLobbyRoomJoined()
