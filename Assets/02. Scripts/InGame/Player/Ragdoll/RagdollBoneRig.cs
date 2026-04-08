@@ -9,10 +9,19 @@ namespace InGame.Player.Ragdoll
     {
         [SerializeField] private Transform _pelvis;
 
+        [Header("Extra Gravity")]
+        [Tooltip("래그돌 상태에서 추가 하향 가속도 (m/s²). Unity 기본 중력에 더해짐.")]
+        [SerializeField] private float _extraGravity = 0f;
+
         private Rigidbody _pelvisRb;
         private Rigidbody[] _ragdollRbs;
         private Collider[] _ragdollCols;
         private Transform[] _ragdollBoneTransforms;
+
+        private bool _isPhysicsActive;
+
+        private const int RagdollSolverIterations = 8;
+        private const int RagdollSolverVelocityIterations = 2;
 
         public IReadOnlyList<Rigidbody> Rigidbodies => _ragdollRbs;
         public IReadOnlyList<Transform> BoneTransforms => _ragdollBoneTransforms;
@@ -38,9 +47,14 @@ namespace InGame.Player.Ragdoll
         {
             SetKinematic(false);
             SetCollidersEnabled(true);
+            _isPhysicsActive = true;
 
             for (int i = 0; i < _ragdollRbs.Length; i++)
+            {
+                _ragdollRbs[i].solverIterations = RagdollSolverIterations;
+                _ragdollRbs[i].solverVelocityIterations = RagdollSolverVelocityIterations;
                 _ragdollRbs[i].linearVelocity = inheritedVelocity;
+            }
         }
 
         // Kinematic 활성화 (Remote — BoneReceiver가 본 위치를 직접 설정).
@@ -48,6 +62,7 @@ namespace InGame.Player.Ragdoll
         {
             SetKinematic(true);
             SetCollidersEnabled(false);
+            _isPhysicsActive = false;
         }
 
         // 애니메이션 모드 복귀.
@@ -55,6 +70,7 @@ namespace InGame.Player.Ragdoll
         {
             SetKinematic(true);
             SetCollidersEnabled(false);
+            _isPhysicsActive = false;
         }
 
         private const float AngularVelocityWeight = 0.3f;
@@ -73,6 +89,15 @@ namespace InGame.Player.Ragdoll
             }
 
             return totalSqrSpeed / _ragdollRbs.Length < settleVelocity * settleVelocity;
+        }
+
+        private void FixedUpdate()
+        {
+            if (!_isPhysicsActive) return;
+
+            Vector3 extraForce = Vector3.down * _extraGravity;
+            for (int i = 0; i < _ragdollRbs.Length; i++)
+                _ragdollRbs[i].AddForce(extraForce, ForceMode.Acceleration);
         }
 
         private void SetKinematic(bool value)

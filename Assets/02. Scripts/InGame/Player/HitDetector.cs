@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Serialization;
 
@@ -12,35 +13,73 @@ namespace InGame.Player
         [SerializeField] private float _minKnockback = 3f;
 
         private bool _isAuthority;
+        private readonly List<IInvincibilitySource> _invincibilitySources = new();
 
         public event Action<HitData> OnHitDetected;
+
+        public void ApplyExternalHit(HitData hit)
+        {
+            if (IsAnySourceInvincible()) return;
+            if (!_isAuthority) return;
+            OnHitDetected?.Invoke(hit);
+        }
+
+        public void AddInvincibilitySource(IInvincibilitySource source)
+        {
+            if (!_invincibilitySources.Contains(source))
+                _invincibilitySources.Add(source);
+        }
 
         public void SetAuthority(bool isAuthority)
         {
             _isAuthority = isAuthority;
         }
 
+        private bool IsAnySourceInvincible()
+        {
+            foreach (var source in _invincibilitySources)
+            {
+                if (source.IsInvincible)
+                    return true;
+            }
+            return false;
+        }
+
+        [SerializeField, Range(0f, 1f)]
+        [Tooltip("이 값보다 contact normal의 Y가 크면 '위에서 밟음'으로 판정하여 넉백 무시 (0.5 ≈ 60°)")]
+        private float _topContactThreshold = 0.5f;
+
         private void OnCollisionEnter(Collision collision)
         {
+            if (IsAnySourceInvincible()) return;
             if (!_isAuthority) return;
+
             if ((_hazardLayers & (1 << collision.gameObject.layer)) == 0) return;
+
+            if (collision.contactCount > 0 && collision.GetContact(0).normal.y > _topContactThreshold)
+                return;
 
             Vector3 knockback;
             Vector3 torque;
+            EHitResponse response;
 
             var source = collision.gameObject.GetComponent<IHitSource>();
             if (source != null)
             {
-                if (!source.TryComputeKnockback(collision, out knockback, out torque))
+                if (!source.TryComputeKnockback(collision, out knockback, out torque, out response))
                     return;
             }
-            else if (!TryComputeFallbackKnockback(collision, out knockback, out torque))
+            else if (TryComputeFallbackKnockback(collision, out knockback, out torque))
+            {
+                response = EHitResponse.Default;
+            }
+            else
             {
                 return;
             }
 
             Vector3 hitPoint = collision.GetContact(0).point;
-            var hit = new HitData(knockback, hitPoint, torque);
+            var hit = new HitData(knockback, hitPoint, torque, response);
             OnHitDetected?.Invoke(hit);
         }
 

@@ -1,47 +1,101 @@
 using System;
+using InGame.Player.Ragdoll;
 using Photon.Pun;
 using UnityEngine;
 
 namespace InGame.Player.Network
 {
-    // 모드 전환 RPC 브로드캐스트 담당 클래스
+    /// <summary>
+    /// 슬롯머신 및 무적 모드 RPC 브로드캐스트 담당 클래스.
+    /// </summary>
     public class TeamModeSynchronizer : MonoBehaviourPun
     {
-        public event Action OnSwitchRequested;
+        // ── 슬롯머신 스핀 시작 (결과 미정) ──────────────────────
 
-        private PlayerFormController _playerFormController;
+        public event Action OnSlotSpinStarted;
 
-        private void Start()
+        public void BroadcastSlotSpinStart()
         {
-            _playerFormController = GetComponent<PlayerFormController>();
-        }
-
-        /// <summary>
-        /// 외부에서 호출하여 모드 전환을 요청한다.
-        /// Host → 바로 All 브로드캐스트, Guest → Host에게 릴레이 후 All 브로드캐스트.
-        /// </summary>
-        public void RequestSwitch()
-        {
-            if (_playerFormController != null && !_playerFormController.CanChangeForm()) return;
-
-            if (photonView.IsMine)
-                photonView.RPC(nameof(RpcRequestSwitch), RpcTarget.All);
-            else
-                photonView.RPC(nameof(RpcRelaySwitch), photonView.Owner);
+            photonView.RPC(nameof(RpcSlotSpinStart), RpcTarget.All);
         }
 
         [PunRPC]
-        private void RpcRelaySwitch()
+        private void RpcSlotSpinStart()
         {
-            if (!photonView.IsMine) return;
-            if (_playerFormController != null && !_playerFormController.CanChangeForm()) return;
-            photonView.RPC(nameof(RpcRequestSwitch), RpcTarget.All);
+            OnSlotSpinStarted?.Invoke();
+        }
+
+        // ── 슬롯머신 결과 확정 ──────────────────────────────────
+
+        public event Action<int[], bool> OnSlotResultReceived;
+
+        public void BroadcastSlotResult(int[] symbols, bool isMatch)
+        {
+            photonView.RPC(nameof(RpcSlotResult), RpcTarget.All,
+                symbols[0], symbols[1], symbols[2], isMatch);
         }
 
         [PunRPC]
-        private void RpcRequestSwitch()
+        private void RpcSlotResult(int s0, int s1, int s2, bool isMatch)
         {
-            OnSwitchRequested?.Invoke();
+            int[] symbols = { s0, s1, s2 };
+            OnSlotResultReceived?.Invoke(symbols, isMatch);
+        }
+
+        // ── 슬롯머신 종료 (착지 후 제거) ────────────────────────
+
+        public event Action OnSlotFinishReceived;
+
+        public void BroadcastSlotFinish()
+        {
+            photonView.RPC(nameof(RpcSlotFinish), RpcTarget.All);
+        }
+
+        [PunRPC]
+        private void RpcSlotFinish()
+        {
+            OnSlotFinishReceived?.Invoke();
+        }
+
+        // ── 무적 모드 상태 변경 ─────────────────────────────────
+
+        public event Action<bool> OnInvincibleModeChanged;
+
+        public void BroadcastInvincibleMode(bool active)
+        {
+            photonView.RPC(nameof(RpcSetInvincibleMode), RpcTarget.All, active);
+        }
+
+        [PunRPC]
+        private void RpcSetInvincibleMode(bool active)
+        {
+            OnInvincibleModeChanged?.Invoke(active);
+        }
+
+        // ── 무적 넉백 (가해자 → 피해자) ─────────────────────────
+
+        /// <summary>RPC 수신 시 넉백 방향을 전달. 공격자 측 피드백 연출용.</summary>
+        public event Action<Vector3> OnInvincibleHitApplied;
+
+        public void BroadcastInvincibleHit(int victimViewID, Vector3 knockback, Vector3 hitPoint, Vector3 torque, byte response)
+        {
+            photonView.RPC(nameof(RpcInvincibleHit), RpcTarget.All,
+                victimViewID, knockback, hitPoint, torque, response);
+        }
+
+        [PunRPC]
+        private void RpcInvincibleHit(int victimViewID, Vector3 knockback, Vector3 hitPoint, Vector3 torque, byte response)
+        {
+            var victimView = PhotonView.Find(victimViewID);
+            if (victimView == null) return;
+
+            var ragdoll = victimView.GetComponentInChildren<RagdollStateMachine>();
+            if (ragdoll == null) return;
+
+            var hit = new HitData(knockback, hitPoint, torque, (EHitResponse)response);
+            ragdoll.ApplyHit(hit);
+
+            OnInvincibleHitApplied?.Invoke(knockback.normalized);
         }
     }
 }

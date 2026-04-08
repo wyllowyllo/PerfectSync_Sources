@@ -24,6 +24,7 @@ namespace InGame.UserInput
 
         public event Action<HitData, int> OnHitReceived;
         public event Action OnDeathReceived;
+        public event Action OnRespawnReceived;
 
         private Vector2 _moveInput;
         private bool _jumpPressed;
@@ -58,7 +59,7 @@ namespace InGame.UserInput
         {
             OnHitReceived?.Invoke(hit, hitViewID);
             photonView.RPC(nameof(RpcReceiveHit), RpcTarget.Others,
-                hit.Knockback, hit.HitPoint, hitViewID, hit.Torque);
+                hit.Knockback, hit.HitPoint, hitViewID, hit.Torque, (byte)hit.Response);
         }
 
         public void SendDeath()
@@ -68,9 +69,9 @@ namespace InGame.UserInput
         }
 
         [PunRPC]
-        private void RpcReceiveHit(Vector3 knockback, Vector3 hitPoint, int hitViewID, Vector3 torque)
+        private void RpcReceiveHit(Vector3 knockback, Vector3 hitPoint, int hitViewID, Vector3 torque, byte response)
         {
-            var hit = new HitData(knockback, hitPoint, torque);
+            var hit = new HitData(knockback, hitPoint, torque, (EHitResponse)response);
             OnHitReceived?.Invoke(hit, hitViewID);
         }
 
@@ -78,6 +79,18 @@ namespace InGame.UserInput
         private void RpcReceiveDeath()
         {
             OnDeathReceived?.Invoke();
+        }
+
+        public void SendRespawn()
+        {
+            OnRespawnReceived?.Invoke();
+            photonView.RPC(nameof(RpcReceiveRespawn), RpcTarget.Others);
+        }
+
+        [PunRPC]
+        private void RpcReceiveRespawn()
+        {
+            OnRespawnReceived?.Invoke();
         }
     }
 }

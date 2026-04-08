@@ -28,6 +28,8 @@ namespace InGame.Player.Movement
 
         [Header("Air Control")]
         [SerializeField, Range(0f, 1f)] private float _airControlFactor = 0.6f;
+        private float _airControlBoost = 1f;
+        private float _buffSpeedMultiplier = 1f;
 
         [Header("Gravity")]
         [SerializeField] private float _gravity = 9.81f;
@@ -43,13 +45,13 @@ namespace InGame.Player.Movement
         private bool _jumpRequested;
         private bool _isGrounded;
         private Vector3 _inputDirection;
+        private float _momentumBlend;
 
         private const float CoyoteTime = 0.1f;
 
         // Host-authoritative 합체 모드: 애니메이션 트리거 동기화용.
         public event Action OnJumped;
         public event Action OnDived;
-        public event Action<bool> OnDiveLanded;
 
         public Vector3 Velocity
         {
@@ -63,7 +65,13 @@ namespace InGame.Player.Movement
         public Transform BodyTransform => _rootBody.transform;
         public bool IsRagdollActive => _ragdollController.IsRagdollActive;
         public bool Grounded => _isGrounded;
+        public float Gravity => _gravity;
+        public float MomentumBlend { get => _momentumBlend; set => _momentumBlend = value; }
+        public float AirControlBoost { get => _airControlBoost; set => _airControlBoost = value; }
+        public float BuffSpeedMultiplier { get => _buffSpeedMultiplier; set => _buffSpeedMultiplier = value; }
         public float CurrentSpeed => _currentVelocity.magnitude;
+        public float GroundCheckRadius => _groundCheckRadius;
+        public LayerMask GroundLayer => _groundLayer;
 
         private void Awake()
         {
@@ -95,23 +103,33 @@ namespace InGame.Player.Movement
             if (currentRagdollState != ERagdollState.Animated)
                 return;
 
+            // 발사 중(블렌드 1.0)에는 입력/점프 처리를 건너뛰고 에어본 애니메이션만 갱신.
+            if (_momentumBlend >= 1f)
+            {
+                _isGrounded = false;
+                _anim.Locomotion(false, 0f);
+                _jumpRequested = false;
+                return;
+            }
+
             _isGrounded = IsGrounded();
             if (_isGrounded)
+            {
                 _lastGroundedTime = Time.time;
+                _airControlBoost = 1f;
+            }
 
-            // 다이브 중 착지 → 애니메이션 전환 후 즉시 이동 허용.
+            // 다이브 중 착지 → 이동 속도 초기화.
             if (_playerJump.IsDiving && _isGrounded)
             {
                 _playerJump.ClearDiving();
-                _anim.Land(true);
-                OnDiveLanded?.Invoke(true);
                 _currentVelocity = Vector3.zero;
             }
 
             // 다이브 중에는 입력 가속을 적용하지 않음.
             if (!_playerJump.IsDiving)
             {
-                float speedMultiplier = _isGrounded ? 1f : _airControlFactor;
+                float speedMultiplier = (_isGrounded ? 1f : _airControlFactor * _airControlBoost) * _buffSpeedMultiplier;
                 Accelerate(_inputDirection * _moveSpeed * speedMultiplier);
             }
 
@@ -123,16 +141,20 @@ namespace InGame.Player.Movement
 
             if (_jumpRequested)
             {
-                bool canJump = Time.time - _lastGroundedTime <= CoyoteTime;
-                if (canJump)
+                // 착지 회복 애니메이션 재생 중에는 점프/다이브 차단.
+                if (!_anim.IsJumpLocked())
                 {
-                    _playerJump.Jump();
-                    OnJumped?.Invoke();
-                }
-                else if (InGameManager.IsLocalPlayerControllable && _playerJump.TryDive(_inputDirection))
-                {
-                    _currentVelocity = Vector3.zero;
-                    OnDived?.Invoke();
+                    bool canJump = Time.time - _lastGroundedTime <= CoyoteTime;
+                    if (canJump)
+                    {
+                        _playerJump.Jump();
+                        OnJumped?.Invoke();
+                    }
+                    else if (InGameManager.IsLocalPlayerControllable && _playerJump.TryDive(_inputDirection))
+                    {
+                        _currentVelocity = Vector3.zero;
+                        OnDived?.Invoke();
+                    }
                 }
                 _jumpRequested = false;
             }
@@ -145,13 +167,24 @@ namespace InGame.Player.Movement
             if (_ragdollController.CurrentState != ERagdollState.Animated)
                 return;
 
-            // 다이브 중에는 물리 임펄스가 수평 속도를 제어하도록 덮어쓰지 않음.
-            if (_playerJump.IsDiving)
-                return;
-
             Vector3 velocity = _rootBody.linearVelocity;
-            velocity.x = _currentVelocity.x;
-            velocity.z = _currentVelocity.z;
+
+            // 다이브 중에는 물리 임펄스가 수평 속도를 제어하도록 덮어쓰지 않음.
+            if (!_playerJump.IsDiving)
+            {
+                if (_momentumBlend > 0f)
+                {
+                    // 발사 모멘텀 → 입력 제어로 부드럽게 전환.
+                    velocity.x = Mathf.Lerp(_currentVelocity.x, velocity.x, _momentumBlend);
+                    velocity.z = Mathf.Lerp(_currentVelocity.z, velocity.z, _momentumBlend);
+                }
+                else
+                {
+                    velocity.x = _currentVelocity.x;
+                    velocity.z = _currentVelocity.z;
+                }
+            }
+
             velocity.y += (-_gravity - Physics.gravity.y) * Time.fixedDeltaTime;
             velocity.y = Mathf.Max(velocity.y, -_maxFallSpeed);
             _rootBody.linearVelocity = velocity;
@@ -159,9 +192,7 @@ namespace InGame.Player.Movement
             if (_currentVelocity.sqrMagnitude > 0.01f)
             {
                 Quaternion targetRot = Quaternion.LookRotation(_currentVelocity);
-                _rootBody.MoveRotation(Quaternion.Slerp(
-                    _rootBody.rotation, targetRot,
-                    Time.fixedDeltaTime * _rotationSpeed));
+                _rootBody.MoveRotation(Quaternion.Slerp(_rootBody.rotation, targetRot, Time.fixedDeltaTime * _rotationSpeed));
             }
         }
 
@@ -170,6 +201,8 @@ namespace InGame.Player.Movement
             _inputDirection = worldDirection;
             _jumpRequested |= jump;
         }
+
+
 
         private void Accelerate(Vector3 targetVelocity)
         {
@@ -206,6 +239,8 @@ namespace InGame.Player.Movement
                 _rootBody.isKinematic = true;
                 _currentVelocity = Vector3.zero;
                 _jumpRequested = false;
+                _momentumBlend = 0f;
+                _airControlBoost = 1f;
             }
         }
     }

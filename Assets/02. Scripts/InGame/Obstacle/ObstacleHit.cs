@@ -8,6 +8,8 @@ namespace InGame.Obstacle
     {
         [SerializeField] private ObstacleHitProfile _profile;
 
+        public ObstacleHitProfile Profile => _profile;
+
         private Dictionary<int, float> _lastHitTimes;
 
         private const int PruneThreshold = 16;
@@ -17,10 +19,15 @@ namespace InGame.Obstacle
             _lastHitTimes = new Dictionary<int, float>();
         }
 
-        public bool TryComputeKnockback(Collision collision, out Vector3 knockback, out Vector3 torque)
+        public bool TryComputeKnockback(
+            Collision collision,
+            out Vector3 knockback,
+            out Vector3 torque,
+            out EHitResponse response)
         {
             knockback = Vector3.zero;
             torque = Vector3.zero;
+            response = EHitResponse.Default;
 
             if (_profile == null) return false;
 
@@ -35,6 +42,7 @@ namespace InGame.Obstacle
 
             knockback = _profile.ComputeKnockback(collision, transform);
             torque = _profile.ComputeTorque(knockback.magnitude);
+            response = _profile.Response;
 
             if (_profile.Cooldown > 0f)
             {

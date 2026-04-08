@@ -178,6 +178,17 @@ namespace InGame.Player.Ragdoll
         {
             if (!_isAuthority) return;
 
+            if (hit.Response != EHitResponse.Default)
+            {
+                ApplyForcedHit(hit);
+                return;
+            }
+
+            ApplyThresholdBasedHit(hit);
+        }
+
+        private void ApplyThresholdBasedHit(HitData hit)
+        {
             float effectiveMagnitude = hit.Magnitude + _instability;
 
             switch (_currentState)
@@ -201,6 +212,40 @@ namespace InGame.Player.Ragdoll
             }
         }
 
+        private void ApplyForcedHit(HitData hit)
+        {
+            if (_currentState == ERagdollState.Dead) return;
+
+            if (_currentState == ERagdollState.Ragdolled)
+            {
+                _hitApplier.ApplyAdditionalHit(hit);
+                _stateTimer = 0f;
+                return;
+            }
+
+            switch (hit.Response)
+            {
+                case EHitResponse.Ragdoll:
+                    EnterRagdolled(hit);
+                    break;
+
+                case EHitResponse.Stumble:
+                    if (_currentState == ERagdollState.BlendToAnim)
+                        EnterRagdolled(hit);
+                    else
+                        EnterStumble(hit);
+                    break;
+
+                case EHitResponse.Push:
+                    if (_currentState == ERagdollState.Animated)
+                    {
+                        _rootBody.AddForce(hit.Knockback, ForceMode.Impulse);
+                        _instability += hit.Magnitude;
+                    }
+                    break;
+            }
+        }
+
         public void EnterDead()
         {
             if (_currentState == ERagdollState.Dead) return;
@@ -219,6 +264,28 @@ namespace InGame.Player.Ragdoll
 
             _currentState = ERagdollState.Dead;
             OnStateChanged?.Invoke(ERagdollState.Dead);
+        }
+
+        public void Respawn()
+        {
+            if (_currentState != ERagdollState.Dead) return;
+
+            _ragdollRig.DeactivateRagdoll();
+            ReattachSkeleton();
+
+            _animator.enabled = true;
+            _rootBody.isKinematic = false;
+            _rootBody.linearVelocity = Vector3.zero;
+            _rootBody.angularVelocity = Vector3.zero;
+
+            _instability = 0f;
+            _stateTimer = 0f;
+
+            _animation.ClearGetUpState();
+            _animation.ClearStumbleState();
+
+            _currentState = ERagdollState.Animated;
+            OnStateChanged?.Invoke(ERagdollState.Animated);
         }
 
         public void ForceRecover()
@@ -321,6 +388,18 @@ namespace InGame.Player.Ragdoll
             _animator.enabled = false;
         }
 
+        public void RespawnRemote()
+        {
+            _currentState = ERagdollState.Animated;
+            ResetRootControl();
+            ReattachSkeleton();
+            _ragdollRig.DeactivateRagdoll();
+            _animator.enabled = true;
+            _rootBody.isKinematic = false;
+            _rootBody.linearVelocity = Vector3.zero;
+            _rootBody.angularVelocity = Vector3.zero;
+        }
+
         #endregion
 
         #region Stumble (Authority)
@@ -328,6 +407,7 @@ namespace InGame.Player.Ragdoll
         private void EnterStumble(HitData hit)
         {
             _instability += hit.Magnitude;
+            _rootBody.AddForce(hit.Knockback, ForceMode.Impulse);
             _animation.Stumble();
             OnStumblePlayed?.Invoke();
         }
