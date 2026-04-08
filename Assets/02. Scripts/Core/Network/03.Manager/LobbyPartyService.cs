@@ -105,7 +105,6 @@ public class LobbyPartyService : SingletonPunCallbacks<LobbyPartyService>, IOnEv
         return false;
     }
 
-    /// <summary>현재 로컬 플레이어와 같은 파티에 속한 다른 <see cref="Player"/>가 있으면 반환합니다.</summary>
     public bool TryGetPartyPartner(out Player partner)
     {
         partner = null;
@@ -242,7 +241,6 @@ public class LobbyPartyService : SingletonPunCallbacks<LobbyPartyService>, IOnEv
         return true;
     }
 
-    /// <summary>초대 수신 팝업에서 호출. 거절 시 초대한 쪽에 알림 이벤트가 갑니다.</summary>
     public void RespondToPendingPartyInvite(bool accept)
     {
         if (_pendingInviterActor < 0 || !PhotonNetwork.InRoom)

@@ -12,8 +12,13 @@ public class LobbyCharacterDisplayController : MonoBehaviourPunCallbacks
     [Header("파티원 외형 (로컬은 LobbyManager.PartItemsActivator 공유)")]
     [SerializeField] private CustomizationPartItemsActivator _partyPartActivator;
 
+    [Header("Lobby Nickname Objects (Customization 토글)")]
+    [SerializeField] private GameObject _myNicknameObject;
+    [SerializeField] private GameObject _friendNicknameObject;
+
     private bool _started;
     private bool _lobbyEventsHooked;
+    private bool _nicknameObjectsDesiredActive = true;
 
     public override void OnEnable()
     {
@@ -37,6 +42,8 @@ public class LobbyCharacterDisplayController : MonoBehaviourPunCallbacks
             _localCharacter.SetReadyCheck(false);
         if (_partyCharacter != null)
             _partyCharacter.SetReadyCheck(false);
+
+        RefreshNicknameObjectsActive();
 
         if (IsInLobbyRoom())
             ApplyLocalNickname(PhotonNetwork.NickName);
@@ -67,12 +74,12 @@ public class LobbyCharacterDisplayController : MonoBehaviourPunCallbacks
             LobbyPartyService.Instance.OnPartyCleared += HandlePartyCleared;
         }
 
+        SlidePanelStateController.SwitchToCustomizingStarted += HideNicknameObjects;
+        SlidePanelStateController.SwitchToNormalCompleted += ShowNicknameObjects;
+
         SyncPartyPartnerUiIfAlreadyInParty();
     }
 
-    /// <summary>
-    /// 이미 파티 중인 채 로비에 들어오거나, <see cref="OnPartyPartnerLinked"/>가 구독 전에 발생한 경우 UI를 맞춥니다.
-    /// </summary>
     private void SyncPartyPartnerUiIfAlreadyInParty()
     {
         if (LobbyPartyService.Instance == null ||
@@ -102,6 +109,9 @@ public class LobbyCharacterDisplayController : MonoBehaviourPunCallbacks
             LobbyPartyService.Instance.OnPartyPartnerLinked -= HandlePartyPartnerLinked;
             LobbyPartyService.Instance.OnPartyCleared -= HandlePartyCleared;
         }
+
+        SlidePanelStateController.SwitchToCustomizingStarted -= HideNicknameObjects;
+        SlidePanelStateController.SwitchToNormalCompleted -= ShowNicknameObjects;
     }
 
     public override void OnPlayerPropertiesUpdate(Player targetPlayer, Hashtable changedProps)
@@ -172,6 +182,8 @@ public class LobbyCharacterDisplayController : MonoBehaviourPunCallbacks
         _partyCharacter.SetVisible(true);
         _partyCharacter.SetNickname(nick);
 
+        RefreshNicknameObjectsActive(hasPartyOverride: true);
+
         CustomizationPartItemsActivator localActivator = LobbyManager.Instance != null
             ? LobbyManager.Instance.PartItemsActivator
             : null;
@@ -187,6 +199,8 @@ public class LobbyCharacterDisplayController : MonoBehaviourPunCallbacks
             _partyCharacter.SetVisible(false);
             _partyCharacter.SetReadyCheck(false);
         }
+
+        RefreshNicknameObjectsActive(hasPartyOverride: false);
 
         if (_partyPartActivator != null)
             _partyPartActivator.ApplyDefaultCustomization();
@@ -213,6 +227,30 @@ public class LobbyCharacterDisplayController : MonoBehaviourPunCallbacks
 
         if (_partyCharacter != null)
             _partyCharacter.SetReadyCheck(partnerReady);
+    }
+
+    private void ShowNicknameObjects()
+    {
+        _nicknameObjectsDesiredActive = true;
+        RefreshNicknameObjectsActive();
+    }
+
+    private void HideNicknameObjects()
+    {
+        _nicknameObjectsDesiredActive = false;
+        RefreshNicknameObjectsActive();
+    }
+
+    private void RefreshNicknameObjectsActive(bool? hasPartyOverride = null)
+    {
+        bool hasParty = hasPartyOverride ?? (LobbyPartyService.Instance != null &&
+                        LobbyPartyService.Instance.LocalPlayerHasParty);
+        bool active = _nicknameObjectsDesiredActive;
+
+        if (_myNicknameObject != null)
+            _myNicknameObject.SetActive(active);
+        if (_friendNicknameObject != null)
+            _friendNicknameObject.SetActive(active && hasParty);
     }
 
     private void HandleLobbyRoomJoined()
