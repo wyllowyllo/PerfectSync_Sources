@@ -73,6 +73,15 @@ public class ReadyButton : MonoBehaviourPunCallbacks
         if (LobbyManager.Instance == null)
             return;
 
+        // 이미 Ready 상태면 취소
+        if (PhotonNetwork.InRoom &&
+            PhotonNetwork.LocalPlayer != null &&
+            IsPlayerMatchReady(PhotonNetwork.LocalPlayer))
+        {
+            LobbyManager.Instance.CancelMatchReady();
+            return;
+        }
+
         LobbyManager.Instance.RequestMatch(string.Empty);
     }
 
@@ -99,19 +108,23 @@ public class ReadyButton : MonoBehaviourPunCallbacks
             return;
         }
 
-        if (!IsPlayerMatchReady(PhotonNetwork.LocalPlayer))
+        bool localReady = IsPlayerMatchReady(PhotonNetwork.LocalPlayer);
+
+        if (!localReady)
         {
             SetLabelText("준비");
             return;
         }
 
+        // 파티 상태: 전원 Ready → "준비 취소", 일부만 → "대기 중"
         if (LobbyPartyService.Instance != null && LobbyPartyService.Instance.LocalPlayerHasParty)
         {
-            SetLabelText(AreAllPartyMembersMatchReady() ? "매칭 중" : "대기 중");
+            SetLabelText(AreAllPartyMembersMatchReady() ? "준비 취소" : "대기 중");
             return;
         }
 
-        SetLabelText("매칭 중");
+        // 솔로 + Ready
+        SetLabelText("준비 취소");
     }
 
     private void SetLabelText(string text)
