@@ -49,7 +49,14 @@ namespace InGame.Obstacle
 
         public Vector3 ComputeKnockback(Collision collision, Transform obstacleTransform)
         {
-            Vector3 relativeVelocity = collision.relativeVelocity;
+            Vector3 contactPoint = collision.contactCount > 0
+                ? collision.GetContact(0).point
+                : obstacleTransform.position;
+            return ComputeKnockback(contactPoint, collision.relativeVelocity, obstacleTransform);
+        }
+
+        public Vector3 ComputeKnockback(Vector3 contactPoint, Vector3 relativeVelocity, Transform obstacleTransform)
+        {
             float relativeSpeed = relativeVelocity.magnitude;
 
             // Direction.
@@ -57,7 +64,7 @@ namespace InGame.Obstacle
             {
                 EHitDirection.ObstacleForward => obstacleTransform.forward,
                 EHitDirection.AwayFromCenter =>
-                    (collision.GetContact(0).point - obstacleTransform.position).normalized,
+                    (contactPoint - obstacleTransform.position).normalized,
                 EHitDirection.Custom => _customDirection.normalized,
                 _ => relativeSpeed > 0.001f
                     ? relativeVelocity.normalized

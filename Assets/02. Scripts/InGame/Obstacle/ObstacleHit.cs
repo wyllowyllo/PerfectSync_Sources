@@ -8,6 +8,8 @@ namespace InGame.Obstacle
     {
         [SerializeField] private ObstacleHitProfile _profile;
 
+        public ObstacleHitProfile Profile => _profile;
+
         private Dictionary<int, float> _lastHitTimes;
 
         private const int PruneThreshold = 16;
