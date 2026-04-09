@@ -36,7 +36,6 @@ namespace InGame.Camera.PlayerCamera
         private CinemachineCamera _followCamera;
         private CinemachineOrbitalFollow _orbitalFollow;
         private Rigidbody _anchorRb;
-        private Transform _activeTarget;
 
         private bool _initialized;
         private UnityEngine.Camera _outputCamera;
@@ -87,8 +86,6 @@ namespace InGame.Camera.PlayerCamera
 
             _orbitalFollow = _followCamera.GetComponent<CinemachineOrbitalFollow>();
 
-            _activeTarget = _mergedRootBody;
-
             _followCamera.Follow = _anchorRb.transform;
             _followCamera.LookAt = _anchorRb.transform;
             InGameCameraManager.SetCameraPriority(_followCamera, ActivePriority);
@@ -96,8 +93,8 @@ namespace InGame.Camera.PlayerCamera
             Cursor.lockState = CursorLockMode.Locked;
             Cursor.visible = false;
 
-            if (_activeTarget != null)
-                _anchorRb.position = _activeTarget.position + _targetOffset;
+            if (_mergedRootBody != null)
+                _anchorRb.position = _mergedRootBody.position + _targetOffset;
         }
 
         private bool IsMyTeam()
@@ -142,29 +139,25 @@ namespace InGame.Camera.PlayerCamera
                 if (!_initialized) return;
             }
 
-            if (_activeTarget == null) return;
+            if (_mergedRootBody == null) return;
 
-            // 앵커를 타겟 위치에 직접 동기화. 스무딩은 CM PositionDamping이 전담.
-            _anchorRb.MovePosition(_activeTarget.position + _targetOffset);
+            _anchorRb.MovePosition(_mergedRootBody.position + _targetOffset);
         }
 
         private void HandleCameraReset(Vector3 position, Quaternion rotation)
         {
             if (!_initialized) return;
 
-            // 앵커를 리스폰 위치로 즉시 스냅.
             Vector3 targetPos = position + _targetOffset;
             _anchorRb.position = targetPos;
             _anchorRb.transform.position = targetPos;
 
-            // 카메라 방향을 리스폰 방향에 맞춤.
             if (_orbitalFollow != null)
             {
                 _orbitalFollow.HorizontalAxis.Value = rotation.eulerAngles.y;
                 _orbitalFollow.VerticalAxis.Value = _orbitalFollow.VerticalAxis.Center;
             }
 
-            // CM 내부 tracker 강제 리셋 (텔레포트 보정).
             Vector3 delta = targetPos - _followCamera.transform.position;
             _followCamera.OnTargetObjectWarped(_anchorRb.transform, delta);
         }
