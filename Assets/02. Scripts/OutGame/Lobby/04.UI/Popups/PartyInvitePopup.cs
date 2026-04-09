@@ -10,6 +10,7 @@ public class PartyInvitePopup : LobbyPopupBase
     public static event Action OpenPartyInviteFlowRequested;
     public static event Action PartyInviteClosedOnlyRequested;
     public static event Action<string> TransientToastRequested;
+    public static event Action LeavePartyRequested;
 
     [Header("메시지")]
     [SerializeField] private TMP_Text _partyInviteMessageText;
@@ -22,10 +23,24 @@ public class PartyInvitePopup : LobbyPopupBase
     [Header("토스트 (상대 거절 시)")]
     [SerializeField] private string _partyInviteDeclinedToast = "상대가 파티 초대를 거절했습니다.";
 
+    [Header("파티 탈퇴 메시지")]
+    [SerializeField] private string _leavePartyMessage = "파티를 탈퇴하시겠습니까?";
+
+    private bool _isLeavePartyMode;
+
     public string PartyInviteDeclinedToast => _partyInviteDeclinedToast;
+
+    public void SetLeavePartyMode()
+    {
+        _isLeavePartyMode = true;
+        if (_partyInviteMessageText != null)
+            _partyInviteMessageText.text = _leavePartyMessage;
+    }
 
     public void SetInviteMessage(int inviterActor, string inviterUserId)
     {
+        _isLeavePartyMode = false;
+
         string displayName = inviterUserId;
         if (PhotonNetwork.InRoom && PhotonNetwork.CurrentRoom != null)
         {
@@ -63,6 +78,14 @@ public class PartyInvitePopup : LobbyPopupBase
 
     private void OnPartyInviteConfirmClicked()
     {
+        if (_isLeavePartyMode)
+        {
+            LeavePartyRequested?.Invoke();
+            _isLeavePartyMode = false;
+            Hide();
+            return;
+        }
+
         LobbyPartyService.Instance?.RespondToPendingPartyInvite(true);
         Hide();
         PartyInviteClosedOnlyRequested?.Invoke();
@@ -70,6 +93,14 @@ public class PartyInvitePopup : LobbyPopupBase
 
     private void OnPartyInviteCancelClicked()
     {
+        if (_isLeavePartyMode)
+        {
+            _isLeavePartyMode = false;
+            Hide();
+            PartyInviteClosedOnlyRequested?.Invoke();
+            return;
+        }
+
         DismissAsCancel();
     }
 }

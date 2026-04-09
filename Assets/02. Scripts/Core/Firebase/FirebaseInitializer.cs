@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 using UnityEngine;
 #if !UNITY_WEBGL || UNITY_EDITOR
@@ -9,9 +10,13 @@ using Firebase.Firestore;
 public class FirebaseInitializer : MonoBehaviour
 {
     private static FirebaseInitializer s_instance;
-    private const string LockFileName = "firebase.lock";
+
+    private const string LockFilePrefix = "firebase_instance_";
+    private const int MaxInstanceSlots = 8;
+
     private FileStream _lockFileStream;
     private bool _isPrimaryInstance;
+    private int _instanceIndex = -1;
 
     public static FirebaseInitializer Instance
     {
@@ -54,18 +59,46 @@ public class FirebaseInitializer : MonoBehaviour
     #if UNITY_EDITOR
         if (ParrelSync.ClonesManager.IsClone())
         {
+            _instanceIndex = AcquireAvailableSlot(startFrom: 1);
             _isPrimaryInstance = false;
             InitializeFirebaseAsync();
             return;
         }
     #endif
 
-        _isPrimaryInstance = TryAcquireFirebaseLock();
+        _instanceIndex = AcquireAvailableSlot(startFrom: 0);
+        _isPrimaryInstance = (_instanceIndex == 0);
         InitializeFirebaseAsync();
 #else
         Debug.LogWarning("[FirebaseInitializer] WebGL 빌드: Firebase 초기화 건너뜀");
         IsInitialized = false;
 #endif
+    }
+
+    private int AcquireAvailableSlot(int startFrom)
+    {
+        for (int i = startFrom; i < MaxInstanceSlots; i++)
+        {
+            string lockPath = Path.Combine(
+                Application.persistentDataPath,
+                $"{LockFilePrefix}{i}.lock");
+            try
+            {
+                _lockFileStream = new FileStream(
+                    lockPath,
+                    FileMode.OpenOrCreate,
+                    FileAccess.ReadWrite,
+                    FileShare.None);
+                return i;
+            }
+            catch (IOException)
+            {
+                // 이미 점유된 슬롯 → 다음 슬롯 시도
+            }
+        }
+
+        Debug.LogWarning("[FirebaseInitializer] 모든 슬롯 점유, fallback 인스턴스 사용");
+        return -1;
     }
 
 #if !UNITY_WEBGL || UNITY_EDITOR
@@ -88,36 +121,24 @@ public class FirebaseInitializer : MonoBehaviour
         }
         else
         {
-            var secondaryApp = FirebaseApp.Create(App.Options, "SecondaryInstance");
+            string appName = _instanceIndex >= 0
+                ? $"FirebaseInstance_{_instanceIndex}"
+                : $"FirebaseInstance_{Guid.NewGuid():N}";
+
+            var secondaryApp = FirebaseApp.Create(App.Options, appName);
             Auth = FirebaseAuth.GetAuth(secondaryApp);
             DB = FirebaseFirestore.GetInstance(secondaryApp);
-            Debug.LogWarning("[FirebaseInitializer] 보조 인스턴스 → 별도 FirebaseApp으로 캐시 분리");
+            Debug.Log($"[FirebaseInitializer] 보조 인스턴스 생성: {appName}");
         }
 
         IsInitialized = true;
 
-        string mode = _isPrimaryInstance ? "주 인스턴스" : "보조 인스턴스 (캐시 분리)";
+        string mode = _isPrimaryInstance
+            ? "주 인스턴스 (슬롯 0)"
+            : $"보조 인스턴스 (슬롯 {_instanceIndex})";
         Debug.Log($"[FirebaseInitializer] Firebase 초기화 성공 ({mode})");
     }
 #endif
-
-    private bool TryAcquireFirebaseLock()
-    {
-        try
-        {
-            string lockPath = Path.Combine(Application.persistentDataPath, LockFileName);
-            _lockFileStream = new FileStream(
-                lockPath,
-                FileMode.OpenOrCreate,
-                FileAccess.ReadWrite,
-                FileShare.None);
-            return true;
-        }
-        catch (IOException)
-        {
-            return false;
-        }
-    }
 
     private void ReleaseFirebaseLock()
     {
@@ -126,13 +147,18 @@ public class FirebaseInitializer : MonoBehaviour
             _lockFileStream.Dispose();
             _lockFileStream = null;
 
-            try
+            if (_instanceIndex >= 0)
             {
-                string lockPath = Path.Combine(Application.persistentDataPath, LockFileName);
-                if (File.Exists(lockPath))
-                    File.Delete(lockPath);
+                try
+                {
+                    string lockPath = Path.Combine(
+                        Application.persistentDataPath,
+                        $"{LockFilePrefix}{_instanceIndex}.lock");
+                    if (File.Exists(lockPath))
+                        File.Delete(lockPath);
+                }
+                catch { }
             }
-            catch { }
         }
     }
 
