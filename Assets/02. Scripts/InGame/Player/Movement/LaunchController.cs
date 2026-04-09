@@ -29,6 +29,8 @@ namespace InGame.Player.Movement
         private bool _isLaunching;
         private float _transitionStartVy;
 
+        private const float MaxLaunchSpeed = 60f;
+
         public bool IsLaunching => _isLaunching;
         public event Action OnLaunched;
         public event Action OnApexReached;
@@ -58,6 +60,8 @@ namespace InGame.Player.Movement
 
             // vy = √(2gh) — 목표 높이에 정확히 도달하는 상향 속도.
             float vy = Mathf.Sqrt(2f * _movement.Gravity * height);
+            if (vy > MaxLaunchSpeed)
+                vy = MaxLaunchSpeed;
 
             // 수직 발사: XZ 고정, Y만 이동.
             _rootBody.linearVelocity = new Vector3(0f, vy, 0f);

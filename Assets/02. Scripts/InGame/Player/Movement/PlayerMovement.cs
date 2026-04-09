@@ -187,6 +187,12 @@ namespace InGame.Player.Movement
 
             velocity.y += (-_gravity - Physics.gravity.y) * Time.fixedDeltaTime;
             velocity.y = Mathf.Clamp(velocity.y, -_maxFallSpeed, _maxFallSpeed);
+
+            // 솔버 디페네트레이션 방어: 다이브/모멘텀 중 XZ 포함 전체 속도 제한.
+            float sqrSpeed = velocity.sqrMagnitude;
+            if (sqrSpeed > _maxFallSpeed * _maxFallSpeed)
+                velocity *= _maxFallSpeed / Mathf.Sqrt(sqrSpeed);
+
             _rootBody.linearVelocity = velocity;
 
             if (_currentVelocity.sqrMagnitude > 0.01f)
