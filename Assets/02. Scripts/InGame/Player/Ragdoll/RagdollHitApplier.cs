@@ -8,7 +8,7 @@ namespace InGame.Player.Ragdoll
         private readonly IReadOnlyList<Rigidbody> _ragdollRbs;
         private readonly float _hitRadius;
         private readonly float _forceScale;
-        private const float MaxInheritedSpeed = 50f;
+        private const float MaxInheritedSpeed = 20f;
 
         public RagdollHitApplier(IReadOnlyList<Rigidbody> ragdollRbs, float hitRadius, float forceScale)
         {

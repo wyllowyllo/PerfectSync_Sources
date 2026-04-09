@@ -25,14 +25,14 @@ namespace InGame.Player.Ragdoll
         [SerializeField] private HitThresholdProfile _thresholdProfile;
 
         [Header("Ragdoll")]
-        [SerializeField] private float _minRagdollDuration = 0.3f;
-        [SerializeField] private float _maxRagdollDuration = 3.0f;
-        [SerializeField] private float _settleVelocity = 0.5f;
+        [SerializeField] private float _minRagdollDuration = 0.2f;
+        [SerializeField] private float _maxRagdollDuration = 2.0f;
+        [SerializeField] private float _settleVelocity = 1.5f;
         [SerializeField] private float _hitRadius = 2.0f;
         [SerializeField] private float _hitForceScale = 0.3f;
 
         [Header("Blend")]
-        [SerializeField] private float _ragdollToAnimBlendTime = 0.5f;
+        [SerializeField] private float _ragdollToAnimBlendTime = 0.25f;
 
         [Header("Ground Check")]
         [SerializeField] private float _groundCheckDistance = 10f;
@@ -45,10 +45,10 @@ namespace InGame.Player.Ragdoll
         [SerializeField] private float _instabilityDecayRate = 4f;
 
         [Header("Root Body Tracking")]
-        [SerializeField] private float _rootBodyTrackingSpeed = 5f;
+        [SerializeField] private float _rootBodyTrackingSpeed = 25f;
 
         [Header("Root Transition")]
-        [SerializeField] private float _rootTransitionDuration = 0.4f;
+        [SerializeField] private float _rootTransitionDuration = 0.2f;
 
         // State.
         private ERagdollState _currentState = ERagdollState.Animated;

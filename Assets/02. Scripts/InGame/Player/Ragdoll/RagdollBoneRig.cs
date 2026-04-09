@@ -11,7 +11,7 @@ namespace InGame.Player.Ragdoll
 
         [Header("Extra Gravity")]
         [Tooltip("래그돌 상태에서 추가 하향 가속도 (m/s²). Unity 기본 중력에 더해짐.")]
-        [SerializeField] private float _extraGravity = 0f;
+        [SerializeField] private float _extraGravity = 15f;
 
         private Rigidbody _pelvisRb;
         private Rigidbody[] _ragdollRbs;
@@ -22,7 +22,7 @@ namespace InGame.Player.Ragdoll
 
         private const int RagdollSolverIterations = 8;
         private const int RagdollSolverVelocityIterations = 2;
-        private const float MaxInheritedSpeed = 50f;
+        private const float MaxInheritedSpeed = 20f;
 
         public IReadOnlyList<Rigidbody> Rigidbodies => _ragdollRbs;
         public IReadOnlyList<Transform> BoneTransforms => _ragdollBoneTransforms;

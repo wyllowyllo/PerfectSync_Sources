@@ -11,7 +11,7 @@ namespace InGame.Gimmick
     public class RespawnHandler : MonoBehaviour, IInvincibilitySource
     {
         [Header("Respawn")]
-        [SerializeField] private float _respawnDelay = 1.5f;
+        [SerializeField] private float _respawnDelay = 1.0f;
 
         [Header("Spawn Punch")]
         [SerializeField] private float _punchOvershoot = 1.15f;
