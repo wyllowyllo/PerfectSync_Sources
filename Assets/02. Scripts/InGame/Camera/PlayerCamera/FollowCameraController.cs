@@ -1,5 +1,6 @@
 using Core;
 using DG.Tweening;
+using InGame.Gimmick;
 using InGame.Player;
 using InGame.Player.Ragdoll;
 using InGame.Team;
@@ -59,6 +60,7 @@ namespace InGame.Camera.PlayerCamera
         private Tween _fovTween;
         private InvincibleContactDetector _contactDetector;
         private InvincibleModeController _invincibleController;
+        private RespawnHandler _respawnHandler;
 
         private void Start()
         {
@@ -93,6 +95,10 @@ namespace InGame.Camera.PlayerCamera
             _invincibleController = GetComponent<InvincibleModeController>();
             if (_invincibleController != null)
                 _invincibleController.OnInvincibleEnter += HandleInvincibleActivation;
+
+            _respawnHandler = GetComponent<RespawnHandler>();
+            if (_respawnHandler != null)
+                _respawnHandler.OnCameraResetRequested += HandleCameraReset;
 
             _anchorRb = CreateInterpolatedProxy("CameraAnchor");
 
@@ -138,6 +144,9 @@ namespace InGame.Camera.PlayerCamera
 
             if (_invincibleController != null)
                 _invincibleController.OnInvincibleEnter -= HandleInvincibleActivation;
+
+            if (_respawnHandler != null)
+                _respawnHandler.OnCameraResetRequested -= HandleCameraReset;
 
             _fovTween?.Kill();
 
@@ -188,6 +197,24 @@ namespace InGame.Camera.PlayerCamera
             _orbitalFollow.TrackerSettings.PositionDamping = isManaged
                 ? _ragdollOrbitalDamping
                 : _defaultOrbitalDamping;
+        }
+
+        private void HandleCameraReset(Vector3 position, Quaternion rotation)
+        {
+            if (!_initialized) return;
+
+            // 앵커를 리스폰 위치로 즉시 스냅.
+            Vector3 targetPos = position + _targetOffset;
+            _anchorRb.position = targetPos;
+            _anchorRb.transform.position = targetPos;
+            _anchorVelocity = Vector3.zero;
+
+            // 카메라 방향을 리스폰 방향에 맞춤.
+            if (_orbitalFollow != null)
+            {
+                _orbitalFollow.HorizontalAxis.Value = rotation.eulerAngles.y;
+                _orbitalFollow.VerticalAxis.Value = _orbitalFollow.VerticalAxis.Center;
+            }
         }
 
         private void HandleInvincibleActivation()
