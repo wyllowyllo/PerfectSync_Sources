@@ -15,8 +15,8 @@ namespace InGame.Camera.PlayerCamera
         /// <summary>CinemachineBrain이 구동하는 실제 렌더 카메라. 초기화 후 사용 가능.</summary>
         public UnityEngine.Camera OutputCamera => _outputCamera;
 
-        [Header("Root Bodies")]
-        [SerializeField] private Transform _mergedRootBody;
+        [Header("Camera Target")]
+        [SerializeField] private CameraTargetProvider _targetProvider;
 
         [Header("Anchor")]
         [SerializeField] private Vector3 _targetOffset = new Vector3(0f, 0.7f, 0f);
@@ -93,8 +93,8 @@ namespace InGame.Camera.PlayerCamera
             Cursor.lockState = CursorLockMode.Locked;
             Cursor.visible = false;
 
-            if (_mergedRootBody != null)
-                _anchorRb.position = _mergedRootBody.position + _targetOffset;
+            if (_targetProvider != null)
+                _anchorRb.position = _targetProvider.SmoothedPosition + _targetOffset;
         }
 
         private bool IsMyTeam()
@@ -139,14 +139,16 @@ namespace InGame.Camera.PlayerCamera
                 if (!_initialized) return;
             }
 
-            if (_mergedRootBody == null) return;
+            if (_targetProvider == null) return;
 
-            _anchorRb.MovePosition(_mergedRootBody.position + _targetOffset);
+            _anchorRb.MovePosition(_targetProvider.SmoothedPosition + _targetOffset);
         }
 
         private void HandleCameraReset(Vector3 position, Quaternion rotation)
         {
             if (!_initialized) return;
+
+            _targetProvider.WarpTo(position);
 
             Vector3 targetPos = position + _targetOffset;
             _anchorRb.position = targetPos;

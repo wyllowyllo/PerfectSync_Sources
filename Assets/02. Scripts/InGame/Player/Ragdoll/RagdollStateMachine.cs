@@ -45,7 +45,7 @@ namespace InGame.Player.Ragdoll
         [SerializeField] private float _instabilityDecayRate = 4f;
 
         [Header("Root Body Tracking")]
-        [SerializeField] private float _rootBodyTrackingSpeed = 500f;
+        [SerializeField] private float _rootBodyTrackingSpeed = 25f;
 
         [Header("Root Transition")]
         [SerializeField] private float _rootTransitionDuration = 0.2f;
@@ -125,11 +125,6 @@ namespace InGame.Player.Ragdoll
 
         private void LateUpdate()
         {
-            // 물리 시뮬레이션 이후 rootBody를 pelvis 최신 위치에 동기화.
-            // 카메라가 rootBody를 추적하므로, 이 시점에서 동기화해야 0프레임 지연.
-            if (_shouldTrackPelvis)
-                _rootBody.transform.position = _ragdollRig.PelvisTransform.position;
-
             // GetUp 애니메이션 반복 방지.
             _animation.ClearGetUpState();
 
