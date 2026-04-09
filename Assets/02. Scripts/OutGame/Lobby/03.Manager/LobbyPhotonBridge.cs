@@ -1,6 +1,8 @@
+using ExitGames.Client.Photon;
 using Photon.Pun;
 using Photon.Realtime;
 using UnityEngine;
+using Hashtable = ExitGames.Client.Photon.Hashtable;
 
 [DefaultExecutionOrder(-99)]
 [DisallowMultipleComponent]
@@ -47,5 +49,10 @@ public class LobbyPhotonBridge : MonoBehaviourPunCallbacks
     public override void OnLeftRoom()
     {
         _lobby?.HandlePhotonLeftRoom();
+    }
+
+    public override void OnPlayerPropertiesUpdate(Player targetPlayer, Hashtable changedProps)
+    {
+        _lobby?.HandlePhotonPlayerPropertiesUpdate(targetPlayer, changedProps);
     }
 }

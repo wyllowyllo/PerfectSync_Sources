@@ -26,10 +26,22 @@ public class LobbyManager : SingletonMonoBehaviour<LobbyManager>
     /// <summary>로비에서 커스터마이징을 적용하는 단일 <see cref="CustomizationPartItemsActivator"/> (다른 스크립트는 이 참조를 공유).</summary>
     public CustomizationPartItemsActivator PartItemsActivator => _partItemsActivator;
 
+    [Header("Matchmaking")]
+    [Tooltip("매칭 UI가 켜진 뒤, Photon에 Ready=true를 보내 큐에 올리기까지 대기하는 시간(초). 이 동안에는 큐에 포함되지 않습니다.")]
+    [SerializeField] [Min(0f)] private float _secondsBeforeSendingReady = 3f;
+
+    /// <summary>인스펙터의 초 단위 지연과 동일. UI(예: LobbyMatchStatusUI)에서 Looking 구간과 맞출 때 사용합니다.</summary>
+    public float SecondsBeforeSendingReady => _secondsBeforeSendingReady;
+
+    /// <summary>Ready를 아직 보내지 않고 지연 중이면 true (취소 시 코루틴 중단).</summary>
+    public bool IsAwaitingReadyDelay => _awaitingReadyDelay;
+
     private LobbyStartSequence _startSequence;
     private bool _isGameStarting;
     private bool _pendingQueueAfterLobbyJoin;
     private string _pendingNicknameForQueue;
+    private Coroutine _delayedReadyCoroutine;
+    private bool _awaitingReadyDelay;
 
     private string _currentInviteCode;
     public string CurrentInviteCode => _currentInviteCode;
@@ -83,6 +95,7 @@ public class LobbyManager : SingletonMonoBehaviour<LobbyManager>
         if (LobbyRoomConnector.Instance != null)
             LobbyRoomConnector.Instance.OnLobbyRoomJoined -= HandleLobbyRoomJoined;
 
+        StopDelayedReadyIfAny();
         base.OnDestroy();
     }
 
@@ -128,14 +141,67 @@ public class LobbyManager : SingletonMonoBehaviour<LobbyManager>
 
     private void EnqueueMatchmakingAfterInLobby()
     {
+        if (_delayedReadyCoroutine != null)
+            StopCoroutine(_delayedReadyCoroutine);
+
         MatchButtonInteractableChanged?.Invoke(false);
-        PhotonNetwork.LocalPlayer.SetCustomProperties(new Hashtable { { LobbyMatchmakingKeys.Ready, true } });
-        MatchingStatusChanged?.Invoke("매칭 큐에 등록되었습니다...");
+
+        // ── 파티 상태: Ready만 즉시 전송, 매칭 화면은 파티원 전원 Ready 시 전환 ──
+        if (IsLocalPlayerInParty())
+        {
+            _awaitingReadyDelay = false;
+
+            if (PhotonNetwork.InRoom && PhotonNetwork.LocalPlayer != null)
+                PhotonNetwork.LocalPlayer.SetCustomProperties(
+                    new Hashtable { { LobbyMatchmakingKeys.Ready, true } });
+
+            if (AreAllPartyMembersReady())
+                ShowMatchingScreenRequested?.Invoke();
+
+            return;
+        }
+
+        // ── 솔로: 기존 동작 (매칭 화면 먼저 → 딜레이 후 Ready 전송) ──
         ShowMatchingScreenRequested?.Invoke();
+        _awaitingReadyDelay = true;
+        MatchingStatusChanged?.Invoke(string.Empty);
+
+        _delayedReadyCoroutine = StartCoroutine(CoSendReadyAfterDelay());
+    }
+
+    private IEnumerator CoSendReadyAfterDelay()
+    {
+        if (_secondsBeforeSendingReady > 0f)
+            yield return new WaitForSeconds(_secondsBeforeSendingReady);
+
+        _delayedReadyCoroutine = null;
+
+        if (!PhotonNetwork.InRoom || PhotonNetwork.LocalPlayer == null)
+        {
+            _awaitingReadyDelay = false;
+            yield break;
+        }
+
+        PhotonNetwork.LocalPlayer.SetCustomProperties(new Hashtable { { LobbyMatchmakingKeys.Ready, true } });
+        _awaitingReadyDelay = false;
+        MatchingStatusChanged?.Invoke("매칭 큐에 등록되었습니다...");
+    }
+
+    private void StopDelayedReadyIfAny()
+    {
+        if (_delayedReadyCoroutine != null)
+        {
+            StopCoroutine(_delayedReadyCoroutine);
+            _delayedReadyCoroutine = null;
+        }
+
+        _awaitingReadyDelay = false;
     }
 
     public void CancelMatchReady()
     {
+        StopDelayedReadyIfAny();
+
         if (!PhotonNetwork.InRoom || PhotonNetwork.LocalPlayer == null)
             return;
 
@@ -152,6 +218,7 @@ public class LobbyManager : SingletonMonoBehaviour<LobbyManager>
             PhotonRoomSnapshotReader.TryGetCurrent(out var snap) &&
             snap.Kind == RoomKind.Lobby)
         {
+            StopDelayedReadyIfAny();
             PhotonNetwork.LocalPlayer.SetCustomProperties(new Hashtable { { LobbyMatchmakingKeys.Ready, false } });
             ShowMainScreenRequested?.Invoke();
             MatchButtonInteractableChanged?.Invoke(PhotonNetwork.IsConnectedAndReady);
@@ -168,6 +235,7 @@ public class LobbyManager : SingletonMonoBehaviour<LobbyManager>
 
     public void HandlePhotonDisconnected(DisconnectCause cause)
     {
+        StopDelayedReadyIfAny();
         MatchButtonInteractableChanged?.Invoke(false);
         ShowMainScreenRequested?.Invoke();
         CancelCountdown();
@@ -207,11 +275,42 @@ public class LobbyManager : SingletonMonoBehaviour<LobbyManager>
 
     public void HandlePhotonLeftRoom()
     {
+        StopDelayedReadyIfAny();
         CancelCountdown();
         _isGameStarting = false;
         InGameLocalPlayerPropertyReset.ApplyForLobbyScene(clearTeamBecauseNotInRoom: true);
         MatchButtonInteractableChanged?.Invoke(PhotonNetwork.IsConnectedAndReady);
         ShowMainScreenRequested?.Invoke();
+    }
+
+    public void HandlePhotonPlayerPropertiesUpdate(Player targetPlayer, Hashtable changedProps)
+    {
+        if (changedProps == null || !changedProps.ContainsKey(LobbyMatchmakingKeys.Ready))
+            return;
+
+        if (!IsLocalPlayerInParty())
+            return;
+
+        string localPartyId = GetLocalPartyId();
+        string targetPartyId = GetPartyId(targetPlayer);
+        if (localPartyId != targetPartyId)
+            return;
+
+        bool localReady = IsPlayerMatchReady(PhotonNetwork.LocalPlayer);
+        if (!localReady)
+            return;
+
+        bool targetReady = targetPlayer.CustomProperties.TryGetValue(
+            LobbyMatchmakingKeys.Ready, out object v) && v is bool b && b;
+
+        if (targetReady && AreAllPartyMembersReady())
+        {
+            ShowMatchingScreenRequested?.Invoke();
+        }
+        else if (!targetReady && targetPlayer != PhotonNetwork.LocalPlayer)
+        {
+            CancelMatchReady();
+        }
     }
 
     private void RefreshUIFromNetworkState()
@@ -305,5 +404,48 @@ public class LobbyManager : SingletonMonoBehaviour<LobbyManager>
 
             Debug.Log("[Lobby] Firebase 커스터마이징 복원 완료");
         }
+    }
+
+    // ── 파티 매칭 헬퍼 ──
+
+    private bool IsLocalPlayerInParty()
+    {
+        return LobbyPartyService.Instance != null &&
+               LobbyPartyService.Instance.LocalPlayerHasParty;
+    }
+
+    private bool AreAllPartyMembersReady()
+    {
+        if (PhotonNetwork.LocalPlayer == null) return false;
+
+        string partyId = GetLocalPartyId();
+        if (string.IsNullOrEmpty(partyId)) return false;
+
+        foreach (var p in PhotonNetwork.PlayerList)
+        {
+            if (GetPartyId(p) != partyId) continue;
+            if (!IsPlayerMatchReady(p)) return false;
+        }
+        return true;
+    }
+
+    private static bool IsPlayerMatchReady(Player p)
+    {
+        return p != null &&
+               p.CustomProperties.TryGetValue(LobbyMatchmakingKeys.Ready, out object v) &&
+               v is bool b && b;
+    }
+
+    private static string GetLocalPartyId()
+    {
+        return GetPartyId(PhotonNetwork.LocalPlayer);
+    }
+
+    private static string GetPartyId(Player player)
+    {
+        if (player == null) return null;
+        return player.CustomProperties.TryGetValue(PhotonTeamManager.PartyIdKey, out object pid)
+            ? pid as string
+            : null;
     }
 }
