@@ -2,17 +2,12 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-/// <summary>
-/// 로비 파티 초대: UserID 입력, 유효성 검사 후 <see cref="LobbyPartyService.TrySendPartyInviteByUserId"/>.
-/// </summary>
-[DisallowMultipleComponent]
-public class LobbyInviteFriendsPanel : MonoBehaviour
+public class InviteFriendsPopup : LobbyPopupBase
 {
-    // PARTY_INVITE_DEBUG_REMOVE: 아래 Debug 호출·태그 상수 제거 시 이 주석도 삭제
     private const string PartyInviteDebugTag = "[PARTY_INVITE_DEBUG]";
 
     [Header("UI")]
-    [SerializeField] private TMP_InputField _userIdInput;
+    [SerializeField] private TMP_InputField _inviteCodeInput;
     [Tooltip("기본 안내 + 오류 시 같은 필드에 메시지 표시")]
     [SerializeField] private TMP_Text _messageText;
     [SerializeField] private Button _confirmButton;
@@ -20,7 +15,7 @@ public class LobbyInviteFriendsPanel : MonoBehaviour
 
     [Header("패널을 열 때마다 표시할 기본 문구")]
     [SerializeField] [TextArea(2, 5)] private string _defaultInstruction =
-        "같은 로비에 있는 플레이어의 User ID를 입력하세요.\n(설정 화면에 표시된 ID를 복사해 붙여 넣으면 됩니다. 닉네임은 사용할 수 없습니다.)";
+        "같은 로비에 있는 플레이어의 초대 코드를 입력하세요.\n(상대방 화면에 표시된 코드를 입력하면 됩니다.)";
 
     [Header("팝업 닫기")]
     [SerializeField] private LobbyPopupCoordinator _popupCoordinator;
@@ -50,14 +45,14 @@ public class LobbyInviteFriendsPanel : MonoBehaviour
         if (_messageText != null)
             _messageText.text = _defaultInstruction;
 
-        if (_userIdInput != null)
-            _userIdInput.SetTextWithoutNotify(string.Empty);
+        if (_inviteCodeInput != null)
+            _inviteCodeInput.SetTextWithoutNotify(string.Empty);
     }
 
     private void ClearUiFields()
     {
-        if (_userIdInput != null)
-            _userIdInput.SetTextWithoutNotify(string.Empty);
+        if (_inviteCodeInput != null)
+            _inviteCodeInput.SetTextWithoutNotify(string.Empty);
 
         if (_messageText != null)
             _messageText.text = _defaultInstruction;
@@ -65,10 +60,10 @@ public class LobbyInviteFriendsPanel : MonoBehaviour
 
     private void OnConfirmClicked()
     {
-        if (_userIdInput == null)
+        if (_inviteCodeInput == null)
             return;
 
-        string raw = _userIdInput.text ?? string.Empty;
+        string raw = _inviteCodeInput.text ?? string.Empty;
         Debug.Log($"{PartyInviteDebugTag} Confirm clicked, raw length={raw.Length}");
 
         if (LobbyPartyService.Instance == null)
@@ -79,15 +74,15 @@ public class LobbyInviteFriendsPanel : MonoBehaviour
             return;
         }
 
-        if (!LobbyPartyService.Instance.TrySendPartyInviteByUserId(raw, out string error))
+        if (!LobbyPartyService.Instance.TrySendPartyInviteByInviteCode(raw, out string error))
         {
-            Debug.LogWarning($"{PartyInviteDebugTag} TrySendPartyInviteByUserId failed: {error}");
+            Debug.LogWarning($"{PartyInviteDebugTag} TrySendPartyInviteByInviteCode failed: {error}");
             if (_messageText != null)
                 _messageText.text = error;
             return;
         }
 
-        Debug.Log($"{PartyInviteDebugTag} TrySendPartyInviteByUserId succeeded");
+        Debug.Log($"{PartyInviteDebugTag} TrySendPartyInviteByInviteCode succeeded");
         ClosePopup();
     }
 

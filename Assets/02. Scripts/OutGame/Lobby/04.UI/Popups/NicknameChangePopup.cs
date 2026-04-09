@@ -3,8 +3,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-[DisallowMultipleComponent]
-public class LobbyNicknameChangePanel : MonoBehaviour
+public class NicknameChangePopup : LobbyPopupBase
 {
     [Header("UI")]
     [SerializeField] private TMP_InputField _nicknameInput;
@@ -109,6 +108,10 @@ public class LobbyNicknameChangePanel : MonoBehaviour
         }
 
         LobbyManager.Instance.OnNicknameConfirmed(trimmed);
+
+        // Firebase에 닉네임 저장
+        _ = FirebaseCustomizationRepository.SaveNickname(trimmed);
+
         ClosePopup();
     }
 

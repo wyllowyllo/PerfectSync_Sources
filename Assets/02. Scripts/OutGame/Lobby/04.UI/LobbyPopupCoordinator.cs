@@ -1,5 +1,4 @@
 using System.Collections;
-using Photon.Pun;
 using Photon.Realtime;
 using TMPro;
 using UnityEngine;
@@ -7,26 +6,20 @@ using UnityEngine.UI;
 
 public class LobbyPopupCoordinator : MonoBehaviour
 {
-    [Header("Root")]
-    [SerializeField] private GameObject _popupPanelRoot;
+    [Header("팝업 배경 (검은 배경 부모 · 자식에 패널)")]
+    [SerializeField] private GameObject _popupBackgroundRoot;
 
-    [Header("Panels (children under PopupPanel)")]
-    [SerializeField] private GameObject _settingsPanel;
-    [SerializeField] private GameObject _nicknameChangePanel;
-    [SerializeField] private GameObject _inviteFriendsPanel;
-    [SerializeField] private GameObject _quitPanel;
-    [SerializeField] private GameObject _partyInviteReceivedPanel;
-
-    [Header("파티 초대 수신 (PopupPanel 하위)")]
-    [SerializeField] private TMP_Text _partyInviteMessageText;
-    [SerializeField] private Button _partyInviteConfirmButton;
-    [SerializeField] private Button _partyInviteCancelButton;
-    [SerializeField] private string _partyInviteMessageFormat = "{0}님이 파티 초대를 보냈습니다.";
+    [Header("Popups")]
+    [SerializeField] private SettingsPopup _settingsPopup;
+    [SerializeField] private NicknameChangePopup _nicknameChangePopup;
+    [SerializeField] private InviteFriendsPopup _inviteFriendsPopup;
+    [SerializeField] private QuitPopup _quitPopup;
+    [SerializeField] private PartyInvitePopup _partyInvitePopup;
+    [SerializeField] private EscMenuPopup _escMenuPopup;
 
     [Header("일시 알림 (TMP가 붙은 오브젝트를 켜고 끔)")]
     [SerializeField] private TMP_Text _transientToastText;
     [SerializeField] private float _transientToastDurationSeconds = 3f;
-    [SerializeField] private string _partyInviteDeclinedToast = "상대가 파티 초대를 거절했습니다.";
 
     [Header("파티 초대 버튼 비주얼 (동시에 하나만 활성)")]
     [SerializeField] private GameObject _openInviteFriendsButtonInviteImage;
@@ -34,59 +27,58 @@ public class LobbyPopupCoordinator : MonoBehaviour
 
     [Header("Optional")]
     [SerializeField] private Button _openSettingsButton;
-    [SerializeField] private Button _openNicknameChangeButton;
     [SerializeField] private Button _openInviteFriendsButton;
 
-    private Coroutine _toastHideRoutine;
+    private Coroutine _transientToastCoroutine;
 
     private void Start()
     {
         if (_openSettingsButton != null)
-            _openSettingsButton.onClick.AddListener(ShowSettings);
-        if (_openNicknameChangeButton != null)
-            _openNicknameChangeButton.onClick.AddListener(ShowNicknameChange);
+            _openSettingsButton.onClick.AddListener(OnOpenSettingsButtonClicked);
         if (_openInviteFriendsButton != null)
-            _openInviteFriendsButton.onClick.AddListener(ShowFollowFriends);
+            _openInviteFriendsButton.onClick.AddListener(OnOpenInviteFriendsButtonClicked);
 
-        if (_partyInviteConfirmButton != null)
-            _partyInviteConfirmButton.onClick.AddListener(OnPartyInviteConfirmClicked);
-        if (_partyInviteCancelButton != null)
-            _partyInviteCancelButton.onClick.AddListener(OnPartyInviteCancelClicked);
+        LobbyUiEvents.NicknameChangePopupRequested += OnNicknameChangePopupRequested;
+        LobbyUiEvents.TransientToastRequested += OnLobbyUiTransientToastRequested;
+        PartyInvitePopup.TransientToastRequested += OnPartyInviteTransientToastRequested;
+        PartyInvitePopup.PartyInviteClosedOnlyRequested += OnPartyInviteClosedOnly;
 
         if (LobbyPartyService.Instance != null)
         {
             LobbyPartyService.Instance.OnPartyInviteReceived += HandlePartyInviteReceived;
             LobbyPartyService.Instance.OnPartyInviteResponded += HandlePartyInviteResponded;
-            LobbyPartyService.Instance.OnPartyPartnerLinked += HandlePartyLinkedRefreshVisuals;
-            LobbyPartyService.Instance.OnPartyCleared += HandlePartyClearedRefreshVisuals;
-            LobbyPartyService.Instance.OnPendingPartyInviteInvalidated += HandlePendingPartyInviteInvalidated;
+            LobbyPartyService.Instance.OnPendingPartyInviteInvalidated += HandlePendingInviteInvalidated;
         }
 
-        RefreshPartyInviteButtonVisuals();
+        EscMenuPopup.CloseAllPopupsAndEscMenuRequested += OnEscMenuCloseAllRequested;
+        EscMenuPopup.OpenSettingsFromEscMenuRequested += OnEscMenuOpenSettingsRequested;
+        EscMenuPopup.OpenQuitFromEscMenuRequested += OnEscMenuOpenQuitRequested;
+        QuitPopup.CancelRequested += OnQuitCancelRequested;
     }
 
     private void OnDisable()
     {
         if (_openSettingsButton != null)
-            _openSettingsButton.onClick.RemoveListener(ShowSettings);
-        if (_openNicknameChangeButton != null)
-            _openNicknameChangeButton.onClick.RemoveListener(ShowNicknameChange);
+            _openSettingsButton.onClick.RemoveListener(OnOpenSettingsButtonClicked);
         if (_openInviteFriendsButton != null)
-            _openInviteFriendsButton.onClick.RemoveListener(ShowFollowFriends);
+            _openInviteFriendsButton.onClick.RemoveListener(OnOpenInviteFriendsButtonClicked);
 
-        if (_partyInviteConfirmButton != null)
-            _partyInviteConfirmButton.onClick.RemoveListener(OnPartyInviteConfirmClicked);
-        if (_partyInviteCancelButton != null)
-            _partyInviteCancelButton.onClick.RemoveListener(OnPartyInviteCancelClicked);
+        LobbyUiEvents.NicknameChangePopupRequested -= OnNicknameChangePopupRequested;
+        LobbyUiEvents.TransientToastRequested -= OnLobbyUiTransientToastRequested;
+        PartyInvitePopup.TransientToastRequested -= OnPartyInviteTransientToastRequested;
+        PartyInvitePopup.PartyInviteClosedOnlyRequested -= OnPartyInviteClosedOnly;
 
         if (LobbyPartyService.Instance != null)
         {
             LobbyPartyService.Instance.OnPartyInviteReceived -= HandlePartyInviteReceived;
             LobbyPartyService.Instance.OnPartyInviteResponded -= HandlePartyInviteResponded;
-            LobbyPartyService.Instance.OnPartyPartnerLinked -= HandlePartyLinkedRefreshVisuals;
-            LobbyPartyService.Instance.OnPartyCleared -= HandlePartyClearedRefreshVisuals;
-            LobbyPartyService.Instance.OnPendingPartyInviteInvalidated -= HandlePendingPartyInviteInvalidated;
+            LobbyPartyService.Instance.OnPendingPartyInviteInvalidated -= HandlePendingInviteInvalidated;
         }
+
+        EscMenuPopup.CloseAllPopupsAndEscMenuRequested -= OnEscMenuCloseAllRequested;
+        EscMenuPopup.OpenSettingsFromEscMenuRequested -= OnEscMenuOpenSettingsRequested;
+        EscMenuPopup.OpenQuitFromEscMenuRequested -= OnEscMenuOpenQuitRequested;
+        QuitPopup.CancelRequested -= OnQuitCancelRequested;
     }
 
     private void Update()
@@ -94,171 +86,152 @@ public class LobbyPopupCoordinator : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.Escape))
             HandleEscape();
     }
-
-    private void HandleEscape()
+    
+    public void ShowPopup(LobbyPopupKind kind)
     {
-        if (_popupPanelRoot == null)
-            return;
-
-        if (IsActive(_partyInviteReceivedPanel))
-        {
-            OnPartyInviteCancelClicked();
-            return;
-        }
-
-        if (!_popupPanelRoot.activeSelf)
-        {
-            ShowQuitPanel();
-            return;
-        }
-
-        if (IsQuitPanelVisible())
-        {
-            CloseAllPopups();
-            return;
-        }
-
-        if (AnyNonQuitPopupVisible())
-        {
-            CloseAllPopups();
-            return;
-        }
-
-        ShowQuitPanel();
+        HideAllBackgroundPopups();
+        ShowPopupBackground();
+        GetBackgroundPopup(kind)?.Show();
     }
 
     public void ShowSettings()
     {
-        ShowSinglePopup(_settingsPanel);
+        ShowPopup(LobbyPopupKind.Settings);
     }
 
     public void ShowNicknameChange()
     {
-        ShowSinglePopup(_nicknameChangePanel);
+        ShowPopup(LobbyPopupKind.NicknameChange);
     }
 
     public void ShowFollowFriends()
     {
-        ShowSinglePopup(_inviteFriendsPanel);
+        ShowPopup(LobbyPopupKind.InviteFriends);
+    }
+
+    public void ShowQuitPanel()
+    {
+        ShowPopup(LobbyPopupKind.Quit);
     }
 
     public void CloseAllPopups()
     {
-        SetActiveIfExists(_settingsPanel, false);
-        SetActiveIfExists(_nicknameChangePanel, false);
-        SetActiveIfExists(_inviteFriendsPanel, false);
-        SetActiveIfExists(_quitPanel, false);
-        SetActiveIfExists(_partyInviteReceivedPanel, false);
-        SetActiveIfExists(_popupPanelRoot, false);
+        HideAllBackgroundPopups();
+        HidePopupBackground();
     }
 
-    private void ShowQuitPanel()
+    private LobbyPopupBase GetBackgroundPopup(LobbyPopupKind kind)
     {
-        ShowSinglePopup(_quitPanel);
+        switch (kind)
+        {
+            case LobbyPopupKind.Settings:
+                return _settingsPopup;
+            case LobbyPopupKind.NicknameChange:
+                return _nicknameChangePopup;
+            case LobbyPopupKind.InviteFriends:
+                return _inviteFriendsPopup;
+            case LobbyPopupKind.Quit:
+                return _quitPopup;
+            case LobbyPopupKind.PartyInvite:
+                return _partyInvitePopup;
+            case LobbyPopupKind.EscMenu:
+                return _escMenuPopup;
+            default:
+                return null;
+        }
     }
 
-    private void ShowSinglePopup(GameObject target)
+    private void ShowPopupBackground()
     {
-        if (_popupPanelRoot == null || target == null)
-            return;
+        if (_popupBackgroundRoot != null)
+            _popupBackgroundRoot.SetActive(true);
+    }
 
-        SetActiveIfExists(_settingsPanel, false);
-        SetActiveIfExists(_nicknameChangePanel, false);
-        SetActiveIfExists(_inviteFriendsPanel, false);
-        SetActiveIfExists(_quitPanel, false);
-        SetActiveIfExists(_partyInviteReceivedPanel, false);
+    private void HidePopupBackground()
+    {
+        if (_popupBackgroundRoot != null)
+            _popupBackgroundRoot.SetActive(false);
+    }
 
-        _popupPanelRoot.SetActive(true);
-        target.SetActive(true);
+    private void HideAllBackgroundPopups()
+    {
+        _settingsPopup?.Hide();
+        _nicknameChangePopup?.Hide();
+        _inviteFriendsPopup?.Hide();
+        _quitPopup?.Hide();
+        _partyInvitePopup?.Hide();
+        _escMenuPopup?.Hide();
+    }
+
+    private void HandleEscape()
+    {
+        if (IsAnyPopupStackShowing())
+            CloseAllPopups();
+        else
+            ShowPopup(LobbyPopupKind.EscMenu);
+    }
+
+    private bool IsAnyPopupStackShowing()
+    {
+        if (_popupBackgroundRoot != null && _popupBackgroundRoot.activeSelf)
+            return true;
+        else
+            return false;
+    }
+
+    private void OnOpenSettingsButtonClicked()
+    {
+        ShowSettings();
+    }
+
+    private void OnNicknameChangePopupRequested()
+    {
+        ShowNicknameChange();
+    }
+
+    private void OnLobbyUiTransientToastRequested(string message)
+    {
+        ShowTransientToast(message);
+    }
+
+    private void OnPartyInviteTransientToastRequested(string message)
+    {
+        ShowTransientToast(message);
     }
 
     private void HandlePartyInviteReceived(int inviterActor, string inviterUserId)
     {
-        if (_partyInviteReceivedPanel == null)
-            return;
-
-        string displayName = inviterUserId;
-        if (PhotonNetwork.InRoom && PhotonNetwork.CurrentRoom != null)
-        {
-            Player inviter = PhotonNetwork.CurrentRoom.GetPlayer(inviterActor);
-            if (inviter != null && !string.IsNullOrEmpty(inviter.NickName))
-                displayName = inviter.NickName;
-        }
-
-        if (_partyInviteMessageText != null)
-            _partyInviteMessageText.text = string.Format(_partyInviteMessageFormat, displayName);
-
-        SetActiveIfExists(_settingsPanel, false);
-        SetActiveIfExists(_nicknameChangePanel, false);
-        SetActiveIfExists(_inviteFriendsPanel, false);
-        SetActiveIfExists(_quitPanel, false);
-
-        if (_popupPanelRoot != null)
-            _popupPanelRoot.SetActive(true);
-        _partyInviteReceivedPanel.SetActive(true);
-    }
-
-    private void OnPartyInviteConfirmClicked()
-    {
-        LobbyPartyService.Instance?.RespondToPendingPartyInvite(true);
-        HidePartyInvitePanelOnly();
-    }
-
-    private void OnPartyInviteCancelClicked()
-    {
-        LobbyPartyService.Instance?.RespondToPendingPartyInvite(false);
-        HidePartyInvitePanelOnly();
-    }
-
-    private void HidePartyInvitePanelOnly()
-    {
-        SetActiveIfExists(_partyInviteReceivedPanel, false);
-        if (!AnyPopupContentVisible())
-            SetActiveIfExists(_popupPanelRoot, false);
+        _partyInvitePopup.SetInviteMessage(inviterActor, inviterUserId);
+        ShowPopup(LobbyPopupKind.PartyInvite);
     }
 
     private void HandlePartyInviteResponded(bool accepted)
     {
         if (!accepted)
-            ShowTransientToast(_partyInviteDeclinedToast);
+            ShowTransientToast(_partyInvitePopup.PartyInviteDeclinedToast);
     }
 
-    private void HandlePartyLinkedRefreshVisuals(Player _)
+    private void HandlePendingInviteInvalidated()
     {
-        RefreshPartyInviteButtonVisuals();
+        CloseAllPopups();
     }
 
-    private void HandlePartyClearedRefreshVisuals()
+    private void OnPartyInviteClosedOnly()
     {
-        RefreshPartyInviteButtonVisuals();
+        CloseAllPopups();
     }
 
-    private void HandlePendingPartyInviteInvalidated()
-    {
-        HidePartyInvitePanelOnly();
-    }
-
-    private void RefreshPartyInviteButtonVisuals()
-    {
-        bool inParty = LobbyPartyService.Instance != null && LobbyPartyService.Instance.LocalPlayerHasParty;
-        SetActiveIfExists(_openInviteFriendsButtonInviteImage, !inParty);
-        SetActiveIfExists(_openInviteFriendsButtonBackImage, inParty);
-    }
-
-    public void ShowTransientToast(string message)
+    private void ShowTransientToast(string message)
     {
         if (_transientToastText == null)
             return;
 
-        if (_toastHideRoutine != null)
-        {
-            StopCoroutine(_toastHideRoutine);
-            _toastHideRoutine = null;
-        }
+        if (_transientToastCoroutine != null)
+            StopCoroutine(_transientToastCoroutine);
 
-        _transientToastText.text = message ?? string.Empty;
+        _transientToastText.text = message;
         _transientToastText.gameObject.SetActive(true);
-        _toastHideRoutine = StartCoroutine(HideTransientToastAfterDelay());
+        _transientToastCoroutine = StartCoroutine(HideTransientToastAfterDelay());
     }
 
     private IEnumerator HideTransientToastAfterDelay()
@@ -266,33 +239,31 @@ public class LobbyPopupCoordinator : MonoBehaviour
         yield return new WaitForSeconds(_transientToastDurationSeconds);
         if (_transientToastText != null)
             _transientToastText.gameObject.SetActive(false);
-        _toastHideRoutine = null;
+        _transientToastCoroutine = null;
     }
 
-    private bool AnyPopupContentVisible()
+    private void OnOpenInviteFriendsButtonClicked()
     {
-        return IsActive(_settingsPanel) || IsActive(_nicknameChangePanel) || IsActive(_inviteFriendsPanel) ||
-               IsActive(_partyInviteReceivedPanel);
+        ShowFollowFriends();
     }
 
-    private bool AnyNonQuitPopupVisible()
+    private void OnEscMenuCloseAllRequested()
     {
-        return AnyPopupContentVisible();
+        CloseAllPopups();
     }
 
-    private bool IsQuitPanelVisible()
+    private void OnEscMenuOpenSettingsRequested()
     {
-        return IsActive(_quitPanel);
+        ShowSettings();
     }
 
-    private static void SetActiveIfExists(GameObject go, bool active)
+    private void OnEscMenuOpenQuitRequested()
     {
-        if (go != null)
-            go.SetActive(active);
+        ShowQuitPanel();
     }
 
-    private static bool IsActive(GameObject go)
+    private void OnQuitCancelRequested()
     {
-        return go != null && go.activeInHierarchy;
+        CloseAllPopups();
     }
 }
