@@ -22,6 +22,7 @@ namespace InGame.Player.Ragdoll
 
         private const int RagdollSolverIterations = 8;
         private const int RagdollSolverVelocityIterations = 2;
+        private const float MaxInheritedSpeed = 50f;
 
         public IReadOnlyList<Rigidbody> Rigidbodies => _ragdollRbs;
         public IReadOnlyList<Transform> BoneTransforms => _ragdollBoneTransforms;
@@ -48,6 +49,9 @@ namespace InGame.Player.Ragdoll
             SetKinematic(false);
             SetCollidersEnabled(true);
             _isPhysicsActive = true;
+
+            if (inheritedVelocity.sqrMagnitude > MaxInheritedSpeed * MaxInheritedSpeed)
+                inheritedVelocity = inheritedVelocity.normalized * MaxInheritedSpeed;
 
             for (int i = 0; i < _ragdollRbs.Length; i++)
             {

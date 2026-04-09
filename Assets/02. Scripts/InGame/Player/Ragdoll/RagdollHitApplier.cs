@@ -8,6 +8,7 @@ namespace InGame.Player.Ragdoll
         private readonly IReadOnlyList<Rigidbody> _ragdollRbs;
         private readonly float _hitRadius;
         private readonly float _forceScale;
+        private const float MaxInheritedSpeed = 50f;
 
         public RagdollHitApplier(IReadOnlyList<Rigidbody> ragdollRbs, float hitRadius, float forceScale)
         {
@@ -21,6 +22,9 @@ namespace InGame.Player.Ragdoll
         /// </summary>
         public void ApplyInitialHit(HitData hit, Vector3 inheritedVelocity)
         {
+            if (inheritedVelocity.sqrMagnitude > MaxInheritedSpeed * MaxInheritedSpeed)
+                inheritedVelocity = inheritedVelocity.normalized * MaxInheritedSpeed;
+
             for (int i = 0; i < _ragdollRbs.Count; i++)
                 _ragdollRbs[i].linearVelocity = inheritedVelocity;
 

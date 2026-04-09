@@ -186,7 +186,7 @@ namespace InGame.Player.Movement
             }
 
             velocity.y += (-_gravity - Physics.gravity.y) * Time.fixedDeltaTime;
-            velocity.y = Mathf.Max(velocity.y, -_maxFallSpeed);
+            velocity.y = Mathf.Clamp(velocity.y, -_maxFallSpeed, _maxFallSpeed);
             _rootBody.linearVelocity = velocity;
 
             if (_currentVelocity.sqrMagnitude > 0.01f)
