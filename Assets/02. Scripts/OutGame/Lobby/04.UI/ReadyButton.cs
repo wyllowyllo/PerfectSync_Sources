@@ -73,7 +73,6 @@ public class ReadyButton : MonoBehaviourPunCallbacks
         if (LobbyManager.Instance == null)
             return;
 
-        // 이미 Ready 상태면 취소
         if (PhotonNetwork.InRoom &&
             PhotonNetwork.LocalPlayer != null &&
             IsPlayerMatchReady(PhotonNetwork.LocalPlayer))

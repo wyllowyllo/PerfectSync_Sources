@@ -143,6 +143,7 @@ public class LobbyManager : SingletonMonoBehaviour<LobbyManager>
             new Hashtable { { LobbyMatchmakingKeys.Ready, false } });
         MatchingStatusChanged?.Invoke(string.Empty);
         MatchButtonInteractableChanged?.Invoke(true);
+        ShowMainScreenRequested?.Invoke();
     }
 
     public void RequestLeaveRoom()
