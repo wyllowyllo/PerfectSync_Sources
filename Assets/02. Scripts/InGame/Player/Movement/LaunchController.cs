@@ -3,6 +3,7 @@ using Core;
 using InGame.Player.Animation;
 using InGame.Player.Ragdoll;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 namespace InGame.Player.Movement
 {
@@ -14,6 +15,7 @@ namespace InGame.Player.Movement
     {
         [Header("References")]
         [SerializeField] private Rigidbody _rootBody;
+        [FormerlySerializedAs("_physicsProfile")] [SerializeField] private Ragdoll.CharacterSpeedLimits speedLimits;
 
         [Header("Transition")]
         [SerializeField] private float _transitionDuration = 0.4f;
@@ -28,8 +30,7 @@ namespace InGame.Player.Movement
 
         private bool _isLaunching;
         private float _transitionStartVy;
-
-        private const float MaxLaunchSpeed = 60f;
+        private float _maxLaunchSpeed;
 
         public bool IsLaunching => _isLaunching;
         public event Action OnLaunched;
@@ -41,6 +42,8 @@ namespace InGame.Player.Movement
             _playerJump = GetComponent<PlayerJump>();
             _anim = GetComponent<PlayerAnimation>();
             _ragdollStateMachine = GetComponent<RagdollStateMachine>();
+
+            _maxLaunchSpeed = speedLimits != null ? speedLimits.MaxLaunchSpeed : 60f;
         }
 
         public void Launch(Vector3 targetPosition)
@@ -60,8 +63,8 @@ namespace InGame.Player.Movement
 
             // vy = √(2gh) — 목표 높이에 정확히 도달하는 상향 속도.
             float vy = Mathf.Sqrt(2f * _movement.Gravity * height);
-            if (vy > MaxLaunchSpeed)
-                vy = MaxLaunchSpeed;
+            if (vy > _maxLaunchSpeed)
+                vy = _maxLaunchSpeed;
 
             // 수직 발사: XZ 고정, Y만 이동.
             _rootBody.linearVelocity = new Vector3(0f, vy, 0f);

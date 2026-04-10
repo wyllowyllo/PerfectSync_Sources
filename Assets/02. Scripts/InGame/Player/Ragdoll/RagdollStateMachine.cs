@@ -93,7 +93,7 @@ namespace InGame.Player.Ragdoll
         {
             _animation = GetComponent<PlayerAnimation>();
             _skeletonOriginalParent = _skeletonRoot.parent;
-            _hitApplier = new RagdollHitApplier(_ragdollRig.Rigidbodies, _hitRadius, _hitForceScale);
+            _hitApplier = new RagdollHitApplier(_ragdollRig.Rigidbodies, _hitRadius, _hitForceScale, _ragdollRig.SpeedLimits);
             _blender = new RagdollBlender(_ragdollRig, _animator, _ragdollToAnimBlendTime, _groundCheckDistance, _groundLayer);
             _rootTransition = new RagdollRootTransition(_rootTransitionDuration);
         }
