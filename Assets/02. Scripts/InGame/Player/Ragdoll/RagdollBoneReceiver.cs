@@ -4,23 +4,33 @@ using UnityEngine;
 
 namespace InGame.Player.Ragdoll
 {
+    /// <summary>
+    /// 더블 버퍼 보간: 확정된 네트워크 스냅샷 간 보간으로 drift/snap 제거.
+    /// 첫 스냅샷만 시각 위치→스냅샷 보간 (애니메이션→래그돌 전환용).
+    /// 이후: from(이전 확정 스냅샷) → to(현재 확정 스냅샷).
+    /// </summary>
     [DefaultExecutionOrder(ExecutionOrderConstants.RagdollBoneReceiver)]
     public class RagdollBoneReceiver : MonoBehaviour
     {
         [SerializeField] private RagdollRig _ragdollRig;
         [SerializeField] private Rigidbody _rootBody;
 
-        private RagdollBoneSnapshot _currentSnapshot;
-        private float _lastReceiveTime;
+        private float _toArrivalTime;
         private float _receiveInterval;
         private bool _isReceiving;
-        private bool _hasSnapshot;
+        private int _snapshotCount;
+        private int _activeBoneCount;
 
-        // 보간 시작점 (현재 시각적 위치) 및 추정 속도 — 사전 할당 버퍼.
-        private Vector3[] _interpFromPositions;
-        private Quaternion[] _interpFromRotations;
+        // 더블 버퍼: 확정된 스냅샷 쌍. 배열 swap으로 GC 할당 없이 재사용.
+        private Vector3[] _fromPositions;
+        private Quaternion[] _fromRotations;
+        private Vector3[] _toPositions;
+        private Quaternion[] _toRotations;
+
+        // 본별 운동 추정 (외삽용 — 패킷 유실 시에만 사용).
         private Vector3[] _estimatedVelocities;
-        private bool _hasVelocity;
+        private Quaternion[] _estimatedAngularDeltas;
+        private bool _hasMotionEstimate;
 
         private int _pelvisIndex;
         private int[] _parentBoneIndex;
@@ -91,8 +101,8 @@ namespace InGame.Player.Ragdoll
         public void StartReceiving()
         {
             _isReceiving = true;
-            _hasSnapshot = false;
-            _hasVelocity = false;
+            _snapshotCount = 0;
+            _hasMotionEstimate = false;
             _receiveInterval = DefaultReceiveInterval;
 
             // 단일 계층: 본을 kinematic으로 설정하여 BoneReceiver가 위치를 직접 제어.
@@ -104,126 +114,154 @@ namespace InGame.Player.Ragdoll
         {
             // 외삽 위치가 아닌 마지막 확정 스냅샷으로 본을 복원.
             // BlendToAnim 전환 시 SnapshotRagdollPoses()가 올바른 포즈를 캡처하도록 보장.
-            if (_hasSnapshot)
+            if (_snapshotCount >= 1 && _toPositions != null)
             {
                 IReadOnlyList<Transform> bones = _ragdollRig.BoneTransforms;
-                int count = Mathf.Min(bones.Count, _currentSnapshot.BonePositions.Length);
+                int count = Mathf.Min(bones.Count, _activeBoneCount);
                 for (int i = 0; i < count; i++)
                 {
-                    bones[i].position = _currentSnapshot.BonePositions[i];
-                    bones[i].rotation = _currentSnapshot.BoneRotations[i];
+                    bones[i].position = _toPositions[i];
+                    bones[i].rotation = _toRotations[i];
                 }
             }
 
             _isReceiving = false;
-            _hasSnapshot = false;
-            _hasVelocity = false;
+            _snapshotCount = 0;
+            _hasMotionEstimate = false;
         }
 
         public void ApplySnapshot(RagdollBoneSnapshot snapshot)
         {
             if (!_isReceiving) return;
 
-            int snapshotCount = snapshot.BonePositions.Length;
+            int snapshotBoneCount = snapshot.BonePositions.Length;
             IReadOnlyList<Transform> bones = _ragdollRig.BoneTransforms;
-            int boneCount = Mathf.Min(bones.Count, snapshotCount);
+            int boneCount = Mathf.Min(bones.Count, snapshotBoneCount);
             EnsureBuffers(boneCount);
 
             float now = Time.time;
 
-            if (_hasSnapshot)
+            if (_snapshotCount == 0)
             {
-                float interval = now - _lastReceiveTime;
-                if (interval > MinIntervalThreshold)
+                // 첫 스냅샷: 현재 시각 위치를 from, 스냅샷을 to로 설정.
+                // 애니메이션 포즈 → 래그돌 포즈 전환을 보간으로 부드럽게 처리.
+                for (int i = 0; i < boneCount; i++)
                 {
-                    _receiveInterval = Mathf.Lerp(_receiveInterval, interval, IntervalSmoothingFactor);
-
-                    // 연속 네트워크 스냅샷 간 위치 변화량으로 본별 속도 추정.
-                    int velCount = Mathf.Min(snapshotCount, _currentSnapshot.BonePositions.Length);
-                    float invDt = 1f / interval;
-                    for (int i = 0; i < velCount; i++)
-                    {
-                        _estimatedVelocities[i] =
-                            (snapshot.BonePositions[i] - _currentSnapshot.BonePositions[i]) * invDt;
-                    }
-                    _hasVelocity = true;
+                    _fromPositions[i] = bones[i].position;
+                    _fromRotations[i] = bones[i].rotation;
                 }
+                System.Array.Copy(snapshot.BonePositions, _toPositions, boneCount);
+                System.Array.Copy(snapshot.BoneRotations, _toRotations, boneCount);
+                _activeBoneCount = boneCount;
+                _toArrivalTime = now;
+                _snapshotCount = 1;
+                return;
             }
 
-            // 현재 시각적 본 위치를 보간 시작점으로 캡처.
-            // 외삽 중 새 스냅샷 도착 시 스냅백(역방향 점프) 방지.
-            for (int i = 0; i < boneCount; i++)
+            // 연속 스냅샷 간 속도·각속도 추정 (확정 스냅샷 기반, drift 없음).
+            float interval = now - _toArrivalTime;
+            if (interval > MinIntervalThreshold)
             {
-                _interpFromPositions[i] = bones[i].position;
-                _interpFromRotations[i] = bones[i].rotation;
+                _receiveInterval = Mathf.Lerp(_receiveInterval, interval, IntervalSmoothingFactor);
+
+                int velCount = Mathf.Min(boneCount, _activeBoneCount);
+                float invDt = 1f / interval;
+                for (int i = 0; i < velCount; i++)
+                {
+                    _estimatedVelocities[i] =
+                        (snapshot.BonePositions[i] - _toPositions[i]) * invDt;
+                    _estimatedAngularDeltas[i] =
+                        snapshot.BoneRotations[i] * Quaternion.Inverse(_toRotations[i]);
+                }
+                _hasMotionEstimate = true;
             }
 
-            _currentSnapshot = snapshot;
-            _lastReceiveTime = now;
-            _hasSnapshot = true;
+            // 더블 버퍼 교대: 이전 to → 새 from (배열 swap, 할당 없음).
+            var tmpP = _fromPositions;
+            _fromPositions = _toPositions;
+            _toPositions = tmpP;
+
+            var tmpR = _fromRotations;
+            _fromRotations = _toRotations;
+            _toRotations = tmpR;
+
+            // 새 스냅샷을 to에 복사.
+            System.Array.Copy(snapshot.BonePositions, _toPositions, boneCount);
+            System.Array.Copy(snapshot.BoneRotations, _toRotations, boneCount);
+            _activeBoneCount = boneCount;
+            _toArrivalTime = now;
+            _snapshotCount++;
         }
 
         private void LateUpdate()
         {
-            if (!_isReceiving || !_hasSnapshot) return;
+            if (!_isReceiving || _snapshotCount < 1) return;
 
             IReadOnlyList<Transform> bones = _ragdollRig.BoneTransforms;
 
-            float elapsed = Time.time - _lastReceiveTime;
+            float elapsed = Time.time - _toArrivalTime;
             float interval = Mathf.Min(_receiveInterval, MaxInterpolationInterval);
 
-            int count = Mathf.Min(bones.Count, _currentSnapshot.BonePositions.Length);
-            if (_interpFromPositions == null || count > _interpFromPositions.Length)
+            int count = Mathf.Min(bones.Count, _activeBoneCount);
+            if (_fromPositions == null || count > _fromPositions.Length)
                 return;
 
             float t = elapsed / interval;
 
             if (t <= 1f)
             {
-                // 보간 구간: 펠비스 로컬 공간에서 보간.
-                // 월드 공간 독립 보간 시 빠른 회전에서 본 간 직선 경로가 달라
-                // 골격 거리가 깨지는 문제를 방지.
-                Vector3 fromPelvisPos = _interpFromPositions[_pelvisIndex];
-                Vector3 toPelvisPos = _currentSnapshot.BonePositions[_pelvisIndex];
-                Quaternion fromPelvisRot = _interpFromRotations[_pelvisIndex];
-                Quaternion toPelvisRot = _currentSnapshot.BoneRotations[_pelvisIndex];
-
-                Vector3 pelvisPos = Vector3.Lerp(fromPelvisPos, toPelvisPos, t);
-                Quaternion pelvisRot = Quaternion.Slerp(fromPelvisRot, toPelvisRot, t);
-                Quaternion fromPelvisInv = Quaternion.Inverse(fromPelvisRot);
-                Quaternion toPelvisInv = Quaternion.Inverse(toPelvisRot);
-
-                for (int i = 0; i < count; i++)
-                {
-                    bones[i].rotation = Quaternion.Slerp(
-                        _interpFromRotations[i],
-                        _currentSnapshot.BoneRotations[i],
-                        t);
-
-                    if (i == _pelvisIndex)
-                    {
-                        bones[i].position = pelvisPos;
-                        continue;
-                    }
-
-                    Vector3 fromLocal = fromPelvisInv * (_interpFromPositions[i] - fromPelvisPos);
-                    Vector3 toLocal = toPelvisInv * (_currentSnapshot.BonePositions[i] - toPelvisPos);
-                    bones[i].position = pelvisPos + pelvisRot * Vector3.Lerp(fromLocal, toLocal, t);
-                }
+                // 보간 구간: 펠비스 로컬 공간에서 from→to 보간.
+                // from/to 모두 확정된 스냅샷이므로 drift에 의한 보정 snap 없음.
+                InterpolateInPelvisSpace(bones, count, t);
             }
-            else if (_hasVelocity)
+            else if (_hasMotionEstimate)
             {
-                // 외삽 구간: 펠비스 속도로 전체 스켈레톤을 일체 이동.
-                // 수신측은 kinematic이라 관절 구속이 없으므로, 본별 독립 외삽 시
-                // 빠른 회전/비행에서 골격이 발산(치즈 현상). 펠비스 기준 통일 이동으로 방지.
+                // 외삽 구간 (패킷 유실 시에만 진입 — 정상 수신 시 t≤1.0).
+                // 펠비스 속도로 스켈레톤 일체 이동 + 본별 각속도 연속.
                 float extraTime = Mathf.Min(elapsed - interval, MaxExtrapolationTime);
+                float extraFraction = extraTime / Mathf.Max(interval, MinIntervalThreshold);
+
                 Vector3 pelvisDelta = _estimatedVelocities[_pelvisIndex] * extraTime
                     + 0.5f * Physics.gravity * (extraTime * extraTime);
 
+                Quaternion toPelvisInv = Quaternion.Inverse(_toRotations[_pelvisIndex]);
+
+                // 펠비스 외삽.
+                Quaternion pelvisAngStep = Quaternion.SlerpUnclamped(
+                    Quaternion.identity, _estimatedAngularDeltas[_pelvisIndex], extraFraction);
+                Quaternion pelvisRot = pelvisAngStep * _toRotations[_pelvisIndex];
+                Vector3 pelvisPos = _toPositions[_pelvisIndex] + pelvisDelta;
+
+                bones[_pelvisIndex].position = pelvisPos;
+                bones[_pelvisIndex].rotation = pelvisRot;
+
+                // 자식 본: 부모 회전 기반 FK 외삽 (골격 구조 유지).
                 for (int i = 0; i < count; i++)
                 {
-                    bones[i].position = _currentSnapshot.BonePositions[i] + pelvisDelta;
-                    bones[i].rotation = _currentSnapshot.BoneRotations[i];
+                    if (i == _pelvisIndex) continue;
+
+                    // 각속도 외삽.
+                    Quaternion angStep = Quaternion.SlerpUnclamped(
+                        Quaternion.identity, _estimatedAngularDeltas[i], extraFraction);
+                    bones[i].rotation = angStep * _toRotations[i];
+
+                    int parentIdx = _parentBoneIndex[i];
+                    if (parentIdx >= 0 && parentIdx < count)
+                    {
+                        // FK: 부모 기준 로컬 오프셋을 부모의 외삽 회전으로 재계산.
+                        Quaternion parentToInv = Quaternion.Inverse(_toRotations[parentIdx]);
+                        Vector3 localOffset = parentToInv *
+                            (_toPositions[i] - _toPositions[parentIdx]);
+                        bones[i].position = bones[parentIdx].position +
+                            bones[parentIdx].rotation * localOffset;
+                    }
+                    else
+                    {
+                        // 부모 없는 루트 본: 펠비스 기준 이동.
+                        Vector3 localOffset = toPelvisInv *
+                            (_toPositions[i] - _toPositions[_pelvisIndex]);
+                        bones[i].position = pelvisPos + pelvisRot * localOffset;
+                    }
                 }
             }
 
@@ -235,6 +273,35 @@ namespace InGame.Player.Ragdoll
             // 스켈레톤이 분리되어 있으므로 rootBody 이동이 본에 영향을 주지 않음.
             if (_rootBody != null && count > 0)
                 _rootBody.MovePosition(_ragdollRig.PelvisTransform.position);
+        }
+
+        private void InterpolateInPelvisSpace(IReadOnlyList<Transform> bones, int count, float t)
+        {
+            Vector3 fromPelvisPos = _fromPositions[_pelvisIndex];
+            Vector3 toPelvisPos = _toPositions[_pelvisIndex];
+            Quaternion fromPelvisRot = _fromRotations[_pelvisIndex];
+            Quaternion toPelvisRot = _toRotations[_pelvisIndex];
+
+            Vector3 pelvisPos = Vector3.Lerp(fromPelvisPos, toPelvisPos, t);
+            Quaternion pelvisRot = Quaternion.Slerp(fromPelvisRot, toPelvisRot, t);
+            Quaternion fromPelvisInv = Quaternion.Inverse(fromPelvisRot);
+            Quaternion toPelvisInv = Quaternion.Inverse(toPelvisRot);
+
+            for (int i = 0; i < count; i++)
+            {
+                bones[i].rotation = Quaternion.Slerp(
+                    _fromRotations[i], _toRotations[i], t);
+
+                if (i == _pelvisIndex)
+                {
+                    bones[i].position = pelvisPos;
+                    continue;
+                }
+
+                Vector3 fromLocal = fromPelvisInv * (_fromPositions[i] - fromPelvisPos);
+                Vector3 toLocal = toPelvisInv * (_toPositions[i] - toPelvisPos);
+                bones[i].position = pelvisPos + pelvisRot * Vector3.Lerp(fromLocal, toLocal, t);
+            }
         }
 
         private void EnforceBoneDistances(IReadOnlyList<Transform> bones, int count)
@@ -257,11 +324,14 @@ namespace InGame.Player.Ragdoll
 
         private void EnsureBuffers(int count)
         {
-            if (_interpFromPositions == null || _interpFromPositions.Length < count)
+            if (_fromPositions == null || _fromPositions.Length < count)
             {
-                _interpFromPositions = new Vector3[count];
-                _interpFromRotations = new Quaternion[count];
+                _fromPositions = new Vector3[count];
+                _fromRotations = new Quaternion[count];
+                _toPositions = new Vector3[count];
+                _toRotations = new Quaternion[count];
                 _estimatedVelocities = new Vector3[count];
+                _estimatedAngularDeltas = new Quaternion[count];
             }
         }
     }
