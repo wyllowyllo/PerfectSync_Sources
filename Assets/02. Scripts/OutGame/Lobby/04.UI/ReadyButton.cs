@@ -73,10 +73,9 @@ public class ReadyButton : MonoBehaviourPunCallbacks
         if (LobbyManager.Instance == null)
             return;
 
-        // 이미 Ready 상태면 취소
         if (PhotonNetwork.InRoom &&
             PhotonNetwork.LocalPlayer != null &&
-            IsPlayerMatchReady(PhotonNetwork.LocalPlayer))
+            (IsPlayerMatchReady(PhotonNetwork.LocalPlayer) || LobbyManager.Instance.IsAwaitingReadyDelay))
         {
             LobbyManager.Instance.CancelMatchReady();
             return;
@@ -109,21 +108,15 @@ public class ReadyButton : MonoBehaviourPunCallbacks
         }
 
         bool localReady = IsPlayerMatchReady(PhotonNetwork.LocalPlayer);
+        bool awaitingReadyDelay = LobbyManager.Instance.IsAwaitingReadyDelay;
+        bool inMatchmakingIntent = localReady || awaitingReadyDelay;
 
-        if (!localReady)
+        if (!inMatchmakingIntent)
         {
             SetLabelText("준비");
             return;
         }
 
-        // 파티 상태: 전원 Ready → "준비 취소", 일부만 → "대기 중"
-        if (LobbyPartyService.Instance != null && LobbyPartyService.Instance.LocalPlayerHasParty)
-        {
-            SetLabelText(AreAllPartyMembersMatchReady() ? "준비 취소" : "대기 중");
-            return;
-        }
-
-        // 솔로 + Ready
         SetLabelText("준비 취소");
     }
 
@@ -141,31 +134,5 @@ public class ReadyButton : MonoBehaviourPunCallbacks
                v is bool b && b;
     }
 
-    private static bool AreAllPartyMembersMatchReady()
-    {
-        var local = PhotonNetwork.LocalPlayer;
-        if (local == null)
-            return false;
 
-        string partyId = GetPartyId(local);
-        if (string.IsNullOrEmpty(partyId))
-            return false;
-
-        foreach (var p in PhotonNetwork.PlayerList)
-        {
-            if (GetPartyId(p) != partyId)
-                continue;
-            if (!IsPlayerMatchReady(p))
-                return false;
-        }
-
-        return true;
-    }
-
-    private static string GetPartyId(Player player)
-    {
-        return player.CustomProperties.TryGetValue(PhotonTeamManager.PartyIdKey, out object v)
-            ? v as string
-            : null;
-    }
 }

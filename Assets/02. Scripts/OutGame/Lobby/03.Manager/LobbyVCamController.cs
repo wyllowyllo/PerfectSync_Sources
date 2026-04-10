@@ -4,10 +4,11 @@ using UnityEngine;
 
 public enum LobbyVCamZone
 {
-    Lobby = 0,
-    Face  = 1,   // Hair, Hat, Horn, Ears, Eyes, Nose, Mouth (index 0~6)
-    Body  = 2,   // BodyColor, Body, Gloves (index 7~9)
-    Tail  = 3    // Tail (index 10)
+    Lobby       = 0,
+    Face        = 1,   // Hair, Hat, Horn, Ears, Eyes, Nose, Mouth (index 0~6)
+    Body        = 2,   // BodyColor, Body, Gloves (index 7~9)
+    Tail        = 3,   // Tail (index 10)
+    Matchmaking = 4
 }
 
 public class LobbyVCamController : MonoBehaviour
@@ -18,11 +19,20 @@ public class LobbyVCamController : MonoBehaviour
     [SerializeField] private CinemachineCamera bodyCam;
     [SerializeField] private CinemachineCamera tailCam;
 
+    [Header("Matchmaking Camera")]
+    [SerializeField] private CinemachineCamera matchmakingCam;
+    [SerializeField] private float matchmakingTargetY = 5f;
+    [SerializeField] private float matchmakingDuration = 2f;
+
     [Header("References")]
+    [SerializeField] private CinemachineBrain _brain;
     [SerializeField] private CharacterCustomizationPartNavigator _navigator;
 
     private CinemachineCamera[] _cameras;
     private LobbyVCamZone _currentZone = LobbyVCamZone.Lobby;
+
+    private float _matchmakingInitialY;
+    private Coroutine _matchmakingCoroutine;
 
     private const int ACTIVE_PRIORITY  = 10;
     private const int INACTIVE_PRIORITY = -1;
@@ -35,13 +45,22 @@ public class LobbyVCamController : MonoBehaviour
 
     private void Awake()
     {
-        _cameras = new[] { lobbyCam, faceCam, bodyCam, tailCam };
+        _cameras = new[] { lobbyCam, faceCam, bodyCam, tailCam, matchmakingCam };
+
+        if (matchmakingCam != null)
+            _matchmakingInitialY = matchmakingCam.transform.position.y;
     }
 
     private void OnEnable()
     {
         if (_navigator != null)
             _navigator.PartIndexChanged += OnPartIndexChanged;
+
+        if (LobbyManager.Instance != null)
+        {
+            LobbyManager.Instance.ShowMatchingScreenRequested += EnterMatchmaking;
+            LobbyManager.Instance.ShowMainScreenRequested += BackToLobby;
+        }
 
         SetActiveCamera(LobbyVCamZone.Lobby);
     }
@@ -50,6 +69,12 @@ public class LobbyVCamController : MonoBehaviour
     {
         if (_navigator != null)
             _navigator.PartIndexChanged -= OnPartIndexChanged;
+
+        if (LobbyManager.Instance != null)
+        {
+            LobbyManager.Instance.ShowMatchingScreenRequested -= EnterMatchmaking;
+            LobbyManager.Instance.ShowMainScreenRequested -= BackToLobby;
+        }
     }
 
     public void EnterCustomize()
@@ -66,6 +91,11 @@ public class LobbyVCamController : MonoBehaviour
         SetActiveCamera(LobbyVCamZone.Lobby);
     }
 
+    public void EnterMatchmaking()
+    {
+        SetActiveCamera(LobbyVCamZone.Matchmaking);
+    }
+
     private void OnPartIndexChanged(int partIndex)
     {
         if (_currentZone == LobbyVCamZone.Lobby) return;
@@ -77,6 +107,24 @@ public class LobbyVCamController : MonoBehaviour
 
     private void SetActiveCamera(LobbyVCamZone zone)
     {
+        bool involvesMatchmaking = (_currentZone == LobbyVCamZone.Matchmaking
+                                    || zone == LobbyVCamZone.Matchmaking);
+
+        // 매치메이킹 관련 전환 시 Cut 블렌드 적용
+        CinemachineBlendDefinition originalBlend = default;
+        if (involvesMatchmaking && _brain != null)
+        {
+            originalBlend = _brain.DefaultBlend;
+            _brain.DefaultBlend = new CinemachineBlendDefinition(
+                CinemachineBlendDefinition.Styles.Cut, 0f);
+        }
+
+        // 매치메이킹에서 벗어나면 애니메이션 중단 + Y 복귀
+        if (_currentZone == LobbyVCamZone.Matchmaking)
+        {
+            StopMatchmakingMovement();
+        }
+
         for (int i = 0; i < _cameras.Length; i++)
         {
             _cameras[i].Priority = (i == (int)zone)
@@ -86,6 +134,60 @@ public class LobbyVCamController : MonoBehaviour
 
         _currentZone = zone;
         OnZoneChanged?.Invoke(_currentZone);
+
+        // 매치메이킹 진입 시 Y 애니메이션 시작
+        if (zone == LobbyVCamZone.Matchmaking)
+        {
+            _matchmakingCoroutine = StartCoroutine(AnimateMatchmakingY());
+        }
+
+        // Cut → 원래 블렌드로 복구 (1프레임 뒤)
+        if (involvesMatchmaking && _brain != null)
+        {
+            StartCoroutine(RestoreBlendNextFrame(originalBlend));
+        }
+    }
+
+    private System.Collections.IEnumerator AnimateMatchmakingY()
+    {
+        Transform camTransform = matchmakingCam.transform;
+        Vector3 startPos = camTransform.position;
+        float startY = _matchmakingInitialY;
+        float elapsed = 0f;
+
+        while (elapsed < matchmakingDuration)
+        {
+            elapsed += Time.deltaTime;
+            float t = Mathf.Clamp01(elapsed / matchmakingDuration);
+            float newY = Mathf.Lerp(startY, matchmakingTargetY, t);
+            camTransform.position = new Vector3(startPos.x, newY, startPos.z);
+            yield return null;
+        }
+
+        camTransform.position = new Vector3(startPos.x, matchmakingTargetY, startPos.z);
+        _matchmakingCoroutine = null;
+    }
+
+    private void StopMatchmakingMovement()
+    {
+        if (_matchmakingCoroutine != null)
+        {
+            StopCoroutine(_matchmakingCoroutine);
+            _matchmakingCoroutine = null;
+        }
+
+        if (matchmakingCam != null)
+        {
+            Vector3 pos = matchmakingCam.transform.position;
+            matchmakingCam.transform.position = new Vector3(pos.x, _matchmakingInitialY, pos.z);
+        }
+    }
+
+    private System.Collections.IEnumerator RestoreBlendNextFrame(CinemachineBlendDefinition original)
+    {
+        yield return null;
+        if (_brain != null)
+            _brain.DefaultBlend = original;
     }
 
     private static LobbyVCamZone MapPartIndexToZone(int partIndex)
