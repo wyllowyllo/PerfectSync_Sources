@@ -77,6 +77,9 @@ namespace InGame.Player.Test
         {
             PhotonNetwork.NickName = _nickName + Random.Range(0, 9999);
             PhotonNetwork.GameVersion = _gameVersion;
+            PhotonNetwork.AutomaticallySyncScene = true;
+            PhotonNetwork.SendRate = 40;
+            PhotonNetwork.SerializationRate = 30;
             PhotonNetwork.ConnectUsingSettings();
             Debug.Log("[StandaloneTestManager] Connecting to Photon...");
         }

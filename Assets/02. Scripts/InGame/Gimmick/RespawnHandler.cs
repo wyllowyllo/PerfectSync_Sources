@@ -1,8 +1,7 @@
 using System;
 using System.Collections;
+using DG.Tweening;
 using InGame.Player;
-using InGame.Player.Movement;
-using InGame.Player.Ragdoll;
 using InGame.UserInput;
 using Photon.Pun;
 using UnityEngine;
@@ -12,20 +11,27 @@ namespace InGame.Gimmick
     public class RespawnHandler : MonoBehaviour, IInvincibilitySource
     {
         [Header("Respawn")]
-        [SerializeField] private float _respawnDelay = 1.5f;
+        [SerializeField] private float _respawnDelay = 1.0f;
+
+        [Header("Spawn Punch")]
+        [SerializeField] private float _punchOvershoot = 1.15f;
+        [SerializeField] private float _punchInDuration = 0.08f;
+        [SerializeField] private float _punchOutDuration = 0.1f;
 
         [Header("Respawn Invincibility")]
-        [SerializeField] private float _invincibilityDuration = 3f;
+        [SerializeField] private float _invincibilityDuration = 2f;
 
         private LocalPlayerInput _input;
         private MergedBodyController _formController;
         private bool _isRespawning;
         private bool _isRespawnInvincible;
+        private Tween _scaleTween;
 
         public bool IsInvincible => _isRespawnInvincible;
 
         public event Action OnRespawnInvincibleStart;
         public event Action OnRespawnInvincibleEnd;
+        public event Action<Vector3, Quaternion> OnCameraResetRequested;
 
         private void Start()
         {
@@ -38,6 +44,7 @@ namespace InGame.Gimmick
         {
             if (_input != null)
                 _input.OnDeathReceived -= HandleDeath;
+            _scaleTween?.Kill();
         }
 
         private void HandleDeath()
@@ -55,15 +62,34 @@ namespace InGame.Gimmick
 
             yield return new WaitForSeconds(_respawnDelay);
 
-            // 무적을 먼저 켜서 리스폰 직후 피격 방지.
             _isRespawnInvincible = true;
-            OnRespawnInvincibleStart?.Invoke();
 
             Vector3 respawnPosition = GetRespawnPosition();
             Quaternion respawnRotation = GetRespawnRotation();
             TeleportBodies(respawnPosition, respawnRotation);
 
+            // 카메라를 리스폰 방향으로 즉시 리셋.
+            OnCameraResetRequested?.Invoke(respawnPosition, respawnRotation);
+
+            // 래그돌 복원 (스켈레톤 재연결)을 정상 스케일에서 먼저 수행.
             _input.SendRespawn();
+
+            // 스켈레톤 재연결 완료 후 펀치 스케일로 즉시 등장.
+            Transform bodyTransform = _formController.PrimaryBodyTransform;
+            _scaleTween?.Kill();
+            Vector3 originalScale = bodyTransform.localScale;
+            bodyTransform.localScale = Vector3.zero;
+
+            // VFX 버스트 + 깜빡임 시작.
+            OnRespawnInvincibleStart?.Invoke();
+
+            // 뿅! 펀치 스케일 (0 → 오버슛 → 원래 크기).
+            _scaleTween = DOTween.Sequence()
+                .Append(bodyTransform.DOScale(originalScale * _punchOvershoot, _punchInDuration)
+                    .SetEase(Ease.OutQuad))
+                .Append(bodyTransform.DOScale(originalScale, _punchOutDuration)
+                    .SetEase(Ease.InOutQuad));
+
             _isRespawning = false;
 
             yield return new WaitForSeconds(_invincibilityDuration);
