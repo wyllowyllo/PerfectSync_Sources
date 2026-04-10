@@ -27,16 +27,17 @@ namespace InGame.Player.Ragdoll
         private Vector3[] _toPositions;
         private Quaternion[] _toRotations;
 
-        // 본별 운동 추정 (외삽용 — 패킷 유실 시에만 사용).
-        private Vector3[] _estimatedVelocities;
+        // 본별 운동 추정 (외삽 + Hermite 보간용).
+        private Vector3[] _estimatedVelocities;  // to 시점의 펠비스/본 속도
         private Quaternion[] _estimatedAngularDeltas;
+        private Vector3 _fromPelvisVelocity;     // from 시점의 펠비스 속도 (Hermite 탄젠트)
         private bool _hasMotionEstimate;
 
         private int _pelvisIndex;
         private int[] _parentBoneIndex;
         private float[] _maxBoneDistance;
 
-        private const float DefaultReceiveInterval = 0.1f;
+        private const float DefaultReceiveInterval = 0.034f; // 30Hz SerializationRate 기준
         private const float MaxInterpolationInterval = 0.2f;
         private const float MaxExtrapolationTime = 0.15f;
         private const float MinIntervalThreshold = 0.001f;
@@ -164,6 +165,11 @@ namespace InGame.Player.Ragdoll
             {
                 _receiveInterval = Mathf.Lerp(_receiveInterval, interval, IntervalSmoothingFactor);
 
+                // Hermite: 이전 to 속도를 새 from 속도로 보존.
+                _fromPelvisVelocity = _hasMotionEstimate
+                    ? _estimatedVelocities[_pelvisIndex]
+                    : Vector3.zero;
+
                 int velCount = Mathf.Min(boneCount, _activeBoneCount);
                 float invDt = 1f / interval;
                 for (int i = 0; i < velCount; i++)
@@ -282,7 +288,21 @@ namespace InGame.Player.Ragdoll
             Quaternion fromPelvisRot = _fromRotations[_pelvisIndex];
             Quaternion toPelvisRot = _toRotations[_pelvisIndex];
 
-            Vector3 pelvisPos = Vector3.Lerp(fromPelvisPos, toPelvisPos, t);
+            // 펠비스: Hermite 스플라인 보간 (속도 정보 활용 시).
+            // 선형 보간은 직선만 가능하지만, Hermite는 낙하 포물선·방향 전환을 자연스럽게 재현.
+            Vector3 pelvisPos;
+            if (_hasMotionEstimate)
+            {
+                float dt = Mathf.Min(_receiveInterval, MaxInterpolationInterval);
+                pelvisPos = CubicHermite(
+                    fromPelvisPos, _fromPelvisVelocity * dt,
+                    toPelvisPos, _estimatedVelocities[_pelvisIndex] * dt, t);
+            }
+            else
+            {
+                pelvisPos = Vector3.Lerp(fromPelvisPos, toPelvisPos, t);
+            }
+
             Quaternion pelvisRot = Quaternion.Slerp(fromPelvisRot, toPelvisRot, t);
             Quaternion fromPelvisInv = Quaternion.Inverse(fromPelvisRot);
             Quaternion toPelvisInv = Quaternion.Inverse(toPelvisRot);
@@ -320,6 +340,20 @@ namespace InGame.Player.Ragdoll
                 if (sqrDist > maxDist * maxDist)
                     bones[i].position = bones[parentIdx].position + offset * (maxDist / Mathf.Sqrt(sqrDist));
             }
+        }
+
+        /// <summary>
+        /// 3차 Hermite 스플라인: 양 끝점의 위치·속도(탄젠트)를 만족하는 매끄러운 곡선.
+        /// 중력 낙하, 방향 전환 등 비선형 궤적을 선형 보간보다 정확히 재현.
+        /// </summary>
+        private static Vector3 CubicHermite(Vector3 p0, Vector3 m0, Vector3 p1, Vector3 m1, float t)
+        {
+            float t2 = t * t;
+            float t3 = t2 * t;
+            return (2f * t3 - 3f * t2 + 1f) * p0
+                 + (t3 - 2f * t2 + t) * m0
+                 + (-2f * t3 + 3f * t2) * p1
+                 + (t3 - t2) * m1;
         }
 
         private void EnsureBuffers(int count)
