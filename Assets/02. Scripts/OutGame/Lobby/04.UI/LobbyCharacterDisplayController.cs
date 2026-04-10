@@ -7,8 +7,8 @@ using Hashtable = ExitGames.Client.Photon.Hashtable;
 
 public class LobbyCharacterDisplayController : MonoBehaviourPunCallbacks
 {
-    [SerializeField] private LobbyCharacterNicknameView _localCharacter;
-    [SerializeField] private LobbyCharacterNicknameView _partyCharacter;
+    [SerializeField] private CharacterNicknameView _localCharacter;
+    [SerializeField] private CharacterNicknameView _partyCharacter;
     [Header("파티원 외형 (로컬은 LobbyManager.PartItemsActivator 공유)")]
     [SerializeField] private CustomizationPartItemsActivator _partyPartActivator;
 
