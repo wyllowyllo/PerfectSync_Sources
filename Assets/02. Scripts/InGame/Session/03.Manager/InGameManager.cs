@@ -45,7 +45,8 @@ public class InGameManager : SingletonPunCallbacks<InGameManager>
     {
         yield return new WaitUntil(() =>
             PhotonNetwork.InRoom &&
-            PhotonTeamManager.GetLocalTeamRaw() != PhotonTeamManager.TeamNone
+            PhotonTeamManager.GetLocalTeamRaw() != PhotonTeamManager.TeamNone &&
+            AllPlayersHaveTeamAssigned()
         );
 
         CloseRoomToNewJoiners();
@@ -59,6 +60,17 @@ public class InGameManager : SingletonPunCallbacks<InGameManager>
     private void SetLocalReady()
     {
         PhotonNetwork.LocalPlayer.SetCustomProperties(new Hashtable { { InGameRaceKeys.ReadyKey, true } });
+    }
+
+    private static bool AllPlayersHaveTeamAssigned()
+    {
+        if (PhotonNetwork.PlayerList.Length == 0) return false;
+        foreach (var player in PhotonNetwork.PlayerList)
+        {
+            if (PhotonTeamManager.GetTeamRaw(player) == PhotonTeamManager.TeamNone)
+                return false;
+        }
+        return true;
     }
 
     public override void OnPlayerPropertiesUpdate(Player targetPlayer, Hashtable changedProps)
