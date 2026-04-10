@@ -30,6 +30,7 @@ public class LobbyPopupCoordinator : MonoBehaviour
     [SerializeField] private Button _openInviteFriendsButton;
 
     private Coroutine _transientToastCoroutine;
+    private bool _isInParty;
 
     private void Start()
     {
@@ -58,6 +59,8 @@ public class LobbyPopupCoordinator : MonoBehaviour
         EscMenuPopup.OpenQuitFromEscMenuRequested += OnEscMenuOpenQuitRequested;
         QuitPopup.CancelRequested += OnQuitCancelRequested;
 
+        _isInParty = LobbyPartyService.Instance != null
+                     && LobbyPartyService.Instance.LocalPlayerHasParty;
         UpdateInviteButtonVisuals();
     }
 
@@ -231,28 +234,28 @@ public class LobbyPopupCoordinator : MonoBehaviour
 
     private void UpdateInviteButtonVisuals()
     {
-        bool inParty = LobbyPartyService.Instance != null
-                       && LobbyPartyService.Instance.LocalPlayerHasParty;
-
         if (_openInviteFriendsButtonInviteImage != null)
-            _openInviteFriendsButtonInviteImage.SetActive(!inParty);
+            _openInviteFriendsButtonInviteImage.SetActive(!_isInParty);
         if (_openInviteFriendsButtonBackImage != null)
-            _openInviteFriendsButtonBackImage.SetActive(inParty);
+            _openInviteFriendsButtonBackImage.SetActive(_isInParty);
     }
 
     private void HandlePartyStateChanged(Player _)
     {
+        _isInParty = true;
         UpdateInviteButtonVisuals();
     }
 
     private void HandlePartyClearedVisual()
     {
+        _isInParty = false;
         UpdateInviteButtonVisuals();
     }
 
     private void HandleLeavePartyRequested()
     {
         LobbyPartyService.Instance?.LeavePartyAndNotifyPartner();
+        _isInParty = false;
         CloseAllPopups();
         UpdateInviteButtonVisuals();
     }
@@ -280,7 +283,7 @@ public class LobbyPopupCoordinator : MonoBehaviour
 
     private void OnOpenInviteFriendsButtonClicked()
     {
-        if (LobbyPartyService.Instance != null && LobbyPartyService.Instance.LocalPlayerHasParty)
+        if (_isInParty)
         {
             _partyInvitePopup.SetLeavePartyMode();
             ShowPopup(LobbyPopupKind.PartyInvite);

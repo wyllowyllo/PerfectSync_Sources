@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using Photon.Pun;
 using Photon.Realtime;
@@ -21,10 +22,10 @@ public class LobbyManager : SingletonMonoBehaviour<LobbyManager>
     public event Action<string> InviteCodeChanged;
 
     [Header("Firebase 커스터마이징 복원 · 로비 로컬 캐릭터 프리뷰")]
-    [SerializeField] private CustomizationPartItemsActivator _partItemsActivator;
+    [SerializeField] private CustomizationPartItemsActivator[] _partItemsActivators;
 
-    /// <summary>로비에서 커스터마이징을 적용하는 단일 <see cref="CustomizationPartItemsActivator"/> (다른 스크립트는 이 참조를 공유).</summary>
-    public CustomizationPartItemsActivator PartItemsActivator => _partItemsActivator;
+    /// <summary>로비에서 로컬 플레이어 캐릭터 프리뷰에 커스터마이징을 적용하는 Activator 목록. 모든 원소는 본인 프리뷰용.</summary>
+    public IReadOnlyList<CustomizationPartItemsActivator> PartItemsActivators => _partItemsActivators;
 
     [Header("Matchmaking")]
     [Tooltip("매칭 UI가 켜진 뒤, Photon에 Ready=true를 보내 큐에 올리기까지 대기하는 시간(초). 이 동안에는 큐에 포함되지 않습니다.")]
@@ -309,7 +310,8 @@ public class LobbyManager : SingletonMonoBehaviour<LobbyManager>
         }
         else if (!targetReady && targetPlayer != PhotonNetwork.LocalPlayer)
         {
-            CancelMatchReady();
+            ShowMainScreenRequested?.Invoke();
+            MatchButtonInteractableChanged?.Invoke(true);
         }
     }
 
@@ -392,13 +394,17 @@ public class LobbyManager : SingletonMonoBehaviour<LobbyManager>
             NicknameFieldSet?.Invoke(data.Nickname);
         }
 
-        // 커스터마이징 파츠 복원
-        if (_partItemsActivator != null)
+        // 커스터마이징 파츠 복원 (배열의 모든 Activator에 동일 적용)
+        if (_partItemsActivators != null && _partItemsActivators.Length > 0)
         {
             foreach (CharacterCustomizationPart part in System.Enum.GetValues(typeof(CharacterCustomizationPart)))
             {
                 int index = data.GetPartIndex(part);
-                _partItemsActivator.SetPartItemIndex(part, index);
+                foreach (var activator in _partItemsActivators)
+                {
+                    if (activator != null)
+                        activator.SetPartItemIndex(part, index);
+                }
                 CustomizationPhotonKeys.SetLocalPlayerSlotIndex(part, index);
             }
 
