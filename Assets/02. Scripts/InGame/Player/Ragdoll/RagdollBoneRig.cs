@@ -23,6 +23,8 @@ namespace InGame.Player.Ragdoll
         private const int RagdollSolverIterations = 8;
         private const int RagdollSolverVelocityIterations = 2;
         private const float MaxInheritedSpeed = 20f;
+        private const float MaxBoneSpeed = 30f;
+        private const float MaxBoneSpeedSqr = MaxBoneSpeed * MaxBoneSpeed;
 
         public IReadOnlyList<Rigidbody> Rigidbodies => _ragdollRbs;
         public IReadOnlyList<Transform> BoneTransforms => _ragdollBoneTransforms;
