@@ -20,6 +20,9 @@ namespace InGame.Camera.PlayerCamera
         [SerializeField] private float _lowSpeedThreshold = 2f;
         [SerializeField] private float _highSpeedThreshold = 15f;
 
+        [Header("Handoff")]
+        [SerializeField] private float _handoffSpeed = 25f;
+
         [Header("Safety")]
         [SerializeField] private float _maxDistance = 6f;
 
@@ -38,7 +41,8 @@ namespace InGame.Camera.PlayerCamera
         {
             if (!_ragdollStateMachine.IsPhysicsRagdoll)
             {
-                _smoothedPosition = _rootBody.position;
+                float interpolateTime = 1f - Mathf.Exp(-_handoffSpeed * Time.fixedDeltaTime);
+                _smoothedPosition = Vector3.Lerp(_smoothedPosition, _rootBody.position, interpolateTime);
                 _lastPelvisPosition = _ragdollRig.PelvisTransform.position;
                 return;
             }
