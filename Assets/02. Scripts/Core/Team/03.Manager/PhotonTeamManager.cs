@@ -16,6 +16,10 @@ public class PhotonTeamManager : SingletonPunCallbacks<PhotonTeamManager>
     public const int MaxTeams = TeamRules.MaxTeams;
     public const int PlayersPerTeam = TeamRules.PlayersPerTeam;
 
+    public const string TeamSlotKey = PhotonTeamPropertyKeys.TeamSlot;
+    public const int SlotNone = TeamRules.SlotNone;
+    public const int SlotHost = TeamRules.SlotHost;
+
     public event Action<Player, int> OnPlayerTeamChanged;
     public event Action OnAllTeamsAssigned;
 
@@ -32,6 +36,18 @@ public class PhotonTeamManager : SingletonPunCallbacks<PhotonTeamManager>
     }
 
     public static int GetLocalTeamRaw() => GetTeamRaw(PhotonNetwork.LocalPlayer);
+
+    public static int GetTeamSlot(Player player)
+    {
+        if (player == null) return SlotNone;
+        if (player.CustomProperties.TryGetValue(TeamSlotKey, out object slotObj) && slotObj is int slot)
+            return slot;
+        return SlotNone;
+    }
+
+    public static int GetLocalTeamSlot() => GetTeamSlot(PhotonNetwork.LocalPlayer);
+
+    public static bool IsLocalSlotHost() => GetLocalTeamSlot() == SlotHost;
 
     protected override void Awake()
     {
@@ -57,7 +73,11 @@ public class PhotonTeamManager : SingletonPunCallbacks<PhotonTeamManager>
     {
         if (!PhotonNetwork.InRoom) return;
 
-        PhotonNetwork.LocalPlayer.SetCustomProperties(new Hashtable { { TeamKey, TeamNone } });
+        PhotonNetwork.LocalPlayer.SetCustomProperties(new Hashtable
+        {
+            { TeamKey, TeamNone },
+            { TeamSlotKey, SlotNone }
+        });
     }
 
     public void AssignTeamsRandomly()
@@ -120,8 +140,16 @@ public class PhotonTeamManager : SingletonPunCallbacks<PhotonTeamManager>
         for (int t = 0; t < MaxTeams; t++)
         {
             int teamNumber = t + 1;
-            foreach (var player in teams[t])
-                player.SetCustomProperties(new Hashtable { { TeamKey, teamNumber } });
+            var sorted = teams[t].OrderBy(p => p.ActorNumber).ToList();
+            for (int s = 0; s < sorted.Count; s++)
+            {
+                int slot = s + 1;
+                sorted[s].SetCustomProperties(new Hashtable
+                {
+                    { TeamKey, teamNumber },
+                    { TeamSlotKey, slot }
+                });
+            }
         }
     }
 
@@ -149,7 +177,11 @@ public class PhotonTeamManager : SingletonPunCallbacks<PhotonTeamManager>
 
         foreach (var player in PhotonNetwork.PlayerList)
         {
-            player.SetCustomProperties(new Hashtable { { TeamKey, TeamNone } });
+            player.SetCustomProperties(new Hashtable
+            {
+                { TeamKey, TeamNone },
+                { TeamSlotKey, SlotNone }
+            });
         }
     }
 

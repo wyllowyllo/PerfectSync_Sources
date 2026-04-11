@@ -64,10 +64,14 @@ public class InGameManager : SingletonPunCallbacks<InGameManager>
 
     private static bool AllPlayersHaveTeamAssigned()
     {
-        if (PhotonNetwork.PlayerList.Length == 0) return false;
+        if (!PhotonNetwork.InRoom || PhotonNetwork.CurrentRoom == null) return false;
+        if (PhotonNetwork.PlayerList.Length < PhotonNetwork.CurrentRoom.MaxPlayers) return false;
+
         foreach (var player in PhotonNetwork.PlayerList)
         {
             if (PhotonTeamManager.GetTeamRaw(player) == PhotonTeamManager.TeamNone)
+                return false;
+            if (PhotonTeamManager.GetTeamSlot(player) == PhotonTeamManager.SlotNone)
                 return false;
         }
         return true;
@@ -172,19 +176,10 @@ public class InGameManager : SingletonPunCallbacks<InGameManager>
 
     public static bool IsHostOfTeam(int teamNumber)
     {
-        int minActor = int.MaxValue;
-        bool foundAny = false;
+        int myTeam = PhotonTeamManager.GetLocalTeamRaw();
+        if (myTeam != teamNumber) return false;
 
-        foreach (var player in PhotonNetwork.PlayerList)
-        {
-            if (PhotonTeamManager.GetTeamRaw(player) != teamNumber) continue;
-            foundAny = true;
-            if (player.ActorNumber < minActor)
-                minActor = player.ActorNumber;
-        }
-
-        if (!foundAny) return false;
-        return PhotonNetwork.LocalPlayer.ActorNumber == minActor;
+        return PhotonTeamManager.IsLocalSlotHost();
     }
 
     public static int GetGuestActorNumber(int teamNumber)

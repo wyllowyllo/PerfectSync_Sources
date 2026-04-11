@@ -18,7 +18,10 @@ public static class InGameLocalPlayerPropertyReset
         };
 
         if (clearTeamBecauseNotInRoom)
+        {
             ht[PhotonTeamManager.TeamKey] = PhotonTeamManager.TeamNone;
+            ht[PhotonTeamManager.TeamSlotKey] = PhotonTeamManager.SlotNone;
+        }
 
         PhotonNetwork.LocalPlayer.SetCustomProperties(ht);
     }
