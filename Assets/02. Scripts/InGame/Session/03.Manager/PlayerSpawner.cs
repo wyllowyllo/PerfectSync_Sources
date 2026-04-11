@@ -34,7 +34,11 @@ public class PlayerSpawner : MonoBehaviour
             rotation = Quaternion.identity;
         }
 
+        Debug.Log($"[PlayerSpawner] PhotonNetwork.Instantiate(\"{_teamCharacterPrefabName}\") for team {teamNumber} at {position} | Caller: {PhotonNetwork.LocalPlayer.NickName} (Actor:{PhotonNetwork.LocalPlayer.ActorNumber})");
+
         GameObject character = PhotonNetwork.Instantiate(_teamCharacterPrefabName, position, rotation);
+
+        Debug.Log($"[PlayerSpawner] Instantiate DONE | GO: {character.name} | ViewID: {character.GetPhotonView()?.ViewID} | Owner: {character.GetPhotonView()?.Owner?.NickName}");
 
         var trackers = character.GetComponentsInChildren<RaceProgressTracker>(true);
         foreach (var tracker in trackers)
