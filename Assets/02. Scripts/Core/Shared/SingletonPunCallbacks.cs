@@ -7,10 +7,13 @@ public abstract class SingletonPunCallbacks<T> : MonoBehaviourPunCallbacks where
 
     protected virtual bool PersistAcrossScenes => true;
 
+    protected bool IsDuplicateInstance { get; private set; }
+
     protected virtual void Awake()
     {
         if (Instance != null && Instance != this)
         {
+            IsDuplicateInstance = true;
             Destroy(gameObject);
             return;
         }

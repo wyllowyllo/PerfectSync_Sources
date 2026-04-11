@@ -29,6 +29,8 @@ public class InGameManager : SingletonPunCallbacks<InGameManager>
     protected override void Awake()
     {
         base.Awake();
+        if (IsDuplicateInstance) return;
+
         _waitIntro = new WaitForSeconds(_introDuration);
         InGameLocalPlayerPropertyReset.ApplyForLobbyScene(clearTeamBecauseNotInRoom: false);
         CloseRoomToNewJoiners();
@@ -43,6 +45,8 @@ public class InGameManager : SingletonPunCallbacks<InGameManager>
 
     private IEnumerator Start()
     {
+        if (IsDuplicateInstance) yield break;
+
         yield return new WaitUntil(() =>
             PhotonNetwork.InRoom &&
             PhotonTeamManager.GetLocalTeamRaw() != PhotonTeamManager.TeamNone &&
@@ -53,7 +57,11 @@ public class InGameManager : SingletonPunCallbacks<InGameManager>
 
         int myTeam = PhotonTeamManager.GetLocalTeamRaw();
         if (IsHostOfTeam(myTeam))
+        {
+            PhotonNetwork.DestroyPlayerObjects(PhotonNetwork.LocalPlayer);
             _playerSpawner.SpawnTeamCharacter(myTeam);
+        }
+
         SetLocalReady();
     }
 
@@ -64,10 +72,14 @@ public class InGameManager : SingletonPunCallbacks<InGameManager>
 
     private static bool AllPlayersHaveTeamAssigned()
     {
-        if (PhotonNetwork.PlayerList.Length == 0) return false;
+        if (!PhotonNetwork.InRoom || PhotonNetwork.CurrentRoom == null) return false;
+        if (PhotonNetwork.PlayerList.Length < PhotonNetwork.CurrentRoom.MaxPlayers) return false;
+
         foreach (var player in PhotonNetwork.PlayerList)
         {
             if (PhotonTeamManager.GetTeamRaw(player) == PhotonTeamManager.TeamNone)
+                return false;
+            if (PhotonTeamManager.GetTeamSlot(player) == PhotonTeamManager.SlotNone)
                 return false;
         }
         return true;
@@ -172,19 +184,10 @@ public class InGameManager : SingletonPunCallbacks<InGameManager>
 
     public static bool IsHostOfTeam(int teamNumber)
     {
-        int minActor = int.MaxValue;
-        bool foundAny = false;
+        int myTeam = PhotonTeamManager.GetLocalTeamRaw();
+        if (myTeam != teamNumber) return false;
 
-        foreach (var player in PhotonNetwork.PlayerList)
-        {
-            if (PhotonTeamManager.GetTeamRaw(player) != teamNumber) continue;
-            foundAny = true;
-            if (player.ActorNumber < minActor)
-                minActor = player.ActorNumber;
-        }
-
-        if (!foundAny) return false;
-        return PhotonNetwork.LocalPlayer.ActorNumber == minActor;
+        return PhotonTeamManager.IsLocalSlotHost();
     }
 
     public static int GetGuestActorNumber(int teamNumber)
