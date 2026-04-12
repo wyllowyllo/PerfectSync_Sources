@@ -1,4 +1,3 @@
-using System.Collections;
 using Core;
 using Unity.Cinemachine;
 using UnityEngine;
@@ -11,13 +10,8 @@ namespace InGame.Camera.PlayerCamera
         [Header("Scene Cameras")]
         [SerializeField] private CinemachineCamera _followCamera;
         [SerializeField] private IntroCameraController _introCamera;
-        [SerializeField] private CinemachineBrain _brain;
 
         protected override bool PersistAcrossScenes => false;
-
-        [Header("Blend")]
-        [Tooltip("카메라 블렌딩 완료 후 카운트다운 시작까지 대기 시간(초).")]
-        [SerializeField] private float _postBlendDelay;
 
         private const int ActivePriority = 10;
         private const int StandbyPriority = 0;
@@ -77,29 +71,20 @@ namespace InGame.Camera.PlayerCamera
             SetCameraPriority(_followCamera, StandbyPriority);
 
             if (_introCamera != null)
+            {
                 _introCamera.Play();
+            }
+            else if (InGameManager.Instance != null)
+            {
+                // Intro 카메라가 없으면 즉시 완료 신호.
+                InGameManager.Instance.NotifyLocalIntroDone();
+            }
         }
 
         private void HandleIntroComplete()
         {
-            ActivateFollow();
-            StartCoroutine(WaitForBlendThenNotify());
-        }
-
-        private IEnumerator WaitForBlendThenNotify()
-        {
-            if (_brain != null)
-            {
-                // 블렌딩이 시작될 때까지 한 프레임 대기.
-                yield return null;
-                yield return new WaitWhile(() => _brain.IsBlending);
-            }
-
-            if (_postBlendDelay > 0f)
-                yield return new WaitForSeconds(_postBlendDelay);
-
             if (InGameManager.Instance != null)
-                InGameManager.Instance.NotifyIntroComplete();
+                InGameManager.Instance.NotifyLocalIntroDone();
         }
 
         private void ActivateFollow()
