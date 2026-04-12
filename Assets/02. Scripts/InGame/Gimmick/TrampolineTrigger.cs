@@ -1,3 +1,4 @@
+using System;
 using InGame.Player;
 using InGame.Team;
 using Photon.Pun;
@@ -10,12 +11,15 @@ namespace InGame.Gimmick
         [Header("Target")]
         [SerializeField] private Transform _targetPoint;
 
+        public event Action OnBounced;
+
         private void OnCollisionEnter(Collision collision)
         {
             var formController = collision.collider.GetComponentInParent<MergedBodyController>();
             if (formController == null) return;
 
             formController.LaunchAllBodies(_targetPoint.position);
+            OnBounced?.Invoke();
 
             var photonView = formController.GetComponent<PhotonView>();
             if (photonView == null || photonView.Owner == null) return;
