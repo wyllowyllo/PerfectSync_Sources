@@ -88,7 +88,6 @@ namespace InGame.Camera.PlayerCamera
 
             _followCamera.Follow = _anchorRb.transform;
             _followCamera.LookAt = _anchorRb.transform;
-            InGameCameraManager.SetCameraPriority(_followCamera, ActivePriority);
 
             Cursor.lockState = CursorLockMode.Locked;
             Cursor.visible = false;

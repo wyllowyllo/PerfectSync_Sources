@@ -17,6 +17,7 @@ namespace InGame.Camera.PlayerCamera
         private const int StandbyPriority = 0;
 
         public CinemachineCamera FollowCamera => _followCamera;
+        public IntroCameraController IntroCamera => _introCamera;
 
         protected override void Awake()
         {
@@ -25,6 +26,9 @@ namespace InGame.Camera.PlayerCamera
 
         private void OnEnable()
         {
+            if (_introCamera != null)
+                _introCamera.OnIntroComplete += HandleIntroComplete;
+
             if (InGameManager.Instance != null)
             {
                 InGameManager.Instance.OnGameStateChanged += HandleGameStateChanged;
@@ -34,6 +38,9 @@ namespace InGame.Camera.PlayerCamera
 
         private void OnDisable()
         {
+            if (_introCamera != null)
+                _introCamera.OnIntroComplete -= HandleIntroComplete;
+
             if (InGameManager.Instance != null)
                 InGameManager.Instance.OnGameStateChanged -= HandleGameStateChanged;
         }
@@ -65,6 +72,14 @@ namespace InGame.Camera.PlayerCamera
 
             if (_introCamera != null)
                 _introCamera.Play();
+        }
+
+        private void HandleIntroComplete()
+        {
+            ActivateFollow();
+
+            if (InGameManager.Instance != null)
+                InGameManager.Instance.NotifyIntroComplete();
         }
 
         private void ActivateFollow()

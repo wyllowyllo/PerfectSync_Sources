@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using InGame.Camera.PlayerCamera;
 using UnityEngine;
 using Photon.Pun;
 using Photon.Realtime;
@@ -9,12 +10,10 @@ using Hashtable = ExitGames.Client.Photon.Hashtable;
 public class InGameManager : SingletonPunCallbacks<InGameManager>
 {
     private const int DefaultCountdownSeconds = 3;
-    private const float DefaultIntroDurationSeconds = 2f;
 
     protected override bool PersistAcrossScenes => false;
 
     [Header("Settings")]
-    [SerializeField] private float _introDuration = DefaultIntroDurationSeconds;
     [SerializeField] private int _countdownSeconds = DefaultCountdownSeconds;
 
     [Header("References")]
@@ -24,16 +23,20 @@ public class InGameManager : SingletonPunCallbacks<InGameManager>
     public event Action<GameState> OnGameStateChanged;
     public event Action<int> OnRaceCountdownTick;
 
-    private WaitForSeconds _waitIntro;
+    private bool _introComplete;
 
     protected override void Awake()
     {
         base.Awake();
         if (IsDuplicateInstance) return;
 
-        _waitIntro = new WaitForSeconds(_introDuration);
         InGameLocalPlayerPropertyReset.ApplyForLobbyScene(clearTeamBecauseNotInRoom: false);
         CloseRoomToNewJoiners();
+    }
+
+    public void NotifyIntroComplete()
+    {
+        _introComplete = true;
     }
 
     private static void CloseRoomToNewJoiners()
@@ -102,8 +105,9 @@ public class InGameManager : SingletonPunCallbacks<InGameManager>
 
     private IEnumerator GameFlowRoutine()
     {
+        _introComplete = false;
         SetState(GameState.Intro);
-        yield return _waitIntro;
+        yield return new WaitUntil(() => _introComplete);
 
         SetState(GameState.Countdown);
         for (int i = _countdownSeconds; i > 0; i--)
