@@ -1,43 +1,51 @@
-using System;
 using System.Collections;
+using Photon.Pun;
 using UnityEngine;
 
 [DisallowMultipleComponent]
 public class LobbyStartSequence : MonoBehaviour
 {
-    private const string DefaultInGameSceneName = "InGame";
-    private const float DefaultLobbyCountdownSeconds = 3f;
-    private const float CountdownTickSeconds = 1f;
+    private const string FallbackSceneName = "InGame_1";
 
-    [Header("Scene")]
-    [SerializeField] private string _inGameSceneName = DefaultInGameSceneName;
+    private Coroutine _loadCoroutine;
 
-    [Header("Settings")]
-    [SerializeField] private float _countdownSeconds = DefaultLobbyCountdownSeconds;
+    public bool IsRunning => _loadCoroutine != null;
 
-    private Coroutine _countdownCoroutine;
-
-    public bool IsRunning => _countdownCoroutine != null;
-
-    public void Begin(Action<string> onStatusLine)
+    public void Begin()
     {
-        if (_countdownCoroutine != null) return;
-        _countdownCoroutine = StartCoroutine(CountdownAndLoadScene(onStatusLine));
+        if (_loadCoroutine != null) return;
+        _loadCoroutine = StartCoroutine(LoadSelectedMapScene());
     }
 
     public void Cancel()
     {
-        if (_countdownCoroutine == null) return;
-        StopCoroutine(_countdownCoroutine);
-        _countdownCoroutine = null;
+        if (_loadCoroutine == null) return;
+        StopCoroutine(_loadCoroutine);
+        _loadCoroutine = null;
     }
 
-    private IEnumerator CountdownAndLoadScene(Action<string> onStatusLine)
+    private IEnumerator LoadSelectedMapScene()
     {
         if (SceneLoader.Instance != null)
-            SceneLoader.Instance.LoadScenePhoton(_inGameSceneName);
+        {
+            string sceneName = GetSelectedMapSceneName();
+            SceneLoader.Instance.LoadScenePhoton(sceneName);
+        }
 
-        _countdownCoroutine = null;
+        _loadCoroutine = null;
         yield break;
+    }
+
+    private static string GetSelectedMapSceneName()
+    {
+        if (!PhotonNetwork.InRoom || PhotonNetwork.CurrentRoom == null)
+            return FallbackSceneName;
+
+        if (!PhotonNetwork.CurrentRoom.CustomProperties
+                .TryGetValue(MapSelectionManager.SelectedMapKey, out object val))
+            return FallbackSceneName;
+
+        int mapNumber = (int)val;
+        return $"InGame_{mapNumber}";
     }
 }
