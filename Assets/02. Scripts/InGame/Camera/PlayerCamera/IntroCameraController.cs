@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using Unity.Cinemachine;
 using UnityEngine;
 using UnityEngine.Splines;
@@ -21,6 +22,8 @@ namespace InGame.Camera.PlayerCamera
         [Header("Playback")]
         [SerializeField] private float _duration = 6f;
         [SerializeField] private AnimationCurve _easeCurve = AnimationCurve.EaseInOut(0f, 0f, 1f, 1f);
+        [Tooltip("스플라인 끝 도달 후 카메라 전환까지 대기 시간(초).")]
+        [SerializeField] private float _endHoldDelay;
 
         [Header("Look At")]
         [Tooltip("LookAt Spline이 설정되면 무시됩니다.")]
@@ -48,7 +51,8 @@ namespace InGame.Camera.PlayerCamera
             SetupSplineDolly();
             SetupHardLookAt();
             CreateLookAtProxy();
-            InGameCameraManager.SetCameraPriority(_camera, StandbyPriority);
+            InitializeToSplineStart();
+            InGameCameraManager.SetCameraPriority(_camera, ActivePriority);
         }
 
         private void OnDestroy()
@@ -105,8 +109,16 @@ namespace InGame.Camera.PlayerCamera
             if (t >= 1f && !_completed)
             {
                 _completed = true;
-                OnIntroComplete?.Invoke();
+                StartCoroutine(DelayedIntroComplete());
             }
+        }
+
+        private IEnumerator DelayedIntroComplete()
+        {
+            if (_endHoldDelay > 0f)
+                yield return new WaitForSeconds(_endHoldDelay);
+
+            OnIntroComplete?.Invoke();
         }
 
         private void CreateLookAtProxy()
@@ -122,6 +134,38 @@ namespace InGame.Camera.PlayerCamera
             if (_lookAtProxy == null) return;
 
             _lookAtProxy.position = _lookAtSpline.EvaluatePosition(t);
+        }
+
+        private void InitializeToSplineStart()
+        {
+            if (_splineDolly != null)
+                _splineDolly.CameraPosition = 0f;
+
+            // Cinemachine 업데이트 전 첫 프레임 렌더링 방지를 위해 Transform을 직접 설정.
+            if (_dollySpline != null && _dollySpline.Spline != null && _dollySpline.Spline.Count >= 2)
+            {
+                Vector3 worldPos = _dollySpline.EvaluatePosition(0f);
+                _camera.transform.position = worldPos;
+            }
+
+            bool hasLookAtSpline = _lookAtSpline != null && _lookAtSpline.Spline != null;
+            if (hasLookAtSpline)
+            {
+                UpdateLookAtProxy(0f);
+                _camera.LookAt = _lookAtProxy;
+
+                Vector3 lookDir = _lookAtProxy.position - _camera.transform.position;
+                if (lookDir.sqrMagnitude > 0.001f)
+                    _camera.transform.rotation = Quaternion.LookRotation(lookDir);
+            }
+            else if (_lookTarget != null)
+            {
+                _camera.LookAt = _lookTarget;
+
+                Vector3 lookDir = _lookTarget.position - _camera.transform.position;
+                if (lookDir.sqrMagnitude > 0.001f)
+                    _camera.transform.rotation = Quaternion.LookRotation(lookDir);
+            }
         }
 
         private void SetupSplineDolly()
