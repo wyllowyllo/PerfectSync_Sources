@@ -11,7 +11,6 @@ public class ReadyButton : MonoBehaviourPunCallbacks
     [SerializeField] private TMP_Text _labelShadow;
 
     private Button _button;
-    private string _lastLobbyStatusLine;
 
     private void Start()
     {
@@ -22,9 +21,6 @@ public class ReadyButton : MonoBehaviourPunCallbacks
         if (_label == null)
             _label = GetComponentInChildren<TMP_Text>(true);
 
-        if (LobbyManager.Instance != null)
-            LobbyManager.Instance.MatchingStatusChanged += OnMatchingStatusChanged;
-
         RefreshLabel();
     }
 
@@ -32,9 +28,6 @@ public class ReadyButton : MonoBehaviourPunCallbacks
     {
         if (_button != null)
             _button.onClick.RemoveListener(OnReadyClicked);
-
-        if (LobbyManager.Instance != null)
-            LobbyManager.Instance.MatchingStatusChanged -= OnMatchingStatusChanged;
     }
 
     public override void OnJoinedRoom()
@@ -62,12 +55,6 @@ public class ReadyButton : MonoBehaviourPunCallbacks
         RefreshLabel();
     }
 
-    private void OnMatchingStatusChanged(string message)
-    {
-        _lastLobbyStatusLine = message;
-        RefreshLabel();
-    }
-
     private void OnReadyClicked()
     {
         if (LobbyManager.Instance == null)
@@ -89,35 +76,17 @@ public class ReadyButton : MonoBehaviourPunCallbacks
         if (_label == null && _labelShadow == null)
             return;
 
-        if (LobbyManager.Instance != null)
-        {
-            var startSequence = LobbyManager.Instance.GetComponent<LobbyStartSequence>();
-            if (startSequence != null && startSequence.IsRunning)
-            {
-                SetLabelText(string.IsNullOrEmpty(_lastLobbyStatusLine)
-                    ? "게임 시작 준비…"
-                    : _lastLobbyStatusLine);
-                return;
-            }
-        }
-
         if (!PhotonNetwork.InRoom || PhotonNetwork.LocalPlayer == null)
-        {
-            SetLabelText(string.IsNullOrEmpty(_lastLobbyStatusLine) ? "준비" : _lastLobbyStatusLine);
-            return;
-        }
-
-        bool localReady = IsPlayerMatchReady(PhotonNetwork.LocalPlayer);
-        bool awaitingReadyDelay = LobbyManager.Instance.IsAwaitingReadyDelay;
-        bool inMatchmakingIntent = localReady || awaitingReadyDelay;
-
-        if (!inMatchmakingIntent)
         {
             SetLabelText("준비");
             return;
         }
 
-        SetLabelText("준비 취소");
+        bool localReady = IsPlayerMatchReady(PhotonNetwork.LocalPlayer);
+        bool awaitingReadyDelay = LobbyManager.Instance != null && LobbyManager.Instance.IsAwaitingReadyDelay;
+        bool inMatchmakingIntent = localReady || awaitingReadyDelay;
+
+        SetLabelText(inMatchmakingIntent ? "준비 취소" : "준비");
     }
 
     private void SetLabelText(string text)
@@ -133,6 +102,4 @@ public class ReadyButton : MonoBehaviourPunCallbacks
         return player.CustomProperties.TryGetValue(LobbyMatchmakingKeys.Ready, out object v) &&
                v is bool b && b;
     }
-
-
 }

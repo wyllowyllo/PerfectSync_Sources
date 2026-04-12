@@ -15,9 +15,9 @@ public class UIRandomMapRouletteEffect : MonoBehaviour
     [SerializeField] private Sprite[] _spritePool;
 
     [Header("Timing")]
-    [SerializeField] private float _totalDuration = 3f;
-    [SerializeField] private float _startInterval = 0.05f; // 처음(빠름)
-    [SerializeField] private float _endInterval = 0.5f;    // 끝(느림)
+    [SerializeField] private float _totalDuration = 5f;
+    [SerializeField] private float _startInterval = 0.15f;
+    [SerializeField] private float _endInterval = 0.5f;
 
     [Header("Punch Scale")]
     [SerializeField] private Vector3 _punchScale = new Vector3(0.25f, 0.25f, 0f);
@@ -59,22 +59,18 @@ public class UIRandomMapRouletteEffect : MonoBehaviour
         if (_spritePool == null || _spritePool.Length == 0) yield break;
         if (_images.Length < 3) yield break;
 
-        // 랜덤 시작 인덱스
         _currentIndex = Random.Range(0, _spritePool.Length);
 
         float elapsed = 0f;
 
         while (elapsed < _totalDuration)
         {
-            // 오른쪽 ← 가운데 ← 왼쪽 시프트
             _images[2].sprite = _images[1].sprite;
             _images[1].sprite = _images[0].sprite;
             _images[0].sprite = _spritePool[_currentIndex];
 
-            // 다음 인덱스로 순환
             _currentIndex = (_currentIndex + 1) % _spritePool.Length;
 
-            // 3개 부모 전부 펀치
             for (int i = 0; i < _punchTargets.Length; i++)
             {
                 var t = _punchTargets[i];
@@ -84,7 +80,6 @@ public class UIRandomMapRouletteEffect : MonoBehaviour
                 t.DOPunchScale(_punchScale, _punchDuration, _punchVibrato, _punchElasticity);
             }
 
-            // 진행률에 따라 주기 계산 (처음엔 빠르고 끝에서 천천히)
             float progress = Mathf.Clamp01(elapsed / _totalDuration);
             float eased = progress * progress * progress;
             float interval = Mathf.Lerp(_startInterval, _endInterval, eased);

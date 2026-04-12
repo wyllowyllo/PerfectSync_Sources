@@ -34,20 +34,10 @@ public class LobbyStartSequence : MonoBehaviour
 
     private IEnumerator CountdownAndLoadScene(Action<string> onStatusLine)
     {
-        float remaining = _countdownSeconds;
-
-        while (remaining > 0f)
-        {
-            onStatusLine?.Invoke($"{Mathf.CeilToInt(remaining)}초 후에 게임을 시작합니다.");
-            yield return CoroutineWaitCache.OneSecond;
-            remaining -= CountdownTickSeconds;
-        }
-
-        onStatusLine?.Invoke("게임을 시작합니다...");
-
         if (SceneLoader.Instance != null)
             SceneLoader.Instance.LoadScenePhoton(_inGameSceneName);
 
         _countdownCoroutine = null;
+        yield break;
     }
 }
