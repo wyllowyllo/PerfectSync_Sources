@@ -38,6 +38,7 @@ namespace InGame.Camera.PlayerCamera
         private float _elapsed;
         private bool _isPlaying;
         private bool _completed;
+        private Transform _lookAtProxy;
 
         private const int ActivePriority = 20;
         private const int StandbyPriority = 0;
@@ -45,7 +46,15 @@ namespace InGame.Camera.PlayerCamera
         private void Awake()
         {
             SetupSplineDolly();
+            SetupHardLookAt();
+            CreateLookAtProxy();
             InGameCameraManager.SetCameraPriority(_camera, StandbyPriority);
+        }
+
+        private void OnDestroy()
+        {
+            if (_lookAtProxy != null)
+                Destroy(_lookAtProxy.gameObject);
         }
 
         public void Play()
@@ -63,7 +72,8 @@ namespace InGame.Camera.PlayerCamera
 
             if (hasLookAtSpline)
             {
-                _camera.LookAt = null;
+                _camera.LookAt = _lookAtProxy;
+                UpdateLookAtProxy(0f);
             }
             else if (_lookTarget != null)
             {
@@ -90,7 +100,7 @@ namespace InGame.Camera.PlayerCamera
             float evaluated = _easeCurve.Evaluate(t);
 
             _splineDolly.CameraPosition = evaluated;
-            UpdateLookAtSpline(evaluated);
+            UpdateLookAtProxy(evaluated);
 
             if (t >= 1f && !_completed)
             {
@@ -99,14 +109,19 @@ namespace InGame.Camera.PlayerCamera
             }
         }
 
-        private void UpdateLookAtSpline(float t)
+        private void CreateLookAtProxy()
+        {
+            var obj = new GameObject("IntroCamera_LookAtProxy");
+            obj.hideFlags = HideFlags.HideAndDontSave;
+            _lookAtProxy = obj.transform;
+        }
+
+        private void UpdateLookAtProxy(float t)
         {
             if (_lookAtSpline == null || _lookAtSpline.Spline == null) return;
+            if (_lookAtProxy == null) return;
 
-            Vector3 lookPoint = _lookAtSpline.EvaluatePosition(t);
-            _camera.transform.rotation = Quaternion.LookRotation(
-                lookPoint - _camera.transform.position
-            );
+            _lookAtProxy.position = _lookAtSpline.EvaluatePosition(t);
         }
 
         private void SetupSplineDolly()
@@ -117,13 +132,24 @@ namespace InGame.Camera.PlayerCamera
             if (_splineDolly != null)
             {
                 _splineDolly.Spline = _dollySpline;
-                return;
+            }
+            else if (_dollySpline != null)
+            {
+                _splineDolly = _camera.gameObject.AddComponent<CinemachineSplineDolly>();
+                _splineDolly.Spline = _dollySpline;
             }
 
-            if (_dollySpline == null) return;
+            // SplineDolly가 회전을 제어하지 않도록 설정. Aim(HardLookAt)이 담당.
+            if (_splineDolly != null)
+                _splineDolly.CameraRotation = CinemachineSplineDolly.RotationMode.Default;
+        }
 
-            _splineDolly = _camera.gameObject.AddComponent<CinemachineSplineDolly>();
-            _splineDolly.Spline = _dollySpline;
+        private void SetupHardLookAt()
+        {
+            if (_camera == null) return;
+            if (_camera.GetComponent<CinemachineHardLookAt>() != null) return;
+
+            _camera.gameObject.AddComponent<CinemachineHardLookAt>();
         }
     }
 }
