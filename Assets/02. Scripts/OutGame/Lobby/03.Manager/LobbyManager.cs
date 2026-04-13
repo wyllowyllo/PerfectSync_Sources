@@ -335,7 +335,7 @@ public class LobbyManager : SingletonMonoBehaviour<LobbyManager>
     {
         if (_startSequence != null && _startSequence.IsRunning) return;
         _isGameStarting = true;
-        _startSequence.Begin(msg => MatchingStatusChanged?.Invoke(msg));
+        _startSequence.Begin();
     }
 
     private void CancelCountdown()

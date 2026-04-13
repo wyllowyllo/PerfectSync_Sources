@@ -9,6 +9,7 @@ public class GameMatchTransitionHandler : SingletonPunCallbacks<GameMatchTransit
 {
     private string _pendingGameRoom;
     private bool _leaveDeferred;
+    private int _pendingMapNumber = -1;
 
     protected override bool PersistAcrossScenes => true;
 
@@ -88,6 +89,11 @@ public class GameMatchTransitionHandler : SingletonPunCallbacks<GameMatchTransit
         if (!PhotonNetwork.InRoom)
             return;
 
+        // 로비 방의 맵 선택 정보를 저장 (방을 나가면 사라지므로)
+        if (PhotonNetwork.CurrentRoom.CustomProperties
+                .TryGetValue(MapSelectionManager.SelectedMapKey, out object mapVal))
+            _pendingMapNumber = (int)mapVal;
+
         string lobbyName = PhotonNetwork.CurrentRoom.Name;
 
         var ht = new Hashtable
@@ -118,12 +124,20 @@ public class GameMatchTransitionHandler : SingletonPunCallbacks<GameMatchTransit
         string room = _pendingGameRoom;
         _pendingGameRoom = null;
 
+        var roomProps = new Hashtable { { PhotonRoomTypes.Key, PhotonRoomTypes.Game } };
+
+        if (_pendingMapNumber >= 0)
+        {
+            roomProps[MapSelectionManager.SelectedMapKey] = _pendingMapNumber;
+            _pendingMapNumber = -1;
+        }
+
         var roomOptions = new RoomOptions
         {
             MaxPlayers = 8,
             IsVisible = false,
             IsOpen = true,
-            CustomRoomProperties = new Hashtable { { PhotonRoomTypes.Key, PhotonRoomTypes.Game } },
+            CustomRoomProperties = roomProps,
             CustomRoomPropertiesForLobby = new[] { PhotonRoomTypes.Key }
         };
 

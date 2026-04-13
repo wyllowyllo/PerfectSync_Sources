@@ -12,23 +12,19 @@ public class LobbyMatchStatusUI : MonoBehaviour
     [Tooltip("LobbyManager가 없을 때만 사용합니다. 있으면 LobbyManager.SecondsBeforeSendingReady와 동일하게 맞춥니다.")]
     [SerializeField] [Min(0f)] private float _minimumLookingDurationSeconds = 3f;
     [SerializeField] [Min(0f)] private float _gameFoundDisplaySeconds = 2f;
-    [SerializeField] [Min(1f)] private float _preLeaveCountdownSeconds = 3f;
     [SerializeField] [Min(0.05f)] private float _dotAnimationStepSeconds = 0.35f;
 
     [Header("Copy")]
     [SerializeField] private string _lookingForPlayersBase = "Looking for Players";
     [SerializeField] private string _gameFoundLine = "Game Found!";
     [SerializeField] private string _playersFormat = "Players {0}/8";
-    [SerializeField] private string _gameStartingFormat = "게임이 시작합니다.\n{0}";
 
     private LobbyManager _lobby;
-    private GameMatchTransitionHandler _transitionHandler;
     private Coroutine _displayRoutine;
     private bool _wasInBatch;
     private float _gameFoundEndTime;
     private bool _gameFoundSequenceDone;
     private float _matchScreenStartedAt;
-    private bool _pendingFinalCountdown;
 
     private void Awake()
     {
@@ -45,10 +41,6 @@ public class LobbyMatchStatusUI : MonoBehaviour
             _lobby.ShowMatchingScreenRequested += OnShowMatchingScreen;
             _lobby.ShowMainScreenRequested += OnShowMainScreen;
         }
-
-        _transitionHandler = GameMatchTransitionHandler.Instance;
-        if (_transitionHandler != null)
-            _transitionHandler.OnMatchConfirmedPendingLeave += OnMatchConfirmedPendingLeave;
     }
 
     private void OnDisable()
@@ -58,9 +50,6 @@ public class LobbyMatchStatusUI : MonoBehaviour
             _lobby.ShowMatchingScreenRequested -= OnShowMatchingScreen;
             _lobby.ShowMainScreenRequested -= OnShowMainScreen;
         }
-
-        if (_transitionHandler != null)
-            _transitionHandler.OnMatchConfirmedPendingLeave -= OnMatchConfirmedPendingLeave;
 
         StopAllCoroutines();
         _displayRoutine = null;
@@ -79,7 +68,6 @@ public class LobbyMatchStatusUI : MonoBehaviour
     {
         StopAllCoroutines();
         _displayRoutine = null;
-        _pendingFinalCountdown = false;
         SetRootVisible(false);
     }
 
@@ -89,29 +77,12 @@ public class LobbyMatchStatusUI : MonoBehaviour
         _gameFoundEndTime = -1f;
         _gameFoundSequenceDone = false;
         _matchScreenStartedAt = Time.time;
-        _pendingFinalCountdown = false;
-    }
-
-    private void OnMatchConfirmedPendingLeave(string _)
-    {
-        _pendingFinalCountdown = true;
-        if (_displayRoutine == null && isActiveAndEnabled)
-        {
-            SetRootVisible(true);
-            _displayRoutine = StartCoroutine(MatchDisplayRoutine());
-        }
     }
 
     private IEnumerator MatchDisplayRoutine()
     {
         while (enabled)
         {
-            if (_pendingFinalCountdown)
-            {
-                yield return FinalCountdownRoutine();
-                yield break;
-            }
-
             bool minLookDone = Time.time - _matchScreenStartedAt >= GetMinimumLookingDurationSeconds();
 
             if (!minLookDone)
@@ -162,26 +133,6 @@ public class LobbyMatchStatusUI : MonoBehaviour
             SetStaticLine(string.Format(_playersFormat, shown));
             yield return null;
         }
-    }
-
-    private IEnumerator FinalCountdownRoutine()
-    {
-        int seconds = Mathf.Max(1, Mathf.CeilToInt(_preLeaveCountdownSeconds));
-
-        for (int i = seconds; i > 0; i--)
-        {
-            SetStaticLine(string.Format(_gameStartingFormat, i));
-            yield return CoroutineWaitCache.OneSecond;
-        }
-
-        SetStaticLine(string.Format(_gameStartingFormat, 0));
-        yield return null;
-
-        if (_transitionHandler != null)
-            _transitionHandler.CompletePendingMatchTransition();
-
-        SetRootVisible(false);
-        _displayRoutine = null;
     }
 
     private float GetMinimumLookingDurationSeconds()

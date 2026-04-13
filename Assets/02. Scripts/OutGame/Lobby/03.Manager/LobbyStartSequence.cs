@@ -1,53 +1,51 @@
-using System;
 using System.Collections;
+using Photon.Pun;
 using UnityEngine;
 
 [DisallowMultipleComponent]
 public class LobbyStartSequence : MonoBehaviour
 {
-    private const string DefaultInGameSceneName = "InGame";
-    private const float DefaultLobbyCountdownSeconds = 3f;
-    private const float CountdownTickSeconds = 1f;
+    private const string FallbackSceneName = "InGame_1";
 
-    [Header("Scene")]
-    [SerializeField] private string _inGameSceneName = DefaultInGameSceneName;
+    private Coroutine _loadCoroutine;
 
-    [Header("Settings")]
-    [SerializeField] private float _countdownSeconds = DefaultLobbyCountdownSeconds;
+    public bool IsRunning => _loadCoroutine != null;
 
-    private Coroutine _countdownCoroutine;
-
-    public bool IsRunning => _countdownCoroutine != null;
-
-    public void Begin(Action<string> onStatusLine)
+    public void Begin()
     {
-        if (_countdownCoroutine != null) return;
-        _countdownCoroutine = StartCoroutine(CountdownAndLoadScene(onStatusLine));
+        if (_loadCoroutine != null) return;
+        _loadCoroutine = StartCoroutine(LoadSelectedMapScene());
     }
 
     public void Cancel()
     {
-        if (_countdownCoroutine == null) return;
-        StopCoroutine(_countdownCoroutine);
-        _countdownCoroutine = null;
+        if (_loadCoroutine == null) return;
+        StopCoroutine(_loadCoroutine);
+        _loadCoroutine = null;
     }
 
-    private IEnumerator CountdownAndLoadScene(Action<string> onStatusLine)
+    private IEnumerator LoadSelectedMapScene()
     {
-        float remaining = _countdownSeconds;
-
-        while (remaining > 0f)
+        if (SceneLoader.Instance != null)
         {
-            onStatusLine?.Invoke($"{Mathf.CeilToInt(remaining)}초 후에 게임을 시작합니다.");
-            yield return CoroutineWaitCache.OneSecond;
-            remaining -= CountdownTickSeconds;
+            string sceneName = GetSelectedMapSceneName();
+            SceneLoader.Instance.LoadScenePhoton(sceneName);
         }
 
-        onStatusLine?.Invoke("게임을 시작합니다...");
+        _loadCoroutine = null;
+        yield break;
+    }
 
-        if (SceneLoader.Instance != null)
-            SceneLoader.Instance.LoadScenePhoton(_inGameSceneName);
+    private static string GetSelectedMapSceneName()
+    {
+        if (!PhotonNetwork.InRoom || PhotonNetwork.CurrentRoom == null)
+            return FallbackSceneName;
 
-        _countdownCoroutine = null;
+        if (!PhotonNetwork.CurrentRoom.CustomProperties
+                .TryGetValue(MapSelectionManager.SelectedMapKey, out object val))
+            return FallbackSceneName;
+
+        int mapNumber = (int)val;
+        return $"InGame_{mapNumber}";
     }
 }
