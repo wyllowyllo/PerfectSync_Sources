@@ -1,11 +1,13 @@
 using InGame.Audio;
 using InGame.Player.Movement;
 using InGame.Player.Ragdoll;
+using Photon.Pun;
 using UnityEngine;
 
 namespace InGame.Player
 {
-    public class PlayerSoundTrigger : MonoBehaviour
+    [RequireComponent(typeof(PhotonView))]
+    public class PlayerSoundTrigger : MonoBehaviourPun
     {
         [Header("Spatial SFX Profiles")]
         [SerializeField] private SpatialSfxProfile _jumpProfile;
@@ -70,36 +72,80 @@ namespace InGame.Player
                 _hitDetector.OnHitDetected -= HandleHit;
         }
 
+        #region Authority → Local + Remote
+
         private void HandleJumped()
         {
-            InGameSfxManager.Instance?.EmitSpatialOn(_jumpProfile, transform, this);
+            PlayJumpSfx();
+            photonView.RPC(nameof(RpcPlayJump), RpcTarget.Others);
         }
 
         private void HandleDived()
         {
-            InGameSfxManager.Instance?.EmitSpatialOn(_diveProfile, transform, this);
+            PlayDiveSfx();
+            photonView.RPC(nameof(RpcPlayDive), RpcTarget.Others);
         }
 
         private void HandleLaunched()
         {
-            InGameSfxManager.Instance?.EmitSpatialOn(_launchProfile, transform, this);
+            PlayLaunchSfx();
+            photonView.RPC(nameof(RpcPlayLaunch), RpcTarget.Others);
         }
 
         private void HandleRagdollStateChanged(ERagdollState state)
         {
             if (state != ERagdollState.Ragdolled)
                 return;
-            InGameSfxManager.Instance?.EmitSpatialOn(_ragdollProfile, transform, this);
+
+            PlayRagdollSfx();
+            photonView.RPC(nameof(RpcPlayRagdoll), RpcTarget.Others);
         }
 
         private void HandleStumble()
         {
-            InGameSfxManager.Instance?.EmitSpatialOn(_stumbleProfile, transform, this);
+            PlayStumbleSfx();
+            photonView.RPC(nameof(RpcPlayStumble), RpcTarget.Others);
         }
 
         private void HandleHit(HitData hitData)
         {
-            InGameSfxManager.Instance?.EmitSpatialOn(_hitProfile, transform, this);
+            PlayHitSfx();
+            photonView.RPC(nameof(RpcPlayHit), RpcTarget.Others);
         }
+
+        #endregion
+
+        #region Remote RPC 수신
+
+        [PunRPC]
+        private void RpcPlayJump() => PlayJumpSfx();
+
+        [PunRPC]
+        private void RpcPlayDive() => PlayDiveSfx();
+
+        [PunRPC]
+        private void RpcPlayLaunch() => PlayLaunchSfx();
+
+        [PunRPC]
+        private void RpcPlayRagdoll() => PlayRagdollSfx();
+
+        [PunRPC]
+        private void RpcPlayStumble() => PlayStumbleSfx();
+
+        [PunRPC]
+        private void RpcPlayHit() => PlayHitSfx();
+
+        #endregion
+
+        #region Local Playback
+
+        private void PlayJumpSfx() => InGameSfxManager.Instance?.EmitSpatialOn(_jumpProfile, transform, this);
+        private void PlayDiveSfx() => InGameSfxManager.Instance?.EmitSpatialOn(_diveProfile, transform, this);
+        private void PlayLaunchSfx() => InGameSfxManager.Instance?.EmitSpatialOn(_launchProfile, transform, this);
+        private void PlayRagdollSfx() => InGameSfxManager.Instance?.EmitSpatialOn(_ragdollProfile, transform, this);
+        private void PlayStumbleSfx() => InGameSfxManager.Instance?.EmitSpatialOn(_stumbleProfile, transform, this);
+        private void PlayHitSfx() => InGameSfxManager.Instance?.EmitSpatialOn(_hitProfile, transform, this);
+
+        #endregion
     }
 }
