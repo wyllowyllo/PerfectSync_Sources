@@ -1,21 +1,41 @@
 using System.Collections;
-using TMPro;
+using DG.Tweening;
 using UnityEngine;
+using UnityEngine.UI;
 
 public class RaceInfoUI : MonoBehaviour
 {
     private const float DefaultHoldSeconds = 0.85f;
     private const float DefaultFadeSeconds = 0.65f;
     private const float GameOverHoldMultiplier = 1.2f;
-    private const float FullRgbAlpha = 1f;
-    private const float TransparentAlpha = 0f;
 
-    [SerializeField] private TMP_Text _text;
+    [Header("Display")]
+    [SerializeField] private Image _image;
+    [SerializeField] private Transform _punchTarget;
+
+    [Header("Number Sprites (index 0 = '1', index 9 = '10')")]
+    [SerializeField] private Sprite[] _numberSprites = new Sprite[10];
+
+    [Header("Special Sprites")]
+    [SerializeField] private Sprite _startSprite;
+    [SerializeField] private Sprite _winnerSprite;
+    [SerializeField] private Sprite _finishSprite;
+    [SerializeField] private Sprite _gameOverSprite;
+
+    [Header("Timing")]
     [SerializeField] private float _defaultHoldSeconds = DefaultHoldSeconds;
     [SerializeField] private float _defaultFadeSeconds = DefaultFadeSeconds;
 
+    [Header("Punch Animation")]
+    [SerializeField] private Vector3 _punchScale = new Vector3(0.3f, 0.3f, 0f);
+    [SerializeField] private float _punchScaleDuration = 0.35f;
+    [SerializeField] private Vector3 _punchRotation = new Vector3(0f, 0f, 15f);
+    [SerializeField] private float _punchRotationDuration = 0.4f;
+    [SerializeField] private int _vibrato = 8;
+    [SerializeField] private float _elasticity = 0.6f;
+
     private Coroutine _routine;
-    private Color _rgb = Color.white;
+    private Vector3 _baseScale;
     private WaitForSeconds _waitDefaultHold;
     private WaitForSeconds _waitGameOverHold;
 
@@ -24,39 +44,38 @@ public class RaceInfoUI : MonoBehaviour
         _waitDefaultHold = new WaitForSeconds(_defaultHoldSeconds);
         _waitGameOverHold = new WaitForSeconds(_defaultHoldSeconds * GameOverHoldMultiplier);
 
-        if (_text == null) return;
+        if (_punchTarget != null)
+            _baseScale = _punchTarget.localScale;
 
-        Color c = _text.color;
-        _rgb = new Color(c.r, c.g, c.b, FullRgbAlpha);
-        SetAlpha(TransparentAlpha);
+        if (_image != null)
+            SetAlpha(0f);
     }
 
-    public void ShowCountdown(int number) =>
-        StartFadeRoutine(number.ToString(), _waitDefaultHold, _defaultFadeSeconds);
+    public void ShowCountdown(int number)
+    {
+        int index = number - 1;
+        if (index < 0 || index >= _numberSprites.Length) return;
+        ShowSprite(_numberSprites[index], _waitDefaultHold);
+    }
 
     public void ShowFinishWindowSeconds(int secondsRemaining) =>
         ShowCountdown(secondsRemaining);
 
     public void ShowStart() =>
-        StartFadeRoutine("Start", _waitDefaultHold, _defaultFadeSeconds);
+        ShowSprite(_startSprite, _waitDefaultHold);
 
     public void ShowWinner() =>
-        StartFadeRoutine("Winner", _waitDefaultHold, _defaultFadeSeconds);
+        ShowSprite(_winnerSprite, _waitDefaultHold);
 
     public void ShowFinish() =>
-        StartFadeRoutine("완주", _waitDefaultHold, _defaultFadeSeconds);
+        ShowSprite(_finishSprite, _waitDefaultHold);
 
     public void ShowGameOver() =>
-        StartFadeRoutine("GameOver", _waitGameOverHold, _defaultFadeSeconds);
+        ShowSprite(_gameOverSprite, _waitGameOverHold);
 
-    public void ShowMessage(string message, float holdSeconds, float fadeSeconds)
+    private void ShowSprite(Sprite sprite, WaitForSeconds holdWait)
     {
-        StartFadeRoutine(message, ResolveHoldWait(holdSeconds), fadeSeconds);
-    }
-
-    private void StartFadeRoutine(string message, WaitForSeconds holdWait, float fadeSeconds)
-    {
-        if (_text == null) return;
+        if (_image == null || sprite == null) return;
 
         if (_routine != null)
         {
@@ -64,44 +83,68 @@ public class RaceInfoUI : MonoBehaviour
             _routine = null;
         }
 
-        _routine = StartCoroutine(FadeRoutine(message, holdWait, fadeSeconds));
+        KillTweens();
+        _routine = StartCoroutine(DisplayRoutine(sprite, holdWait));
     }
 
-    private WaitForSeconds ResolveHoldWait(float holdSeconds)
+    private IEnumerator DisplayRoutine(Sprite sprite, WaitForSeconds holdWait)
     {
-        if (holdSeconds <= 0f)
-            return null;
-        if (Mathf.Approximately(holdSeconds, _defaultHoldSeconds))
-            return _waitDefaultHold;
-        if (Mathf.Approximately(holdSeconds, _defaultHoldSeconds * GameOverHoldMultiplier))
-            return _waitGameOverHold;
-        return new WaitForSeconds(holdSeconds);
+        // 스프라이트 교체 + 즉시 표시
+        _image.sprite = sprite;
+        SetAlpha(1f);
+
+        // 펀치 애니메이션 (스케일 + 회전 동시)
+        if (_punchTarget != null)
+        {
+            _punchTarget.localScale = _baseScale;
+            _punchTarget.localRotation = Quaternion.identity;
+            _punchTarget.DOPunchScale(_punchScale, _punchScaleDuration, _vibrato, _elasticity);
+            _punchTarget.DOPunchRotation(_punchRotation, _punchRotationDuration, _vibrato, _elasticity);
+        }
+
+        // 홀드
+        if (holdWait != null)
+            yield return holdWait;
+
+        // 페이드아웃
+        float t = 0f;
+        while (t < _defaultFadeSeconds)
+        {
+            t += Time.deltaTime;
+            float alpha = _defaultFadeSeconds > 0f
+                ? Mathf.Lerp(1f, 0f, t / _defaultFadeSeconds)
+                : 0f;
+            SetAlpha(alpha);
+            yield return null;
+        }
+
+        SetAlpha(0f);
+        _routine = null;
     }
 
     private void SetAlpha(float a)
     {
-        var c = _rgb;
+        if (_image == null) return;
+        Color c = _image.color;
         c.a = a;
-        _text.color = c;
+        _image.color = c;
     }
 
-    private IEnumerator FadeRoutine(string message, WaitForSeconds holdWait, float fadeSeconds)
+    private void KillTweens()
     {
-        _text.text = message;
-        SetAlpha(FullRgbAlpha);
+        if (_punchTarget == null) return;
+        _punchTarget.DOKill();
+        _punchTarget.localScale = _baseScale;
+        _punchTarget.localRotation = Quaternion.identity;
+    }
 
-        if (holdWait != null)
-            yield return holdWait;
-
-        float t = 0f;
-        while (t < fadeSeconds)
+    private void OnDisable()
+    {
+        if (_routine != null)
         {
-            t += Time.deltaTime;
-            SetAlpha(fadeSeconds > 0f ? Mathf.Lerp(FullRgbAlpha, TransparentAlpha, t / fadeSeconds) : TransparentAlpha);
-            yield return null;
+            StopCoroutine(_routine);
+            _routine = null;
         }
-
-        SetAlpha(TransparentAlpha);
-        _routine = null;
+        KillTweens();
     }
 }
