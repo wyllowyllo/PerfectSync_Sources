@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using InGame.Camera.PlayerCamera;
 using UnityEngine;
 using Photon.Pun;
 using Photon.Realtime;
@@ -9,12 +10,11 @@ using Hashtable = ExitGames.Client.Photon.Hashtable;
 public class InGameManager : SingletonPunCallbacks<InGameManager>
 {
     private const int DefaultCountdownSeconds = 3;
-    private const float DefaultIntroDurationSeconds = 2f;
+    private const int CountdownBufferMs = 200;
 
     protected override bool PersistAcrossScenes => false;
 
     [Header("Settings")]
-    [SerializeField] private float _introDuration = DefaultIntroDurationSeconds;
     [SerializeField] private int _countdownSeconds = DefaultCountdownSeconds;
 
     [Header("References")]
@@ -24,16 +24,19 @@ public class InGameManager : SingletonPunCallbacks<InGameManager>
     public event Action<GameState> OnGameStateChanged;
     public event Action<int> OnRaceCountdownTick;
 
-    private WaitForSeconds _waitIntro;
-
     protected override void Awake()
     {
         base.Awake();
         if (IsDuplicateInstance) return;
 
-        _waitIntro = new WaitForSeconds(_introDuration);
         InGameLocalPlayerPropertyReset.ApplyForLobbyScene(clearTeamBecauseNotInRoom: false);
         CloseRoomToNewJoiners();
+    }
+
+    public void NotifyLocalIntroDone()
+    {
+        if (!PhotonNetwork.InRoom || PhotonNetwork.LocalPlayer == null) return;
+        PhotonNetwork.LocalPlayer.SetCustomProperties(new Hashtable { { InGameRaceKeys.IntroDoneKey, true } });
     }
 
     private static void CloseRoomToNewJoiners()
@@ -97,22 +100,57 @@ public class InGameManager : SingletonPunCallbacks<InGameManager>
     [PunRPC]
     private void RPC_StartIntro()
     {
-        StartCoroutine(GameFlowRoutine());
+        SetState(GameState.Intro);
+
+        if (PhotonNetwork.IsMasterClient)
+            StartCoroutine(MasterGameFlowRoutine());
     }
 
-    private IEnumerator GameFlowRoutine()
+    private IEnumerator MasterGameFlowRoutine()
     {
-        SetState(GameState.Intro);
-        yield return _waitIntro;
+        // 모든 클라이언트의 인트로 카메라 완료 대기.
+        yield return new WaitUntil(AreAllPlayersIntroDone);
 
+        // 카운트다운 시작 시각과 게임 시작 시각을 서버 타임스탬프 기준으로 계산.
+        int countdownStartTime = PhotonNetwork.ServerTimestamp + CountdownBufferMs;
+        int playStartTime = countdownStartTime + _countdownSeconds * 1000;
+
+        photonView.RPC(nameof(RPC_StartCountdown), RpcTarget.All, countdownStartTime, playStartTime);
+    }
+
+    [PunRPC]
+    private void RPC_StartCountdown(int countdownStartServerTime, int playStartServerTime)
+    {
         SetState(GameState.Countdown);
+        StartCoroutine(SyncedCountdownRoutine(countdownStartServerTime, playStartServerTime));
+    }
+
+    private IEnumerator SyncedCountdownRoutine(int countdownStartServerTime, int playStartServerTime)
+    {
+        // 카운트다운 시작 시각까지 대기.
+        while (PhotonNetwork.ServerTimestamp < countdownStartServerTime)
+            yield return null;
+
         for (int i = _countdownSeconds; i > 0; i--)
         {
             OnRaceCountdownTick?.Invoke(i);
-            yield return CoroutineWaitCache.OneSecond;
+
+            int nextTickTime = playStartServerTime - (i - 1) * 1000;
+            while (PhotonNetwork.ServerTimestamp < nextTickTime)
+                yield return null;
         }
 
         SetState(GameState.Playing);
+    }
+
+    private bool AreAllPlayersIntroDone()
+    {
+        foreach (var player in PhotonNetwork.PlayerList)
+        {
+            if (!player.CustomProperties.TryGetValue(InGameRaceKeys.IntroDoneKey, out object val) || !(bool)val)
+                return false;
+        }
+        return PhotonNetwork.PlayerList.Length > 0;
     }
 
     private void SetState(GameState newState)

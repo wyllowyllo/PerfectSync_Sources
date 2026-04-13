@@ -88,13 +88,25 @@ namespace InGame.Camera.PlayerCamera
 
             _followCamera.Follow = _anchorRb.transform;
             _followCamera.LookAt = _anchorRb.transform;
-            InGameCameraManager.SetCameraPriority(_followCamera, ActivePriority);
 
             Cursor.lockState = CursorLockMode.Locked;
             Cursor.visible = false;
 
             if (_targetProvider != null)
-                _anchorRb.position = _targetProvider.SmoothedPosition + _targetOffset;
+            {
+                Vector3 targetPos = _targetProvider.SmoothedPosition + _targetOffset;
+                _anchorRb.position = targetPos;
+                _anchorRb.transform.position = targetPos;
+
+                // 플레이어가 바라보는 방향 뒤쪽에서 카메라가 시작하도록 HorizontalAxis 설정.
+                if (_orbitalFollow != null)
+                {
+                    float playerYaw = _targetProvider.transform.eulerAngles.y;
+                    _orbitalFollow.HorizontalAxis.Value = playerYaw;
+                }
+
+                _followCamera.OnTargetObjectWarped(_anchorRb.transform, targetPos - _followCamera.transform.position);
+            }
         }
 
         private bool IsMyTeam()
