@@ -1,10 +1,11 @@
+using InGame.Audio;
 using UnityEngine;
 
 namespace InGame.Gimmick
 {
     public class TrampolineSoundTrigger : MonoBehaviour
     {
-        [SerializeField] private SpatialSfxPlayer _bounceSfx;
+        [SerializeField] private SpatialSfxProfile _bounceProfile;
 
         private TrampolineTrigger _trampoline;
 
@@ -27,8 +28,7 @@ namespace InGame.Gimmick
 
         private void HandleBounced()
         {
-            if (_bounceSfx != null)
-                _bounceSfx.Play();
+            InGameSfxManager.Instance?.EmitSpatialAt(_bounceProfile, transform.position, this);
         }
     }
 }

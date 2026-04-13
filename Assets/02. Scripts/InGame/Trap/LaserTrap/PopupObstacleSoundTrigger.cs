@@ -1,9 +1,10 @@
+using InGame.Audio;
 using UnityEngine;
 
 public class PopupObstacleSoundTrigger : MonoBehaviour
 {
-    [SerializeField] private SpatialSfxPlayer _popupSfx;
-    [SerializeField] private SpatialSfxPlayer _retractSfx;
+    [SerializeField] private SpatialSfxProfile _popupProfile;
+    [SerializeField] private SpatialSfxProfile _retractProfile;
 
     private PopupObstacle _popup;
 
@@ -32,13 +33,11 @@ public class PopupObstacleSoundTrigger : MonoBehaviour
 
     private void HandleActivated()
     {
-        if (_popupSfx != null)
-            _popupSfx.Play();
+        InGameSfxManager.Instance?.EmitSpatialOn(_popupProfile, transform, this);
     }
 
     private void HandleResetComplete()
     {
-        if (_retractSfx != null)
-            _retractSfx.Play();
+        InGameSfxManager.Instance?.EmitSpatialOn(_retractProfile, transform, this);
     }
 }

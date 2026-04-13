@@ -1,3 +1,4 @@
+using InGame.Audio;
 using InGame.Player.Movement;
 using InGame.Player.Ragdoll;
 using UnityEngine;
@@ -6,13 +7,13 @@ namespace InGame.Player
 {
     public class PlayerSoundTrigger : MonoBehaviour
     {
-        [Header("Spatial SFX Players")]
-        [SerializeField] private SpatialSfxPlayer _jumpSfx;
-        [SerializeField] private SpatialSfxPlayer _diveSfx;
-        [SerializeField] private SpatialSfxPlayer _launchSfx;
-        [SerializeField] private SpatialSfxPlayer _hitSfx;
-        [SerializeField] private SpatialSfxPlayer _stumbleSfx;
-        [SerializeField] private SpatialSfxPlayer _ragdollSfx;
+        [Header("Spatial SFX Profiles")]
+        [SerializeField] private SpatialSfxProfile _jumpProfile;
+        [SerializeField] private SpatialSfxProfile _diveProfile;
+        [SerializeField] private SpatialSfxProfile _launchProfile;
+        [SerializeField] private SpatialSfxProfile _hitProfile;
+        [SerializeField] private SpatialSfxProfile _stumbleProfile;
+        [SerializeField] private SpatialSfxProfile _ragdollProfile;
 
         private PlayerMovement _movement;
         private LaunchController _launchController;
@@ -71,38 +72,34 @@ namespace InGame.Player
 
         private void HandleJumped()
         {
-            if (_jumpSfx != null)
-                _jumpSfx.Play();
+            InGameSfxManager.Instance?.EmitSpatialOn(_jumpProfile, transform, this);
         }
 
         private void HandleDived()
         {
-            if (_diveSfx != null)
-                _diveSfx.Play();
+            InGameSfxManager.Instance?.EmitSpatialOn(_diveProfile, transform, this);
         }
 
         private void HandleLaunched()
         {
-            if (_launchSfx != null)
-                _launchSfx.Play();
+            InGameSfxManager.Instance?.EmitSpatialOn(_launchProfile, transform, this);
         }
 
         private void HandleRagdollStateChanged(ERagdollState state)
         {
-            if (state == ERagdollState.Ragdolled && _ragdollSfx != null)
-                _ragdollSfx.Play();
+            if (state != ERagdollState.Ragdolled)
+                return;
+            InGameSfxManager.Instance?.EmitSpatialOn(_ragdollProfile, transform, this);
         }
 
         private void HandleStumble()
         {
-            if (_stumbleSfx != null)
-                _stumbleSfx.Play();
+            InGameSfxManager.Instance?.EmitSpatialOn(_stumbleProfile, transform, this);
         }
 
         private void HandleHit(HitData hitData)
         {
-            if (_hitSfx != null)
-                _hitSfx.Play();
+            InGameSfxManager.Instance?.EmitSpatialOn(_hitProfile, transform, this);
         }
     }
 }

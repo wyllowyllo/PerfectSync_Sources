@@ -1,11 +1,12 @@
+using InGame.Audio;
 using UnityEngine;
 
 namespace InGame.Obstacle
 {
     public class ObstacleSoundTrigger : MonoBehaviour
     {
-        [SerializeField] private SpatialSfxPlayer _destroySfx;
-        [SerializeField] private SpatialSfxPlayer _respawnSfx;
+        [SerializeField] private SpatialSfxProfile _destroyProfile;
+        [SerializeField] private SpatialSfxProfile _respawnProfile;
 
         private DestroyableObstacle _obstacle;
 
@@ -34,14 +35,12 @@ namespace InGame.Obstacle
 
         private void HandleDestroyed()
         {
-            if (_destroySfx != null)
-                _destroySfx.Play();
+            InGameSfxManager.Instance?.EmitSpatialAt(_destroyProfile, transform.position, this);
         }
 
         private void HandleRespawned()
         {
-            if (_respawnSfx != null)
-                _respawnSfx.Play();
+            InGameSfxManager.Instance?.EmitSpatialAt(_respawnProfile, transform.position, this);
         }
     }
 }

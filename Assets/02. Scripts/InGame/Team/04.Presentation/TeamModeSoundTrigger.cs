@@ -1,3 +1,4 @@
+using InGame.Audio;
 using InGame.Player.Network;
 using UnityEngine;
 
@@ -6,8 +7,8 @@ namespace InGame.Team
     public class TeamModeSoundTrigger : MonoBehaviour
     {
         [Header("Invincible")]
-        [SerializeField] private SpatialSfxPlayer _invincibleEnterSfx;
-        [SerializeField] private SpatialSfxPlayer _invincibleExitSfx;
+        [SerializeField] private SpatialSfxProfile _invincibleEnterProfile;
+        [SerializeField] private SpatialSfxProfile _invincibleExitProfile;
 
         [Header("Slot")]
         [SerializeField] private SfxProfile _slotSpinProfile;
@@ -51,36 +52,22 @@ namespace InGame.Team
 
         private void HandleInvincibleEnter()
         {
-            if (_invincibleEnterSfx != null)
-                _invincibleEnterSfx.Play();
+            InGameSfxManager.Instance?.EmitSpatialOn(_invincibleEnterProfile, transform, this);
         }
 
         private void HandleInvincibleExit()
         {
-            if (_invincibleExitSfx != null)
-                _invincibleExitSfx.Play();
+            InGameSfxManager.Instance?.EmitSpatialOn(_invincibleExitProfile, transform, this);
         }
 
         private void HandleSlotSpinStarted()
         {
-            PlaySfx(_slotSpinProfile);
+            InGameSfxManager.Instance?.PlaySfx2D(_slotSpinProfile);
         }
 
         private void HandleSlotResultReceived(int[] symbols, bool isMatch)
         {
-            PlaySfx(isMatch ? _slotMatchProfile : _slotNoMatchProfile);
-        }
-
-        private static void PlaySfx(SfxProfile profile)
-        {
-            if (profile == null || AudioManager.Instance == null)
-                return;
-
-            AudioClip clip = profile.GetRandomClip();
-            if (clip == null)
-                return;
-
-            AudioManager.Instance.Play(AudioType.Sfx, clip);
+            InGameSfxManager.Instance?.PlaySfx2D(isMatch ? _slotMatchProfile : _slotNoMatchProfile);
         }
     }
 }

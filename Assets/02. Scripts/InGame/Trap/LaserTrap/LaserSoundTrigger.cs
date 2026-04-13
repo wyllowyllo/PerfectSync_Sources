@@ -1,8 +1,9 @@
+using InGame.Audio;
 using UnityEngine;
 
 public class LaserSoundTrigger : MonoBehaviour
 {
-    [SerializeField] private SpatialSfxPlayer _detectionSfx;
+    [SerializeField] private SpatialSfxProfile _detectionProfile;
 
     private LaserTrigger _laser;
 
@@ -25,7 +26,6 @@ public class LaserSoundTrigger : MonoBehaviour
 
     private void HandlePlayerDetected()
     {
-        if (_detectionSfx != null)
-            _detectionSfx.Play();
+        InGameSfxManager.Instance?.EmitSpatialAt(_detectionProfile, transform.position, this);
     }
 }
