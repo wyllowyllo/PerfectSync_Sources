@@ -10,7 +10,7 @@ public class LobbyPopupCoordinator : MonoBehaviour
     [SerializeField] private GameObject _popupBackgroundRoot;
 
     [Header("Popups")]
-    [SerializeField] private SettingsPopup _settingsPopup;
+    [SerializeField] private GameObject _settingsObject;
     [SerializeField] private NicknameChangePopup _nicknameChangePopup;
     [SerializeField] private InviteFriendsPopup _inviteFriendsPopup;
     [SerializeField] private QuitPopup _quitPopup;
@@ -102,7 +102,15 @@ public class LobbyPopupCoordinator : MonoBehaviour
     {
         HideAllBackgroundPopups();
         ShowPopupBackground();
-        GetBackgroundPopup(kind)?.Show();
+
+        if (kind == LobbyPopupKind.Settings)
+        {
+            if (_settingsObject != null) _settingsObject.SetActive(true);
+        }
+        else
+        {
+            GetBackgroundPopup(kind)?.Show();
+        }
     }
 
     public void ShowSettings()
@@ -136,7 +144,7 @@ public class LobbyPopupCoordinator : MonoBehaviour
         switch (kind)
         {
             case LobbyPopupKind.Settings:
-                return _settingsPopup;
+                return null;
             case LobbyPopupKind.NicknameChange:
                 return _nicknameChangePopup;
             case LobbyPopupKind.InviteFriends:
@@ -166,7 +174,7 @@ public class LobbyPopupCoordinator : MonoBehaviour
 
     private void HideAllBackgroundPopups()
     {
-        _settingsPopup?.Hide();
+        if (_settingsObject != null) _settingsObject.SetActive(false);
         _nicknameChangePopup?.Hide();
         _inviteFriendsPopup?.Hide();
         _quitPopup?.Hide();

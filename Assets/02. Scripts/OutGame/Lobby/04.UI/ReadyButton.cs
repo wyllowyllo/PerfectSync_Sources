@@ -8,7 +8,6 @@ using UnityEngine.UI;
 public class ReadyButton : MonoBehaviourPunCallbacks
 {
     [SerializeField] private TMP_Text _label;
-    [SerializeField] private TMP_Text _labelShadow;
 
     private Button _button;
 
@@ -73,8 +72,7 @@ public class ReadyButton : MonoBehaviourPunCallbacks
 
     private void RefreshLabel()
     {
-        if (_label == null && _labelShadow == null)
-            return;
+        if (_label == null) return;
 
         if (!PhotonNetwork.InRoom || PhotonNetwork.LocalPlayer == null)
         {
@@ -93,8 +91,6 @@ public class ReadyButton : MonoBehaviourPunCallbacks
     {
         if (_label != null)
             _label.text = text;
-        if (_labelShadow != null)
-            _labelShadow.text = text;
     }
 
     private static bool IsPlayerMatchReady(Player player)
