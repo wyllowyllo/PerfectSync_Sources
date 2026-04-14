@@ -1,3 +1,4 @@
+using System;
 using ExitGames.Client.Photon;
 using Photon.Pun;
 using Photon.Realtime;
@@ -9,7 +10,10 @@ public class ReadyButton : MonoBehaviourPunCallbacks
 {
     [SerializeField] private TMP_Text _label;
 
+    public static event Action<bool> OnReadyStateChanged;
+
     private Button _button;
+    private bool _currentReadyState;
 
     private void Start()
     {
@@ -64,10 +68,12 @@ public class ReadyButton : MonoBehaviourPunCallbacks
             (IsPlayerMatchReady(PhotonNetwork.LocalPlayer) || LobbyManager.Instance.IsAwaitingReadyDelay))
         {
             LobbyManager.Instance.CancelMatchReady();
+            RefreshLabel();
             return;
         }
 
         LobbyManager.Instance.RequestMatch(string.Empty);
+        RefreshLabel();
     }
 
     private void RefreshLabel()
@@ -77,6 +83,7 @@ public class ReadyButton : MonoBehaviourPunCallbacks
         if (!PhotonNetwork.InRoom || PhotonNetwork.LocalPlayer == null)
         {
             SetLabelText("준비");
+            UpdateReadyState(false);
             return;
         }
 
@@ -85,6 +92,14 @@ public class ReadyButton : MonoBehaviourPunCallbacks
         bool inMatchmakingIntent = localReady || awaitingReadyDelay;
 
         SetLabelText(inMatchmakingIntent ? "준비 취소" : "준비");
+        UpdateReadyState(inMatchmakingIntent);
+    }
+
+    private void UpdateReadyState(bool isReady)
+    {
+        if (_currentReadyState == isReady) return;
+        _currentReadyState = isReady;
+        OnReadyStateChanged?.Invoke(isReady);
     }
 
     private void SetLabelText(string text)
