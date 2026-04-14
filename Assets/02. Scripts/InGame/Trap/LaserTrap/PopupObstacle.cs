@@ -5,12 +5,20 @@ using InGame.Player;
 using UnityEngine;
 
 /// <summary>
-/// 펀칭 장애물. FixedUpdate 상태 머신 기반.
-/// 부모(Root)의 transform 계층을 통해 이동하며,
-/// 공격 시 MovePosition으로 충돌을 유지하면서 OverlapSphere + IgnoreCollision으로
-/// 물리 push 없이 히트를 적용한다.
+/// 펀칭 장애물. FixedUpdate 상태 머신 기반으로 MovePosition 이동만 담당.
+/// 플레이어 히트는 Hammer와 동일하게 표준 경로 — HitDetector.OnCollisionEnter →
+/// ObstacleHit.TryComputeKnockback → ObstacleHitProfile — 로 위임한다.
+///
+/// Spike는 Hammer와 달리 두 가지 보정이 필요하다:
+/// 1. 공격 중에만 ObstacleHit을 활성화 — 정적 상태(Idle/Holding/Retracting)에서
+///    플레이어가 단순 접촉만 해도 launch되는 것을 막는다.
+/// 2. 첫 contact 후 IgnoreCollision damping — Spike는 translation 이동이라
+///    한 번 hit 후에도 ragdoll bones 위로 계속 통과하며 depenetration이 누적
+///    되어 "깔림"이 발생한다. 첫 contact의 OnCollisionEnter는 정상적으로
+///    발생시켜 Hammer와 동일한 hit을 적용하고, 이후 추가 contact만 차단한다.
 /// </summary>
 [RequireComponent(typeof(Rigidbody))]
+[RequireComponent(typeof(Collider))]
 public class PopupObstacle : MonoBehaviour, ITrap
 {
     private enum State { Idle, Attacking, Holding, Retracting }
@@ -25,15 +33,8 @@ public class PopupObstacle : MonoBehaviour, ITrap
     [Tooltip("복귀할 때 소요 시간")]
     [SerializeField] private float _retractDuration = 1.0f;
 
-    [Header("Hit Detection")]
-    [Tooltip("히트 감지 대상 레이어 (CharacterBody)")]
-    [SerializeField] private LayerMask _playerLayer;
-
-    [Tooltip("히트 감지 반경")]
-    [SerializeField] private float _detectionRadius = 1.0f;
-
     private Rigidbody _rigidbody;
-    private Collider _collider;
+    private Collider _selfCollider;
     private ObstacleHit _obstacleHit;
     private Vector3 _startLocalPosition;
     private State _state = State.Idle;
@@ -42,13 +43,8 @@ public class PopupObstacle : MonoBehaviour, ITrap
     private Vector3 _toLocal;
     private float _duration;
 
-    // 히트 감지용.
-    private Vector3 _previousWorldPosition;
-    private const float HitCooldown = 0.5f;
-    private const int MaxOverlapResults = 4;
-    private readonly Collider[] _overlapBuffer = new Collider[MaxOverlapResults];
-    private readonly Dictionary<int, float> _hitCooldowns = new();
-    private readonly List<(Collider mine, Collider player)> _ignoredPairs = new();
+    private readonly HashSet<int> _hitDetectorIds = new();
+    private readonly List<(Collider mine, Collider other)> _ignoredPairs = new();
 
     public event Action OnActivated;
     public event Action OnResetComplete;
@@ -57,16 +53,24 @@ public class PopupObstacle : MonoBehaviour, ITrap
     {
         _rigidbody = GetComponent<Rigidbody>();
         _rigidbody.isKinematic = true;
-        _collider = GetComponent<Collider>();
+        _selfCollider = GetComponent<Collider>();
         _obstacleHit = GetComponent<ObstacleHit>();
         _startLocalPosition = transform.localPosition;
-        _previousWorldPosition = transform.position;
+
+        SetHitActive(false);
     }
 
     private void OnEnable()
     {
         _state = State.Idle;
         _elapsed = 0f;
+        SetHitActive(false);
+    }
+
+    private void OnDisable()
+    {
+        SetHitActive(false);
+        RestoreIgnoredCollisions();
     }
 
     #region ITrap
@@ -75,12 +79,16 @@ public class PopupObstacle : MonoBehaviour, ITrap
     {
         if (_state != State.Idle) return;
 
+        // 안전: 이전 사이클 잔여 IgnoreCollision 정리.
+        RestoreIgnoredCollisions();
+
         _fromLocal = _startLocalPosition;
         _toLocal = _targetTransform.localPosition;
         _duration = _popupDuration;
         _elapsed = 0f;
-        _previousWorldPosition = transform.position;
         _state = State.Attacking;
+
+        SetHitActive(true);
         OnActivated?.Invoke();
     }
 
@@ -88,6 +96,7 @@ public class PopupObstacle : MonoBehaviour, ITrap
     {
         if (_state == State.Idle || _state == State.Retracting) return;
 
+        SetHitActive(false);
         RestoreIgnoredCollisions();
 
         _fromLocal = transform.localPosition;
@@ -116,16 +125,12 @@ public class PopupObstacle : MonoBehaviour, ITrap
         if (parent != null)
             _rigidbody.MovePosition(parent.TransformPoint(nextLocal));
 
-        if (isAttacking)
-            DetectHits();
-
-        _previousWorldPosition = transform.position;
-
         if (t < 1f) return;
 
         if (isAttacking)
         {
             _state = State.Holding;
+            SetHitActive(false);
         }
         else
         {
@@ -134,84 +139,47 @@ public class PopupObstacle : MonoBehaviour, ITrap
         }
     }
 
-    private void DetectHits()
+    private void OnCollisionEnter(Collision collision)
     {
-        int count = Physics.OverlapSphereNonAlloc(
-            transform.position, _detectionRadius, _overlapBuffer, _playerLayer);
+        if (_state != State.Attacking) return;
+        if (_selfCollider == null) return;
 
-        for (int i = 0; i < count; i++)
+        var hitDetector = collision.collider.GetComponentInParent<HitDetector>();
+        if (hitDetector == null) return;
+
+        int id = hitDetector.GetInstanceID();
+        if (!_hitDetectorIds.Add(id)) return;
+
+        // 이 플레이어 hierarchy의 모든 콜라이더(본체 + ragdoll bones)와의
+        // 추가 충돌 차단. 첫 contact의 OnCollisionEnter는 이미 player 측
+        // HitDetector에서 정상 처리되었으므로, 이후의 depenetration push만
+        // 막아 Spike가 ragdoll body 위를 통과하면서 누적되는 "깔림"을 방지.
+        var playerColliders = hitDetector.GetComponentsInChildren<Collider>(true);
+        for (int i = 0; i < playerColliders.Length; i++)
         {
-            var col = _overlapBuffer[i];
-            if (col == null) continue;
-
-            int id = col.GetInstanceID();
-            if (_hitCooldowns.TryGetValue(id, out float lastTime)
-                && Time.time - lastTime < HitCooldown)
-                continue;
-
-            var hitDetector = col.GetComponentInParent<HitDetector>();
-            if (hitDetector == null) continue;
-
-            _hitCooldowns[id] = Time.time;
-
-            // 히트 적용.
-            Vector3 contactPoint = col.ClosestPoint(transform.position);
-            Vector3 spikeVelocity = (transform.position - _previousWorldPosition) / Time.fixedDeltaTime;
-            ApplyHit(hitDetector, contactPoint, spikeVelocity);
-
-            // 물리 push 방지: 이 플레이어와 충돌 무시.
-            IgnoreCollisionWith(col);
+            var pc = playerColliders[i];
+            if (pc == null || pc == _selfCollider) continue;
+            Physics.IgnoreCollision(_selfCollider, pc, true);
+            _ignoredPairs.Add((_selfCollider, pc));
         }
     }
 
-    private void ApplyHit(HitDetector hitDetector, Vector3 contactPoint, Vector3 spikeVelocity)
+    private void SetHitActive(bool active)
     {
-        HitData hit;
-
-        if (_obstacleHit != null && _obstacleHit.Profile != null)
-        {
-            var profile = _obstacleHit.Profile;
-            Vector3 knockback = profile.ComputeKnockback(contactPoint, spikeVelocity, transform);
-            Vector3 torque = profile.ComputeTorque(knockback.magnitude);
-            hit = new HitData(knockback, contactPoint, torque, profile.Response);
-        }
-        else
-        {
-            Vector3 direction = spikeVelocity.sqrMagnitude > 0.001f
-                ? spikeVelocity.normalized
-                : transform.forward;
-            Vector3 knockback = direction * spikeVelocity.magnitude;
-            Vector3 torque = HitData.ComputeRandomTorque(knockback.magnitude);
-            hit = new HitData(knockback, contactPoint, torque, EHitResponse.Default);
-        }
-
-        hitDetector.ApplyExternalHit(hit);
-    }
-
-    private void IgnoreCollisionWith(Collider playerCollider)
-    {
-        if (_collider == null || playerCollider == null) return;
-
-        var playerColliders = playerCollider.GetComponentInParent<HitDetector>()
-            ?.GetComponentsInChildren<Collider>(true);
-        if (playerColliders == null) return;
-
-        foreach (var pc in playerColliders)
-        {
-            if (pc == null) continue;
-            Physics.IgnoreCollision(_collider, pc, true);
-            _ignoredPairs.Add((_collider, pc));
-        }
+        if (_obstacleHit != null)
+            _obstacleHit.enabled = active;
     }
 
     private void RestoreIgnoredCollisions()
     {
-        foreach (var (mine, player) in _ignoredPairs)
+        for (int i = 0; i < _ignoredPairs.Count; i++)
         {
-            if (mine != null && player != null)
-                Physics.IgnoreCollision(mine, player, false);
+            var (mine, other) = _ignoredPairs[i];
+            if (mine != null && other != null)
+                Physics.IgnoreCollision(mine, other, false);
         }
         _ignoredPairs.Clear();
+        _hitDetectorIds.Clear();
     }
 
     #endregion
@@ -227,11 +195,6 @@ public class PopupObstacle : MonoBehaviour, ITrap
         Gizmos.DrawLine(transform.position, targetWorldPos);
         Gizmos.matrix = Matrix4x4.TRS(targetWorldPos, transform.rotation, transform.localScale);
         Gizmos.DrawWireCube(Vector3.zero, Vector3.one);
-
-        // Detection radius.
-        Gizmos.matrix = Matrix4x4.identity;
-        Gizmos.color = new Color(1f, 0.5f, 0f, 0.3f);
-        Gizmos.DrawWireSphere(transform.position, _detectionRadius);
     }
 #endif
 }
