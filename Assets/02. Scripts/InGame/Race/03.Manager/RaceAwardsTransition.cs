@@ -6,15 +6,13 @@ using Hashtable = ExitGames.Client.Photon.Hashtable;
 
 public class RaceAwardsTransition : MonoBehaviourPunCallbacks
 {
-    private const string DefaultAwardsSceneName = "Awards";
     private const float DefaultDelayBeforeLoadSeconds = 3f;
     private const float DefaultMaxWaitAfterFirstRaceDoneSeconds = 45f;
 
-    [SerializeField] private string _awardsSceneName = DefaultAwardsSceneName;
     [SerializeField] private float _delayBeforeLoadSeconds = DefaultDelayBeforeLoadSeconds;
     [SerializeField] private float _maxWaitAfterFirstRaceDoneSeconds = DefaultMaxWaitAfterFirstRaceDoneSeconds;
 
-    private bool _awardsLoadScheduled;
+    private bool _ceremonyScheduled;
     private bool _firstRaceDoneRecorded;
     private float _firstRaceDoneRealtime;
     private Coroutine _loadCoroutine;
@@ -27,7 +25,7 @@ public class RaceAwardsTransition : MonoBehaviourPunCallbacks
 
     private void Update()
     {
-        if (!PhotonNetwork.IsMasterClient || _awardsLoadScheduled || !PhotonNetwork.InRoom)
+        if (!PhotonNetwork.IsMasterClient || _ceremonyScheduled || !PhotonNetwork.InRoom)
             return;
 
         RefreshFirstRaceDoneFromPlayers();
@@ -36,7 +34,7 @@ public class RaceAwardsTransition : MonoBehaviourPunCallbacks
 
     public override void OnPlayerPropertiesUpdate(Player targetPlayer, Hashtable changedProps)
     {
-        if (!PhotonNetwork.IsMasterClient || _awardsLoadScheduled || !PhotonNetwork.InRoom)
+        if (!PhotonNetwork.IsMasterClient || _ceremonyScheduled || !PhotonNetwork.InRoom)
             return;
 
         if (changedProps != null && changedProps.ContainsKey(InGameRaceKeys.RaceDoneKey))
@@ -48,7 +46,7 @@ public class RaceAwardsTransition : MonoBehaviourPunCallbacks
 
     public override void OnPlayerLeftRoom(Player otherPlayer)
     {
-        if (!PhotonNetwork.IsMasterClient || _awardsLoadScheduled || !PhotonNetwork.InRoom)
+        if (!PhotonNetwork.IsMasterClient || _ceremonyScheduled || !PhotonNetwork.InRoom)
             return;
 
         TryEvaluateTransition();
@@ -90,36 +88,31 @@ public class RaceAwardsTransition : MonoBehaviourPunCallbacks
     {
         if (AreAllCurrentPlayersRaceDone())
         {
-            ScheduleAwardsLoad();
+            ScheduleCeremony();
             return;
         }
 
         if (_firstRaceDoneRecorded &&
             Time.realtimeSinceStartup - _firstRaceDoneRealtime >= _maxWaitAfterFirstRaceDoneSeconds)
-            ScheduleAwardsLoad();
+            ScheduleCeremony();
     }
 
-    private void ScheduleAwardsLoad()
+    private void ScheduleCeremony()
     {
-        if (_awardsLoadScheduled) return;
-        _awardsLoadScheduled = true;
+        if (_ceremonyScheduled) return;
+        _ceremonyScheduled = true;
 
         if (_loadCoroutine != null)
             StopCoroutine(_loadCoroutine);
 
-        _loadCoroutine = StartCoroutine(LoadAwardsAfterDelay());
+        _loadCoroutine = StartCoroutine(EnterCeremonyAfterDelay());
     }
 
-    private IEnumerator LoadAwardsAfterDelay()
+    private IEnumerator EnterCeremonyAfterDelay()
     {
         yield return _waitDelayBeforeLoad;
 
-        if (SceneLoader.Instance == null)
-            yield break;
-
-        if (string.IsNullOrWhiteSpace(_awardsSceneName))
-            yield break;
-
-        SceneLoader.Instance.LoadScenePhoton(_awardsSceneName);
+        if (InGameManager.Instance != null)
+            InGameManager.Instance.EnterCeremony();
     }
 }

@@ -23,6 +23,8 @@ public class InGameManager : SingletonPunCallbacks<InGameManager>
     public GameState CurrentState { get; private set; } = GameState.Loading;
     public event Action<GameState> OnGameStateChanged;
     public event Action<int> OnRaceCountdownTick;
+    public event Action OnCeremonyReady;
+    public event Action OnCeremonyReturnRequested;
 
     protected override void Awake()
     {
@@ -176,6 +178,27 @@ public class InGameManager : SingletonPunCallbacks<InGameManager>
         TrySaveFinalRankToPlayerProperties();
         SetState(GameState.GameOver);
         SetLocalRaceDoneProperty();
+    }
+
+    public void EnterCeremony()
+    {
+        if (CurrentState < GameState.Playing) return;
+        if (CurrentState == GameState.Ceremony) return;
+        photonView.RPC(nameof(RPC_EnterCeremony), RpcTarget.All);
+    }
+
+    [PunRPC]
+    private void RPC_EnterCeremony()
+    {
+        if (CurrentState < GameState.Playing) return;
+        if (CurrentState == GameState.Ceremony) return;
+        SetState(GameState.Ceremony);
+        OnCeremonyReady?.Invoke();
+    }
+
+    public void RequestReturnToLobby()
+    {
+        OnCeremonyReturnRequested?.Invoke();
     }
 
     private void TrySaveFinalRankToPlayerProperties()
