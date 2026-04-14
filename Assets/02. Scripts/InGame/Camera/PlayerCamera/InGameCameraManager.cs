@@ -10,6 +10,7 @@ namespace InGame.Camera.PlayerCamera
         [Header("Scene Cameras")]
         [SerializeField] private CinemachineCamera _followCamera;
         [SerializeField] private IntroCameraController _introCamera;
+        [SerializeField] private CinemachineCamera _ceremonyCamera;
 
         protected override bool PersistAcrossScenes => false;
 
@@ -63,6 +64,10 @@ namespace InGame.Camera.PlayerCamera
                 case GameState.GameOver:
                     ActivateFollow();
                     break;
+
+                case GameState.Ceremony:
+                    ActivateCeremony();
+                    break;
             }
         }
 
@@ -93,6 +98,15 @@ namespace InGame.Camera.PlayerCamera
                 _introCamera.Stop();
 
             SetCameraPriority(_followCamera, ActivePriority);
+        }
+
+        private void ActivateCeremony()
+        {
+            if (_introCamera != null)
+                _introCamera.Stop();
+
+            SetCameraPriority(_followCamera, StandbyPriority);
+            SetCameraPriority(_ceremonyCamera, ActivePriority);
         }
 
         private void DeactivateAll()
