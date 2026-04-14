@@ -1,6 +1,8 @@
 using System;
 using System.Collections;
+using DG.Tweening;
 using InGame.Camera.PlayerCamera;
+using TMPro;
 using UnityEngine;
 using Photon.Pun;
 using Photon.Realtime;
@@ -11,6 +13,7 @@ public class InGameManager : SingletonPunCallbacks<InGameManager>
 {
     private const int DefaultCountdownSeconds = 3;
     private const int CountdownBufferMs = 200;
+    private const float AvatarInfoFadeDuration = 0.5f;
 
     protected override bool PersistAcrossScenes => false;
 
@@ -19,6 +22,7 @@ public class InGameManager : SingletonPunCallbacks<InGameManager>
 
     [Header("References")]
     [SerializeField] private PlayerSpawner _playerSpawner;
+    [SerializeField] private TextMeshProUGUI _avatarInfoText;
 
     public GameState CurrentState { get; private set; } = GameState.Loading;
     public event Action<GameState> OnGameStateChanged;
@@ -142,7 +146,22 @@ public class InGameManager : SingletonPunCallbacks<InGameManager>
                 yield return null;
         }
 
+        HideAvatarInfoText();
         SetState(GameState.Playing);
+    }
+
+    private void HideAvatarInfoText()
+    {
+        if (_avatarInfoText == null) return;
+
+        _avatarInfoText.DOKill();
+        _avatarInfoText.DOFade(0f, AvatarInfoFadeDuration)
+            .SetLink(_avatarInfoText.gameObject)
+            .OnComplete(() =>
+            {
+                if (_avatarInfoText != null)
+                    _avatarInfoText.gameObject.SetActive(false);
+            });
     }
 
     private bool AreAllPlayersIntroDone()
