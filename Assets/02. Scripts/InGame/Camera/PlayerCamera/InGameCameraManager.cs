@@ -10,6 +10,7 @@ namespace InGame.Camera.PlayerCamera
         [Header("Scene Cameras")]
         [SerializeField] private CinemachineCamera _followCamera;
         [SerializeField] private IntroCameraController _introCamera;
+        [SerializeField] private CinemachineCamera _ceremonyCamera;
 
         protected override bool PersistAcrossScenes => false;
 
@@ -17,6 +18,7 @@ namespace InGame.Camera.PlayerCamera
         private const int StandbyPriority = 0;
 
         public CinemachineCamera FollowCamera => _followCamera;
+        public IntroCameraController IntroCamera => _introCamera;
 
         protected override void Awake()
         {
@@ -25,6 +27,9 @@ namespace InGame.Camera.PlayerCamera
 
         private void OnEnable()
         {
+            if (_introCamera != null)
+                _introCamera.OnIntroComplete += HandleIntroComplete;
+
             if (InGameManager.Instance != null)
             {
                 InGameManager.Instance.OnGameStateChanged += HandleGameStateChanged;
@@ -34,6 +39,9 @@ namespace InGame.Camera.PlayerCamera
 
         private void OnDisable()
         {
+            if (_introCamera != null)
+                _introCamera.OnIntroComplete -= HandleIntroComplete;
+
             if (InGameManager.Instance != null)
                 InGameManager.Instance.OnGameStateChanged -= HandleGameStateChanged;
         }
@@ -56,6 +64,10 @@ namespace InGame.Camera.PlayerCamera
                 case GameState.GameOver:
                     ActivateFollow();
                     break;
+
+                case GameState.Ceremony:
+                    ActivateCeremony();
+                    break;
             }
         }
 
@@ -64,7 +76,20 @@ namespace InGame.Camera.PlayerCamera
             SetCameraPriority(_followCamera, StandbyPriority);
 
             if (_introCamera != null)
+            {
                 _introCamera.Play();
+            }
+            else if (InGameManager.Instance != null)
+            {
+                // Intro 카메라가 없으면 즉시 완료 신호.
+                InGameManager.Instance.NotifyLocalIntroDone();
+            }
+        }
+
+        private void HandleIntroComplete()
+        {
+            if (InGameManager.Instance != null)
+                InGameManager.Instance.NotifyLocalIntroDone();
         }
 
         private void ActivateFollow()
@@ -73,6 +98,15 @@ namespace InGame.Camera.PlayerCamera
                 _introCamera.Stop();
 
             SetCameraPriority(_followCamera, ActivePriority);
+        }
+
+        private void ActivateCeremony()
+        {
+            if (_introCamera != null)
+                _introCamera.Stop();
+
+            SetCameraPriority(_followCamera, StandbyPriority);
+            SetCameraPriority(_ceremonyCamera, ActivePriority);
         }
 
         private void DeactivateAll()

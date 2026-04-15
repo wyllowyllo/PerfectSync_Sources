@@ -28,10 +28,10 @@ namespace InGame.Player
         [SerializeField] private float _obstacleDetectionRadius;
 
         [Header("Hit Feedback")]
-        [Tooltip("카메라 쉐이크용 Impulse Source. 없으면 쉐이크 생략.")]
+        [Tooltip("카메라 쉐이크용 Impulse Source")]
         [SerializeField] private CinemachineImpulseSource _impulseSource;
 
-        [Tooltip("공격자 바디 PunchScale 연출. 없으면 생략.")]
+        [Tooltip("공격자 바디 PunchScale 연출")]
         [SerializeField] private PunchScaleEffect _punchScaleEffect;
 
         [Header("Obstacle Destroy")]

@@ -8,12 +8,32 @@ namespace InGame.Player.Ragdoll
         private readonly IReadOnlyList<Rigidbody> _ragdollRbs;
         private readonly float _hitRadius;
         private readonly float _forceScale;
+        private readonly float _maxInheritedSpeed;
+        private readonly float _maxBoneSpeed;
+        private readonly float _maxBoneSpeedSqr;
 
-        public RagdollHitApplier(IReadOnlyList<Rigidbody> ragdollRbs, float hitRadius, float forceScale)
+        public RagdollHitApplier(
+            IReadOnlyList<Rigidbody> ragdollRbs,
+            float hitRadius,
+            float forceScale,
+            CharacterSpeedLimits speedLimits)
         {
             _ragdollRbs = ragdollRbs;
             _hitRadius = hitRadius;
             _forceScale = forceScale;
+
+            if (speedLimits != null)
+            {
+                _maxInheritedSpeed = speedLimits.MaxInheritedSpeed;
+                _maxBoneSpeed = speedLimits.MaxBoneSpeed;
+                _maxBoneSpeedSqr = speedLimits.MaxBoneSpeedSqr;
+            }
+            else
+            {
+                _maxInheritedSpeed = 20f;
+                _maxBoneSpeed = 30f;
+                _maxBoneSpeedSqr = 900f;
+            }
         }
 
         /// <summary>
@@ -21,6 +41,9 @@ namespace InGame.Player.Ragdoll
         /// </summary>
         public void ApplyInitialHit(HitData hit, Vector3 inheritedVelocity)
         {
+            if (inheritedVelocity.sqrMagnitude > _maxInheritedSpeed * _maxInheritedSpeed)
+                inheritedVelocity = inheritedVelocity.normalized * _maxInheritedSpeed;
+
             for (int i = 0; i < _ragdollRbs.Count; i++)
                 _ragdollRbs[i].linearVelocity = inheritedVelocity;
 
@@ -56,6 +79,19 @@ namespace InGame.Player.Ragdoll
                 Rigidbody closest = GetClosestBoneRb(hit.HitPoint);
                 closest.AddForce(hit.Knockback * _forceScale, ForceMode.Impulse);
                 closest.AddTorque(hit.Torque * _forceScale, ForceMode.Impulse);
+            }
+
+            // 임펄스 직후 속도 클램프: 다음 FixedUpdate까지 1프레임 과속 방지.
+            ClampBoneVelocities();
+        }
+
+        private void ClampBoneVelocities()
+        {
+            for (int i = 0; i < _ragdollRbs.Count; i++)
+            {
+                Vector3 v = _ragdollRbs[i].linearVelocity;
+                if (v.sqrMagnitude > _maxBoneSpeedSqr)
+                    _ragdollRbs[i].linearVelocity = v.normalized * _maxBoneSpeed;
             }
         }
 

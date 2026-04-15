@@ -10,7 +10,7 @@ public class LobbyPopupCoordinator : MonoBehaviour
     [SerializeField] private GameObject _popupBackgroundRoot;
 
     [Header("Popups")]
-    [SerializeField] private SettingsPopup _settingsPopup;
+    [SerializeField] private GameObject _settingsObject;
     [SerializeField] private NicknameChangePopup _nicknameChangePopup;
     [SerializeField] private InviteFriendsPopup _inviteFriendsPopup;
     [SerializeField] private QuitPopup _quitPopup;
@@ -30,6 +30,7 @@ public class LobbyPopupCoordinator : MonoBehaviour
     [SerializeField] private Button _openInviteFriendsButton;
 
     private Coroutine _transientToastCoroutine;
+    private bool _isInParty;
 
     private void Start()
     {
@@ -42,18 +43,25 @@ public class LobbyPopupCoordinator : MonoBehaviour
         LobbyUiEvents.TransientToastRequested += OnLobbyUiTransientToastRequested;
         PartyInvitePopup.TransientToastRequested += OnPartyInviteTransientToastRequested;
         PartyInvitePopup.PartyInviteClosedOnlyRequested += OnPartyInviteClosedOnly;
+        PartyInvitePopup.LeavePartyRequested += HandleLeavePartyRequested;
 
         if (LobbyPartyService.Instance != null)
         {
             LobbyPartyService.Instance.OnPartyInviteReceived += HandlePartyInviteReceived;
             LobbyPartyService.Instance.OnPartyInviteResponded += HandlePartyInviteResponded;
             LobbyPartyService.Instance.OnPendingPartyInviteInvalidated += HandlePendingInviteInvalidated;
+            LobbyPartyService.Instance.OnPartyPartnerLinked += HandlePartyStateChanged;
+            LobbyPartyService.Instance.OnPartyCleared += HandlePartyClearedVisual;
         }
 
         EscMenuPopup.CloseAllPopupsAndEscMenuRequested += OnEscMenuCloseAllRequested;
         EscMenuPopup.OpenSettingsFromEscMenuRequested += OnEscMenuOpenSettingsRequested;
         EscMenuPopup.OpenQuitFromEscMenuRequested += OnEscMenuOpenQuitRequested;
         QuitPopup.CancelRequested += OnQuitCancelRequested;
+
+        _isInParty = LobbyPartyService.Instance != null
+                     && LobbyPartyService.Instance.LocalPlayerHasParty;
+        UpdateInviteButtonVisuals();
     }
 
     private void OnDisable()
@@ -67,12 +75,15 @@ public class LobbyPopupCoordinator : MonoBehaviour
         LobbyUiEvents.TransientToastRequested -= OnLobbyUiTransientToastRequested;
         PartyInvitePopup.TransientToastRequested -= OnPartyInviteTransientToastRequested;
         PartyInvitePopup.PartyInviteClosedOnlyRequested -= OnPartyInviteClosedOnly;
+        PartyInvitePopup.LeavePartyRequested -= HandleLeavePartyRequested;
 
         if (LobbyPartyService.Instance != null)
         {
             LobbyPartyService.Instance.OnPartyInviteReceived -= HandlePartyInviteReceived;
             LobbyPartyService.Instance.OnPartyInviteResponded -= HandlePartyInviteResponded;
             LobbyPartyService.Instance.OnPendingPartyInviteInvalidated -= HandlePendingInviteInvalidated;
+            LobbyPartyService.Instance.OnPartyPartnerLinked -= HandlePartyStateChanged;
+            LobbyPartyService.Instance.OnPartyCleared -= HandlePartyClearedVisual;
         }
 
         EscMenuPopup.CloseAllPopupsAndEscMenuRequested -= OnEscMenuCloseAllRequested;
@@ -91,7 +102,15 @@ public class LobbyPopupCoordinator : MonoBehaviour
     {
         HideAllBackgroundPopups();
         ShowPopupBackground();
-        GetBackgroundPopup(kind)?.Show();
+
+        if (kind == LobbyPopupKind.Settings)
+        {
+            if (_settingsObject != null) _settingsObject.SetActive(true);
+        }
+        else
+        {
+            GetBackgroundPopup(kind)?.Show();
+        }
     }
 
     public void ShowSettings()
@@ -125,7 +144,7 @@ public class LobbyPopupCoordinator : MonoBehaviour
         switch (kind)
         {
             case LobbyPopupKind.Settings:
-                return _settingsPopup;
+                return null;
             case LobbyPopupKind.NicknameChange:
                 return _nicknameChangePopup;
             case LobbyPopupKind.InviteFriends:
@@ -155,7 +174,7 @@ public class LobbyPopupCoordinator : MonoBehaviour
 
     private void HideAllBackgroundPopups()
     {
-        _settingsPopup?.Hide();
+        if (_settingsObject != null) _settingsObject.SetActive(false);
         _nicknameChangePopup?.Hide();
         _inviteFriendsPopup?.Hide();
         _quitPopup?.Hide();
@@ -221,6 +240,34 @@ public class LobbyPopupCoordinator : MonoBehaviour
         CloseAllPopups();
     }
 
+    private void UpdateInviteButtonVisuals()
+    {
+        if (_openInviteFriendsButtonInviteImage != null)
+            _openInviteFriendsButtonInviteImage.SetActive(!_isInParty);
+        if (_openInviteFriendsButtonBackImage != null)
+            _openInviteFriendsButtonBackImage.SetActive(_isInParty);
+    }
+
+    private void HandlePartyStateChanged(Player _)
+    {
+        _isInParty = true;
+        UpdateInviteButtonVisuals();
+    }
+
+    private void HandlePartyClearedVisual()
+    {
+        _isInParty = false;
+        UpdateInviteButtonVisuals();
+    }
+
+    private void HandleLeavePartyRequested()
+    {
+        LobbyPartyService.Instance?.LeavePartyAndNotifyPartner();
+        _isInParty = false;
+        CloseAllPopups();
+        UpdateInviteButtonVisuals();
+    }
+
     private void ShowTransientToast(string message)
     {
         if (_transientToastText == null)
@@ -244,7 +291,15 @@ public class LobbyPopupCoordinator : MonoBehaviour
 
     private void OnOpenInviteFriendsButtonClicked()
     {
-        ShowFollowFriends();
+        if (_isInParty)
+        {
+            _partyInvitePopup.SetLeavePartyMode();
+            ShowPopup(LobbyPopupKind.PartyInvite);
+        }
+        else
+        {
+            ShowFollowFriends();
+        }
     }
 
     private void OnEscMenuCloseAllRequested()

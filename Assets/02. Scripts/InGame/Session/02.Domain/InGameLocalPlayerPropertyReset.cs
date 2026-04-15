@@ -12,13 +12,17 @@ public static class InGameLocalPlayerPropertyReset
         var ht = new Hashtable
         {
             [InGameRaceKeys.ReadyKey] = false,
+            [InGameRaceKeys.IntroDoneKey] = false,
             [InGameRaceKeys.RaceDoneKey] = false,
             [InGameRaceKeys.FinalRankKey] = null,
             [LobbyMatchmakingKeys.Ready] = false
         };
 
         if (clearTeamBecauseNotInRoom)
+        {
             ht[PhotonTeamManager.TeamKey] = PhotonTeamManager.TeamNone;
+            ht[PhotonTeamManager.TeamSlotKey] = PhotonTeamManager.SlotNone;
+        }
 
         PhotonNetwork.LocalPlayer.SetCustomProperties(ht);
     }

@@ -3,18 +3,34 @@ using ExitGames.Client.Photon;
 using Photon.Pun;
 using Photon.Realtime;
 using UnityEngine;
+using UnityEngine.UI;
 using Hashtable = ExitGames.Client.Photon.Hashtable;
 
 public class LobbyCharacterDisplayController : MonoBehaviourPunCallbacks
 {
-    [SerializeField] private LobbyCharacterNicknameView _localCharacter;
-    [SerializeField] private LobbyCharacterNicknameView _partyCharacter;
+    [SerializeField] private CharacterNicknameView _localCharacter;
+    [SerializeField] private CharacterNicknameView _partyCharacter;
     [Header("파티원 외형 (로컬은 LobbyManager.PartItemsActivator 공유)")]
     [SerializeField] private CustomizationPartItemsActivator _partyPartActivator;
 
     [Header("Lobby Nickname Objects (Customization 토글)")]
     [SerializeField] private GameObject _myNicknameObject;
     [SerializeField] private GameObject _friendNicknameObject;
+
+    [Header("Ready Check Images (옵션 · _useReadyCheck = false면 무시)")]
+    [SerializeField] private bool _useReadyCheck = true;
+    [SerializeField] private GameObject _localReadyCheckImage;
+    [SerializeField] private GameObject _partyReadyCheckImage;
+
+    [Header("Ready Animation (옵션 · _useReadyAnimation = false면 무시)")]
+    [SerializeField] private bool _useReadyAnimation;
+    [SerializeField] private Animator _localReadyAnimator;
+    [SerializeField] private Animator _partyReadyAnimator;
+
+    [Header("Ready 상태 시 비활성화할 버튼")]
+    [SerializeField] private Button _customizationButton;
+
+    private static readonly int ReadyAnimParam = Animator.StringToHash("Ready");
 
     private bool _started;
     private bool _lobbyEventsHooked;
@@ -38,10 +54,8 @@ public class LobbyCharacterDisplayController : MonoBehaviourPunCallbacks
         SubscribeLobbyEvents();
         _started = true;
 
-        if (_localCharacter != null)
-            _localCharacter.SetReadyCheck(false);
-        if (_partyCharacter != null)
-            _partyCharacter.SetReadyCheck(false);
+        ApplyReadyVisual(_localReadyCheckImage, false);
+        ApplyReadyVisual(_partyReadyCheckImage, false);
 
         RefreshNicknameObjectsActive();
 
@@ -76,6 +90,8 @@ public class LobbyCharacterDisplayController : MonoBehaviourPunCallbacks
 
         SlidePanelStateController.SwitchToCustomizingStarted += HideNicknameObjects;
         SlidePanelStateController.SwitchToNormalCompleted += ShowNicknameObjects;
+
+        ReadyButton.OnReadyStateChanged += HandleReadyStateChanged;
 
         SyncPartyPartnerUiIfAlreadyInParty();
     }
@@ -112,6 +128,8 @@ public class LobbyCharacterDisplayController : MonoBehaviourPunCallbacks
 
         SlidePanelStateController.SwitchToCustomizingStarted -= HideNicknameObjects;
         SlidePanelStateController.SwitchToNormalCompleted -= ShowNicknameObjects;
+
+        ReadyButton.OnReadyStateChanged -= HandleReadyStateChanged;
     }
 
     public override void OnPlayerPropertiesUpdate(Player targetPlayer, Hashtable changedProps)
@@ -125,7 +143,7 @@ public class LobbyCharacterDisplayController : MonoBehaviourPunCallbacks
         bool customizationChanged = HasCustomizationPropertyChange(changedProps);
         bool readyChanged = changedProps.ContainsKey(LobbyMatchmakingKeys.Ready);
 
-        if (readyChanged)
+        if (readyChanged && _useReadyCheck)
             RefreshReadyChecks();
 
         if (!nicknameChanged && !customizationChanged)
@@ -148,10 +166,14 @@ public class LobbyCharacterDisplayController : MonoBehaviourPunCallbacks
 
         if (targetPlayer.IsLocal)
         {
-            CustomizationPartItemsActivator localActivator = LobbyManager.Instance != null
-                ? LobbyManager.Instance.PartItemsActivator
-                : null;
-            LobbyCustomizationPhotonApplier.ApplyFromPlayer(PhotonNetwork.LocalPlayer, localActivator);
+            if (LobbyManager.Instance != null && LobbyManager.Instance.PartItemsActivators != null)
+            {
+                foreach (var activator in LobbyManager.Instance.PartItemsActivators)
+                {
+                    if (activator != null)
+                        LobbyCustomizationPhotonApplier.ApplyFromPlayer(PhotonNetwork.LocalPlayer, activator);
+                }
+            }
             return;
         }
 
@@ -184,10 +206,14 @@ public class LobbyCharacterDisplayController : MonoBehaviourPunCallbacks
 
         RefreshNicknameObjectsActive(hasPartyOverride: true);
 
-        CustomizationPartItemsActivator localActivator = LobbyManager.Instance != null
-            ? LobbyManager.Instance.PartItemsActivator
-            : null;
-        LobbyCustomizationPhotonApplier.ApplyFromPlayer(PhotonNetwork.LocalPlayer, localActivator);
+        if (LobbyManager.Instance != null && LobbyManager.Instance.PartItemsActivators != null)
+        {
+            foreach (var activator in LobbyManager.Instance.PartItemsActivators)
+            {
+                if (activator != null)
+                    LobbyCustomizationPhotonApplier.ApplyFromPlayer(PhotonNetwork.LocalPlayer, activator);
+            }
+        }
         LobbyCustomizationPhotonApplier.ApplyFromPlayer(partner, _partyPartActivator);
     }
 
@@ -197,8 +223,11 @@ public class LobbyCharacterDisplayController : MonoBehaviourPunCallbacks
         {
             _partyCharacter.ClearNickname();
             _partyCharacter.SetVisible(false);
-            _partyCharacter.SetReadyCheck(false);
         }
+        ApplyReadyVisual(_partyReadyCheckImage, false);
+
+        if (_useReadyAnimation && _partyReadyAnimator != null)
+            _partyReadyAnimator.SetBool(ReadyAnimParam, false);
 
         RefreshNicknameObjectsActive(hasPartyOverride: false);
 
@@ -208,12 +237,14 @@ public class LobbyCharacterDisplayController : MonoBehaviourPunCallbacks
 
     private void RefreshReadyChecks()
     {
+        if (!_useReadyCheck)
+            return;
+
         bool localReady = PhotonNetwork.LocalPlayer != null &&
             PhotonNetwork.LocalPlayer.CustomProperties.TryGetValue(
                 LobbyMatchmakingKeys.Ready, out object lv) && lv is bool lb && lb;
 
-        if (_localCharacter != null)
-            _localCharacter.SetReadyCheck(localReady);
+        ApplyReadyVisual(_localReadyCheckImage, localReady);
 
         bool partnerReady = false;
         if (LobbyPartyService.Instance != null &&
@@ -225,8 +256,25 @@ public class LobbyCharacterDisplayController : MonoBehaviourPunCallbacks
                 LobbyMatchmakingKeys.Ready, out object pv) && pv is bool pb && pb;
         }
 
-        if (_partyCharacter != null)
-            _partyCharacter.SetReadyCheck(partnerReady);
+        ApplyReadyVisual(_partyReadyCheckImage, partnerReady);
+
+        if (_useReadyAnimation && _partyReadyAnimator != null)
+            _partyReadyAnimator.SetBool(ReadyAnimParam, partnerReady);
+    }
+
+    private void HandleReadyStateChanged(bool isReady)
+    {
+        if (_useReadyAnimation && _localReadyAnimator != null)
+            _localReadyAnimator.SetBool(ReadyAnimParam, isReady);
+
+        if (_customizationButton != null)
+            _customizationButton.interactable = !isReady;
+    }
+
+    private static void ApplyReadyVisual(GameObject image, bool visible)
+    {
+        if (image != null)
+            image.SetActive(visible);
     }
 
     private void ShowNicknameObjects()

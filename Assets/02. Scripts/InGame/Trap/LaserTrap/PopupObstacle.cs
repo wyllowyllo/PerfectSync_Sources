@@ -50,6 +50,7 @@ public class PopupObstacle : MonoBehaviour, ITrap
     private readonly Dictionary<int, float> _hitCooldowns = new();
     private readonly List<(Collider mine, Collider player)> _ignoredPairs = new();
 
+    public event Action OnActivated;
     public event Action OnResetComplete;
 
     private void Awake()
@@ -80,6 +81,7 @@ public class PopupObstacle : MonoBehaviour, ITrap
         _elapsed = 0f;
         _previousWorldPosition = transform.position;
         _state = State.Attacking;
+        OnActivated?.Invoke();
     }
 
     public void Reset()

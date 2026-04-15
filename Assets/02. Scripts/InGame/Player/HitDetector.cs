@@ -83,6 +83,8 @@ namespace InGame.Player
             OnHitDetected?.Invoke(hit);
         }
 
+        private const float MaxFallbackKnockback = 50f;
+
         private bool TryComputeFallbackKnockback(Collision collision, out Vector3 knockback, out Vector3 torque)
         {
             knockback = collision.relativeVelocity;
@@ -91,6 +93,10 @@ namespace InGame.Player
                 torque = Vector3.zero;
                 return false;
             }
+
+            // 솔버 디페네트레이션 방어: relativeVelocity 기반 knockback 크기 제한.
+            if (knockback.sqrMagnitude > MaxFallbackKnockback * MaxFallbackKnockback)
+                knockback = knockback.normalized * MaxFallbackKnockback;
 
             torque = HitData.ComputeRandomTorque(knockback.magnitude);
             return true;

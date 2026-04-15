@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 namespace InGame.Player.Ragdoll
 {
@@ -8,10 +9,11 @@ namespace InGame.Player.Ragdoll
     public class RagdollRig : MonoBehaviour, IRagdollRig
     {
         [SerializeField] private Transform _pelvis;
+        [FormerlySerializedAs("_physicsProfile")] [SerializeField] private CharacterSpeedLimits speedLimits;
 
         [Header("Extra Gravity")]
         [Tooltip("래그돌 상태에서 추가 하향 가속도 (m/s²). Unity 기본 중력에 더해짐.")]
-        [SerializeField] private float _extraGravity = 0f;
+        [SerializeField] private float _extraGravity = 15f;
 
         private Rigidbody _pelvisRb;
         private Rigidbody[] _ragdollRbs;
@@ -23,9 +25,18 @@ namespace InGame.Player.Ragdoll
         private const int RagdollSolverIterations = 8;
         private const int RagdollSolverVelocityIterations = 2;
 
+        // SO 미할당 시 폴백.
+        private const float FallbackMaxBoneSpeed = 30f;
+        private const float FallbackMaxInheritedSpeed = 20f;
+
+        private float _maxBoneSpeed;
+        private float _maxBoneSpeedSqr;
+        private float _maxInheritedSpeed;
+
         public IReadOnlyList<Rigidbody> Rigidbodies => _ragdollRbs;
         public IReadOnlyList<Transform> BoneTransforms => _ragdollBoneTransforms;
         public Transform PelvisTransform => _pelvis;
+        public CharacterSpeedLimits SpeedLimits => speedLimits;
 
         private void Awake()
         {
@@ -36,6 +47,20 @@ namespace InGame.Player.Ragdoll
             _ragdollBoneTransforms = new Transform[_ragdollRbs.Length];
             for (int i = 0; i < _ragdollRbs.Length; i++)
                 _ragdollBoneTransforms[i] = _ragdollRbs[i].transform;
+
+            // SO에서 속도 제한 캐싱.
+            if (speedLimits != null)
+            {
+                _maxBoneSpeed = speedLimits.MaxBoneSpeed;
+                _maxBoneSpeedSqr = speedLimits.MaxBoneSpeedSqr;
+                _maxInheritedSpeed = speedLimits.MaxInheritedSpeed;
+            }
+            else
+            {
+                _maxBoneSpeed = FallbackMaxBoneSpeed;
+                _maxBoneSpeedSqr = FallbackMaxBoneSpeed * FallbackMaxBoneSpeed;
+                _maxInheritedSpeed = FallbackMaxInheritedSpeed;
+            }
 
             // 시작 시 애니메이션 모드: kinematic + 콜라이더 비활성.
             SetKinematic(true);
@@ -48,6 +73,9 @@ namespace InGame.Player.Ragdoll
             SetKinematic(false);
             SetCollidersEnabled(true);
             _isPhysicsActive = true;
+
+            if (inheritedVelocity.sqrMagnitude > _maxInheritedSpeed * _maxInheritedSpeed)
+                inheritedVelocity = inheritedVelocity.normalized * _maxInheritedSpeed;
 
             for (int i = 0; i < _ragdollRbs.Length; i++)
             {
@@ -97,7 +125,15 @@ namespace InGame.Player.Ragdoll
 
             Vector3 extraForce = Vector3.down * _extraGravity;
             for (int i = 0; i < _ragdollRbs.Length; i++)
-                _ragdollRbs[i].AddForce(extraForce, ForceMode.Acceleration);
+            {
+                Rigidbody rb = _ragdollRbs[i];
+                rb.AddForce(extraForce, ForceMode.Acceleration);
+
+                // 솔버 디페네트레이션 방어: 프레임 드랍 시 관통 → 폭발적 속도 방지.
+                Vector3 v = rb.linearVelocity;
+                if (v.sqrMagnitude > _maxBoneSpeedSqr)
+                    rb.linearVelocity = v.normalized * _maxBoneSpeed;
+            }
         }
 
         private void SetKinematic(bool value)

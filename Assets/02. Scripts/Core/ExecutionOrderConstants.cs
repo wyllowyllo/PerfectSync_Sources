@@ -15,8 +15,11 @@ namespace Core
         public const int LaunchController = 3;
         public const int PlatformCarrier = 4;
 
-        // ── 카메라 (+5) ──
-        public const int CinemachineCameraManager = 5;
+        // ── 카메라 타겟 ──
+        public const int CameraTargetProvider = 5;
+
+        // ── 카메라 ──
+        public const int CinemachineCameraManager = 6;
 
         // ── 후처리 (10+) ──
         public const int BodySimulationToggle = 10;

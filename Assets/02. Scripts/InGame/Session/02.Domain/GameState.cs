@@ -5,5 +5,6 @@ public enum GameState
     Countdown,
     Playing,
     RaceComplete,
-    GameOver
+    GameOver,
+    Ceremony
 }

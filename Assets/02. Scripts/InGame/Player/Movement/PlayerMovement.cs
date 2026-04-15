@@ -3,6 +3,7 @@ using Core;
 using InGame.Player.Animation;
 using InGame.Player.Ragdoll;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 namespace InGame.Player.Movement
 {
@@ -15,6 +16,7 @@ namespace InGame.Player.Movement
         [Header("References")]
         [SerializeField] private Rigidbody _rootBody;
         [SerializeField] private Transform _groundCheckPoint;
+        [FormerlySerializedAs("_physicsProfile")] [SerializeField] private Ragdoll.CharacterSpeedLimits speedLimits;
 
         private RagdollStateMachine _ragdollController;
         private PlayerJump _playerJump;
@@ -33,7 +35,7 @@ namespace InGame.Player.Movement
 
         [Header("Gravity")]
         [SerializeField] private float _gravity = 9.81f;
-        [SerializeField] private float _maxFallSpeed = 15f;
+        private float _maxBodySpeed;
 
         [Header("Ground Check")]
         [SerializeField] private float _groundCheckRadius = 0.3f;
@@ -79,6 +81,8 @@ namespace InGame.Player.Movement
             _playerJump = GetComponent<PlayerJump>();
             _anim = GetComponent<PlayerAnimation>();
             _rootBody.constraints = RigidbodyConstraints.FreezeRotation;
+
+            _maxBodySpeed = speedLimits != null ? speedLimits.MaxBodySpeed : 50f;
         }
 
         private void Start()
@@ -186,7 +190,13 @@ namespace InGame.Player.Movement
             }
 
             velocity.y += (-_gravity - Physics.gravity.y) * Time.fixedDeltaTime;
-            velocity.y = Mathf.Max(velocity.y, -_maxFallSpeed);
+            velocity.y = Mathf.Clamp(velocity.y, -_maxBodySpeed, _maxBodySpeed);
+
+            // 솔버 디페네트레이션 방어: 다이브/모멘텀 중 XZ 포함 전체 속도 제한.
+            float sqrSpeed = velocity.sqrMagnitude;
+            if (sqrSpeed > _maxBodySpeed * _maxBodySpeed)
+                velocity *= _maxBodySpeed / Mathf.Sqrt(sqrSpeed);
+
             _rootBody.linearVelocity = velocity;
 
             if (_currentVelocity.sqrMagnitude > 0.01f)
