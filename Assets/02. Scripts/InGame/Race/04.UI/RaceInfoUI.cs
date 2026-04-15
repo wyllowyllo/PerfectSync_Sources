@@ -1,7 +1,7 @@
 using System.Collections;
 using DG.Tweening;
+using TMPro;
 using UnityEngine;
-using UnityEngine.UI;
 
 public class RaceInfoUI : MonoBehaviour
 {
@@ -10,17 +10,29 @@ public class RaceInfoUI : MonoBehaviour
     private const float GameOverHoldMultiplier = 1.2f;
 
     [Header("Display")]
-    [SerializeField] private Image _image;
+    [SerializeField] private TextMeshProUGUI _text;
     [SerializeField] private Transform _punchTarget;
 
-    [Header("Number Sprites (index 0 = '1', index 9 = '10')")]
-    [SerializeField] private Sprite[] _numberSprites = new Sprite[10];
+    [Header("Number Colors (index 0 = '1', index 9 = '10')")]
+    [SerializeField] private Color[] _numberColors = new Color[]
+    {
+        new Color(1f, 0.6f, 0.7f),
+        new Color(1f, 0.7f, 0.4f),
+        new Color(1f, 0.9f, 0.4f),
+        new Color(0.6f, 1f, 0.6f),
+        new Color(0.4f, 1f, 0.8f),
+        new Color(0.4f, 0.9f, 1f),
+        new Color(0.5f, 0.7f, 1f),
+        new Color(0.7f, 0.5f, 1f),
+        new Color(0.9f, 0.5f, 0.9f),
+        new Color(1f, 0.5f, 0.5f),
+    };
 
-    [Header("Special Sprites")]
-    [SerializeField] private Sprite _startSprite;
-    [SerializeField] private Sprite _winnerSprite;
-    [SerializeField] private Sprite _finishSprite;
-    [SerializeField] private Sprite _gameOverSprite;
+    [Header("Special Text Colors")]
+    [SerializeField] private Color _startColor = new Color(0.6f, 1f, 0.4f);
+    [SerializeField] private Color _winnerColor = new Color(1f, 0.85f, 0.3f);
+    [SerializeField] private Color _finishColor = new Color(0.4f, 0.85f, 1f);
+    [SerializeField] private Color _gameOverColor = new Color(1f, 0.45f, 0.5f);
 
     [Header("Timing")]
     [SerializeField] private float _defaultHoldSeconds = DefaultHoldSeconds;
@@ -47,35 +59,36 @@ public class RaceInfoUI : MonoBehaviour
         if (_punchTarget != null)
             _baseScale = _punchTarget.localScale;
 
-        if (_image != null)
-            SetAlpha(0f);
+        if (_text != null)
+            _text.alpha = 0f;
     }
 
     public void ShowCountdown(int number)
     {
+        if (number <= 0) return;
         int index = number - 1;
-        if (index < 0 || index >= _numberSprites.Length) return;
-        ShowSprite(_numberSprites[index], _waitDefaultHold);
+        Color color = index < _numberColors.Length ? _numberColors[index] : Color.white;
+        ShowText(number.ToString(), color, _waitDefaultHold);
     }
 
     public void ShowFinishWindowSeconds(int secondsRemaining) =>
         ShowCountdown(secondsRemaining);
 
     public void ShowStart() =>
-        ShowSprite(_startSprite, _waitDefaultHold);
+        ShowText("Start!", _startColor, _waitDefaultHold);
 
     public void ShowWinner() =>
-        ShowSprite(_winnerSprite, _waitDefaultHold);
+        ShowText("Winner!", _winnerColor, _waitDefaultHold);
 
     public void ShowFinish() =>
-        ShowSprite(_finishSprite, _waitDefaultHold);
+        ShowText("Finish!", _finishColor, _waitDefaultHold);
 
     public void ShowGameOver() =>
-        ShowSprite(_gameOverSprite, _waitGameOverHold);
+        ShowText("GameOver!", _gameOverColor, _waitGameOverHold);
 
-    private void ShowSprite(Sprite sprite, WaitForSeconds holdWait)
+    private void ShowText(string message, Color color, WaitForSeconds holdWait)
     {
-        if (_image == null || sprite == null) return;
+        if (_text == null || string.IsNullOrEmpty(message)) return;
 
         if (_routine != null)
         {
@@ -84,16 +97,14 @@ public class RaceInfoUI : MonoBehaviour
         }
 
         KillTweens();
-        _routine = StartCoroutine(DisplayRoutine(sprite, holdWait));
+        _routine = StartCoroutine(DisplayRoutine(message, color, holdWait));
     }
 
-    private IEnumerator DisplayRoutine(Sprite sprite, WaitForSeconds holdWait)
+    private IEnumerator DisplayRoutine(string message, Color color, WaitForSeconds holdWait)
     {
-        // 스프라이트 교체 + 즉시 표시
-        _image.sprite = sprite;
-        SetAlpha(1f);
+        _text.text = message;
+        _text.color = new Color(color.r, color.g, color.b, 1f);
 
-        // 펀치 애니메이션 (스케일 + 회전 동시)
         if (_punchTarget != null)
         {
             _punchTarget.localScale = _baseScale;
@@ -102,32 +113,21 @@ public class RaceInfoUI : MonoBehaviour
             _punchTarget.DOPunchRotation(_punchRotation, _punchRotationDuration, _vibrato, _elasticity);
         }
 
-        // 홀드
         if (holdWait != null)
             yield return holdWait;
 
-        // 페이드아웃
         float t = 0f;
         while (t < _defaultFadeSeconds)
         {
             t += Time.deltaTime;
-            float alpha = _defaultFadeSeconds > 0f
+            _text.alpha = _defaultFadeSeconds > 0f
                 ? Mathf.Lerp(1f, 0f, t / _defaultFadeSeconds)
                 : 0f;
-            SetAlpha(alpha);
             yield return null;
         }
 
-        SetAlpha(0f);
+        _text.alpha = 0f;
         _routine = null;
-    }
-
-    private void SetAlpha(float a)
-    {
-        if (_image == null) return;
-        Color c = _image.color;
-        c.a = a;
-        _image.color = c;
     }
 
     private void KillTweens()

@@ -10,6 +10,16 @@ public class CeremonyReturnUI : MonoBehaviour
             _returnPromptRoot.SetActive(false);
     }
 
+    private void OnEnable()
+    {
+        CeremonyManager.OnReturnUIShowRequested += Show;
+    }
+
+    private void OnDisable()
+    {
+        CeremonyManager.OnReturnUIShowRequested -= Show;
+    }
+
     public void Show()
     {
         if (_returnPromptRoot != null)
