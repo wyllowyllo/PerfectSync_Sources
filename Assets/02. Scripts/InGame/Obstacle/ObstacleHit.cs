@@ -29,6 +29,7 @@ namespace InGame.Obstacle
             torque = Vector3.zero;
             response = EHitResponse.Default;
 
+            if (!enabled) return false;
             if (_profile == null) return false;
 
             int colliderId = collision.collider.GetInstanceID();

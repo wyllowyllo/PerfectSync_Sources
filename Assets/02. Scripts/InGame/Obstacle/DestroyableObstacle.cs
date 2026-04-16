@@ -119,6 +119,9 @@ namespace InGame.Obstacle
 
             _hideTween?.Kill();
 
+            // 이전 cycle 의 blink 좀비 코루틴이 남아 있을 수 있으므로 먼저 정리.
+            StopBlink();
+
             // 원래 위치 복귀.
             if (_initialParent != null)
                 transform.SetParent(_initialParent, true);
@@ -177,6 +180,15 @@ namespace InGame.Obstacle
             }
         }
 
+        private void StopBlink()
+        {
+            if (_blinkCoroutine == null) return;
+            StopCoroutine(_blinkCoroutine);
+            _blinkCoroutine = null;
+            // 중단 시 renderer 를 항상 known state(ON) 로 복원.
+            SetRenderersEnabled(true);
+        }
+
         private void SetVisible(bool visible)
         {
             SetRenderersEnabled(visible);
@@ -203,12 +215,7 @@ namespace InGame.Obstacle
         {
             _hideTween?.Kill();
             _respawnTween?.Kill();
-
-            if (_blinkCoroutine != null)
-            {
-                StopCoroutine(_blinkCoroutine);
-                _blinkCoroutine = null;
-            }
+            StopBlink();
         }
 
         private void OnDestroy()
