@@ -17,7 +17,7 @@ public class CeremonyManager : MonoBehaviourPunCallbacks
     [Header("Scene")]
     [SerializeField] private string _lobbySceneName = "Lobby";
 
-    public event Action OnReturnUIShowRequested;
+    public static event Action OnReturnUIShowRequested;
 
     private bool _waitingForInput;
     private bool _isLeaving;
