@@ -44,12 +44,13 @@ namespace InGame.Player.Movement
         private Vector3 _currentVelocity;
         private ERagdollState _previousRagdollState;
         private float _lastGroundedTime;
-        private bool _jumpRequested;
+        private float _jumpBufferTime = float.NegativeInfinity;
         private bool _isGrounded;
         private Vector3 _inputDirection;
         private float _momentumBlend;
 
-        private const float CoyoteTime = 0.1f;
+        private const float CoyoteTime = 0.15f;
+        private const float JumpBufferDuration = 0.15f;
 
         // Host-authoritative 합체 모드: 애니메이션 트리거 동기화용.
         public event Action OnJumped;
@@ -112,7 +113,7 @@ namespace InGame.Player.Movement
             {
                 _isGrounded = false;
                 _anim.Locomotion(false, 0f);
-                _jumpRequested = false;
+                _jumpBufferTime = float.NegativeInfinity;
                 return;
             }
 
@@ -143,24 +144,23 @@ namespace InGame.Player.Movement
                 : _currentVelocity.magnitude;
             _anim.Locomotion(_isGrounded, speed);
 
-            if (_jumpRequested)
+            bool hasBufferedJump = Time.time - _jumpBufferTime <= JumpBufferDuration;
+            if (hasBufferedJump && !_anim.IsJumpLocked())
             {
-                // 착지 회복 애니메이션 재생 중에는 점프/다이브 차단.
-                if (!_anim.IsJumpLocked())
+                bool canJump = Time.time - _lastGroundedTime <= CoyoteTime;
+                if (canJump)
                 {
-                    bool canJump = Time.time - _lastGroundedTime <= CoyoteTime;
-                    if (canJump)
-                    {
-                        _playerJump.Jump();
-                        OnJumped?.Invoke();
-                    }
-                    else if (InGameManager.IsLocalPlayerControllable && _playerJump.TryDive(_inputDirection))
-                    {
-                        _currentVelocity = Vector3.zero;
-                        OnDived?.Invoke();
-                    }
+                    _playerJump.Jump();
+                    OnJumped?.Invoke();
+                    _jumpBufferTime = float.NegativeInfinity;
                 }
-                _jumpRequested = false;
+                else if (InGameManager.IsLocalPlayerControllable
+                         && _playerJump.TryDive(_inputDirection))
+                {
+                    _currentVelocity = Vector3.zero;
+                    OnDived?.Invoke();
+                    _jumpBufferTime = float.NegativeInfinity;
+                }
             }
         }
 
@@ -209,7 +209,7 @@ namespace InGame.Player.Movement
         public void ApplyInput(Vector3 worldDirection, bool jump)
         {
             _inputDirection = worldDirection;
-            _jumpRequested |= jump;
+            if (jump) _jumpBufferTime = Time.time;
         }
 
 
@@ -248,7 +248,7 @@ namespace InGame.Player.Movement
             {
                 _rootBody.isKinematic = true;
                 _currentVelocity = Vector3.zero;
-                _jumpRequested = false;
+                _jumpBufferTime = float.NegativeInfinity;
                 _momentumBlend = 0f;
                 _airControlBoost = 1f;
             }
