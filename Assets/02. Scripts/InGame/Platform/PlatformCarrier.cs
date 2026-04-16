@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Core;
+using InGame.Player.Ragdoll;
 using UnityEngine;
 
 namespace InGame.Race.Platform
@@ -175,9 +176,9 @@ namespace InGame.Race.Platform
             Rigidbody rb = collision.rigidbody;
             if (rb == null || rb.isKinematic || _riders.Contains(rb)) return;
 
-            // Joint로 연결된 body(래그돌 본 등) 제외.
+            // 래그돌 본(pelvis 포함) 제외.
             // position 직접 조작이 관절 제약을 우회하여 솔버 폭발을 유발하므로.
-            if (rb.TryGetComponent<Joint>(out _)) return;
+            if (rb.GetComponentInParent<RagdollRig>() != null) return;
 
             _riders.Add(rb);
             _riderToCarrier[rb] = this;

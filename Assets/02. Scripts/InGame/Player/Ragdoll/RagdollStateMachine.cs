@@ -1,7 +1,6 @@
 using System;
 using Core;
 using InGame.Player.Animation;
-using InGame.Race.Platform;
 using UnityEngine;
 namespace InGame.Player.Ragdoll
 {
@@ -254,9 +253,6 @@ namespace InGame.Player.Ragdoll
             DetachSkeleton();
 
             Vector3 inheritedVelocity = _rootBody.linearVelocity;
-            if (PlatformCarrier.TryGetMotionForRider(_rootBody, out _, out _, out Vector3 carryVel))
-                inheritedVelocity += carryVel;
-
             _ragdollRig.ActivatePhysics(inheritedVelocity);
             _hitApplier.ApplyInitialHit(
                 new HitData(Vector3.zero, _rootBody.position, Vector3.zero),
@@ -430,11 +426,6 @@ namespace InGame.Player.Ragdoll
             DetachSkeleton();
 
             Vector3 inheritedVelocity = _rootBody.linearVelocity;
-
-            // position 기반 carry의 운반 속도를 상속 (rb.linearVelocity에 미포함).
-            if (PlatformCarrier.TryGetMotionForRider(_rootBody, out _, out _, out Vector3 carryVel))
-                inheritedVelocity += carryVel;
-
             _ragdollRig.ActivatePhysics(inheritedVelocity);
             _hitApplier.ApplyInitialHit(hit, inheritedVelocity);
 
