@@ -51,26 +51,23 @@ namespace InGame.Player.Animation
         private static readonly int s_jumpLandHash = Animator.StringToHash("JumpLand");
 
         // GetUp 또는 JumpLand 재생/전환 중이면 점프 차단.
+        // 단, 회복 상태에서 빠져나가는 전환 중에는 점프 허용.
         public bool IsJumpLocked()
         {
-            int hash = _animator.GetCurrentAnimatorStateInfo(0).shortNameHash;
-            if (IsRecoveryHash(hash))
-                return true;
-
             if (_animator.IsInTransition(0))
             {
                 int nextHash = _animator.GetNextAnimatorStateInfo(0).shortNameHash;
                 return IsRecoveryHash(nextHash);
             }
 
-            return false;
+            int hash = _animator.GetCurrentAnimatorStateInfo(0).shortNameHash;
+            return IsRecoveryHash(hash);
         }
 
         private bool IsRecoveryHash(int hash)
         {
             return hash == s_getUpFromBackHash
-                || hash == s_getUpFromBellyHash
-                || hash == s_jumpLandHash;
+                || hash == s_getUpFromBellyHash;
         }
 
         public void Stumble()
