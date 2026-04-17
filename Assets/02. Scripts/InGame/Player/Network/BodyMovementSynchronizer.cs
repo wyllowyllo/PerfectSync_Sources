@@ -232,9 +232,8 @@ namespace InGame.Player.Network
                 stream.SendNext(_rootBody.rotation);
                 stream.SendNext(_movement != null ? _movement.CurrentSpeed : 0f);
                 stream.SendNext(_movement != null && _movement.Grounded);
-                stream.SendNext(_rootBody.linearVelocity);
-
-                PlatformCarrier.TryGetMotionForRider(_rootBody, out Vector3 angVel, out Vector3 pivot);
+                PlatformCarrier.TryGetMotionForRider(_rootBody, out Vector3 angVel, out Vector3 pivot, out Vector3 carryVel);
+                stream.SendNext(_rootBody.linearVelocity + carryVel);
                 stream.SendNext(angVel);
                 stream.SendNext(pivot);
             }

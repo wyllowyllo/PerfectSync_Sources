@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using DG.Tweening;
 using InGame.Player;
+using InGame.Race.Platform;
 using InGame.UserInput;
 using Photon.Pun;
 using UnityEngine;
@@ -108,6 +109,7 @@ namespace InGame.Gimmick
             var rb = bodyTransform.GetComponent<Rigidbody>();
             if (rb != null)
             {
+                PlatformCarrier.ForceRemoveRider(rb);
                 rb.position = position;
                 rb.rotation = rotation;
                 rb.linearVelocity = Vector3.zero;

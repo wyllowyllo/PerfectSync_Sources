@@ -32,11 +32,6 @@ public class UIRandomMapRouletteEffect : MonoBehaviour
     private Vector3[] _baseScales;
     private Vector3 _nameBaseScale;
     private int _currentIndex;
-
-    /// <summary>
-    /// 캔버스가 꺼져있어 OnEnable/Awake가 실행되지 않으므로,
-    /// 캔버스를 켜기 전에 반드시 이 메서드를 호출하여 맵 데이터를 주입합니다.
-    /// </summary>
     public void Initialize(MapDefinition[] maps)
     {
         _maps = maps;
@@ -69,7 +64,6 @@ public class UIRandomMapRouletteEffect : MonoBehaviour
 
         _currentIndex = Random.Range(0, _maps.Length);
 
-        // ── 초기 3개 이미지 + 이름 세팅 ──
         for (int i = 0; i < 3; i++)
         {
             int idx = (_currentIndex + i) % _maps.Length;
