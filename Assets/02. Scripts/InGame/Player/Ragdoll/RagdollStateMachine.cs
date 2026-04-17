@@ -334,6 +334,8 @@ namespace InGame.Player.Ragdoll
             _ragdollRig.ActivateKinematic();
             _animator.enabled = false;
             _rootBody.isKinematic = true;
+
+            OnStateChanged?.Invoke(_currentState);
         }
 
         public void EnterBlendToAnimRemote(Vector3 rootPos, Quaternion rootRot, bool isFaceUp)
@@ -355,6 +357,8 @@ namespace InGame.Player.Ragdoll
             _blender.StartBlend();
             _currentState = ERagdollState.BlendToAnim;
             _stateTimer = 0f;
+
+            OnStateChanged?.Invoke(_currentState);
         }
 
         public void EnterAnimatedRemote()
@@ -370,6 +374,8 @@ namespace InGame.Player.Ragdoll
             _rootBody.isKinematic = false;
             _rootBody.linearVelocity = Vector3.zero;
             _rootBody.angularVelocity = Vector3.zero;
+
+            OnStateChanged?.Invoke(_currentState);
         }
 
         public void PlayStumbleAnimation()
@@ -386,6 +392,8 @@ namespace InGame.Player.Ragdoll
             _ragdollRig.ActivateKinematic();
             _rootBody.isKinematic = true;
             _animator.enabled = false;
+
+            OnStateChanged?.Invoke(_currentState);
         }
 
         public void RespawnRemote()
@@ -398,6 +406,8 @@ namespace InGame.Player.Ragdoll
             _rootBody.isKinematic = false;
             _rootBody.linearVelocity = Vector3.zero;
             _rootBody.angularVelocity = Vector3.zero;
+
+            OnStateChanged?.Invoke(_currentState);
         }
 
         #endregion

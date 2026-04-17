@@ -17,9 +17,14 @@ namespace InGame.Effect
         [Tooltip("래그돌 진입 시 빠르게 사라지는 시간")]
         [SerializeField] private float _fadeOutDuration = 0.15f;
 
+        [Header("Arrow Rotation Smoothing")]
+        [Tooltip("화살표 헤드가 목표 각도로 따라가는 속도 (도/초). 값이 클수록 빠르게 정착")]
+        [SerializeField] private float _arrowRotateSpeed = 720f;
+
         public Color SelfColor => _selfColor;
         public Color TeammateColor => _teammateColor;
         public float FadeInDuration => _fadeInDuration;
         public float FadeOutDuration => _fadeOutDuration;
+        public float ArrowRotateSpeed => _arrowRotateSpeed;
     }
 }

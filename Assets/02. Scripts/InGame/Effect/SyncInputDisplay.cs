@@ -128,17 +128,23 @@ namespace InGame.Effect
 
             // DirectionCanvas가 RootBody의 자식이므로, 월드 방향을 Canvas 로컬 각도로 바꾸려면 RootBody의 yaw를 상쇄해야 함.
             float rootYaw = _rootBodyTransform != null ? _rootBodyTransform.eulerAngles.y : 0f;
+            float rotateStep = _profile.ArrowRotateSpeed * Time.deltaTime;
 
-            RotatePivot(_innerArrowPivot, selfDir, rootYaw);
-            RotatePivot(_outerArrowPivot, teammateDir, rootYaw);
+            RotatePivotSmooth(_innerArrowPivot, selfDir, rootYaw, rotateStep);
+            RotatePivotSmooth(_outerArrowPivot, teammateDir, rootYaw, rotateStep);
         }
 
-        private static void RotatePivot(RectTransform pivot, Vector3 dir, float rootYawDegrees)
+        private static void RotatePivotSmooth(RectTransform pivot, Vector3 dir, float rootYawDegrees, float maxDeltaDegrees)
         {
             if (dir.sqrMagnitude <= 0.001f) return;
 
             float worldAngle = Mathf.Atan2(dir.x, dir.z) * Mathf.Rad2Deg;
-            pivot.localEulerAngles = new Vector3(0f, 0f, rootYawDegrees - worldAngle);
+            float targetZ = rootYawDegrees - worldAngle;
+            float currentZ = pivot.localEulerAngles.z;
+
+            // ±180° 래핑 안전한 각도 보간.
+            float smoothedZ = Mathf.MoveTowardsAngle(currentZ, targetZ, maxDeltaDegrees);
+            pivot.localEulerAngles = new Vector3(0f, 0f, smoothedZ);
         }
     }
 }
