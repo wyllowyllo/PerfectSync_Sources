@@ -6,11 +6,6 @@ using Hashtable = ExitGames.Client.Photon.Hashtable;
 
 namespace InGame.Player.Network
 {
-    /// <summary>
-    /// TeamCharacter 루트에 부착. 팀 아바타의 현재 소스 플레이어(=커스터마이징 주체)를
-    /// 모든 클라이언트가 동일하게 유지하도록 RPC로 동기화하고, 카운트다운이 끝나기 전까지
-    /// 팀원이 C 키로 소스를 토글할 수 있게 한다.
-    /// </summary>
     [RequireComponent(typeof(PhotonView))]
     public class InGameCustomizationApplier : MonoBehaviourPunCallbacks
     {
@@ -23,6 +18,20 @@ namespace InGame.Player.Network
         private bool _stateHandlerHooked;
 
         public int CurrentSourceActorNumber => _currentSourceActorNumber;
+
+        /// <summary>
+        /// 이 팀 캐릭터의 소속 팀 번호 (PhotonView.Owner 기준).
+        /// 소유자가 없으면 PhotonTeamManager.TeamNone 반환.
+        /// </summary>
+        public int TeamNumber
+        {
+            get
+            {
+                Photon.Realtime.Player owner = photonView != null ? photonView.Owner : null;
+                if (owner == null) return PhotonTeamManager.TeamNone;
+                return PhotonTeamManager.GetTeamRaw(owner);
+            }
+        }
 
         public bool CanToggle =>
             InGameManager.Instance != null &&
