@@ -38,6 +38,8 @@ namespace InGame.Effect
         private CanvasGroup _canvasGroup;
         private Tween _fadeTween;
         private bool _localIsHost;
+        private Vector3 _lastSelfDir;
+        private Vector3 _lastTeammateDir;
 
         private void Start()
         {
@@ -126,12 +128,16 @@ namespace InGame.Effect
             Vector3 selfDir = _localIsHost ? _inputRouter.RoutedDirA : _inputRouter.RoutedDirB;
             Vector3 teammateDir = _localIsHost ? _inputRouter.RoutedDirB : _inputRouter.RoutedDirA;
 
+            // 입력이 있을 때만 마지막 방향을 갱신. 0 입력 시엔 이전 월드 방향을 유지해 RootBody yaw 변화에도 화살표가 월드 기준으로 멈춰있게 함.
+            if (selfDir.sqrMagnitude > 0.001f) _lastSelfDir = selfDir;
+            if (teammateDir.sqrMagnitude > 0.001f) _lastTeammateDir = teammateDir;
+
             // DirectionCanvas가 RootBody의 자식이므로, 월드 방향을 Canvas 로컬 각도로 바꾸려면 RootBody의 yaw를 상쇄해야 함.
             float rootYaw = _rootBodyTransform != null ? _rootBodyTransform.eulerAngles.y : 0f;
             float rotateStep = _profile.ArrowRotateSpeed * Time.deltaTime;
 
-            RotatePivotSmooth(_innerArrowPivot, selfDir, rootYaw, rotateStep);
-            RotatePivotSmooth(_outerArrowPivot, teammateDir, rootYaw, rotateStep);
+            RotatePivotSmooth(_innerArrowPivot, _lastSelfDir, rootYaw, rotateStep);
+            RotatePivotSmooth(_outerArrowPivot, _lastTeammateDir, rootYaw, rotateStep);
         }
 
         private static void RotatePivotSmooth(RectTransform pivot, Vector3 dir, float rootYawDegrees, float maxDeltaDegrees)
