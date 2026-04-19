@@ -141,6 +141,12 @@ namespace InGame.Obstacle
                 }
             }
 
+            for (int i = 0; i < count; i++)
+            {
+                if (_renderers[i] != null)
+                    _renderers[i].shadowCastingMode = ShadowCastingMode.Off;
+            }
+
             SetAlpha(0f);
         }
 
