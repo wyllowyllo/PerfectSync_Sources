@@ -26,6 +26,10 @@ namespace InGame.Obstacle
         private const int CharacterBodyLayer = 7;
 
         private static readonly int ID_GeneralAlpha = Shader.PropertyToID("_GeneralAlpha");
+        private static readonly int ID_BaseColor = Shader.PropertyToID("_BaseColor");
+        private static readonly int ID_Surface = Shader.PropertyToID("_Surface");
+        private static readonly int ID_SrcBlend = Shader.PropertyToID("_SrcBlend");
+        private static readonly int ID_DstBlend = Shader.PropertyToID("_DstBlend");
 
         // ── ViewID → 인스턴스 매핑 (Photon 이벤트 수신 시 O(1) 탐색) ──
         private static readonly Dictionary<int, ObstacleRevealOnHit> s_registry = new();
@@ -39,6 +43,9 @@ namespace InGame.Obstacle
 
         private Renderer[] _renderers;
         private MaterialPropertyBlock[] _propBlocks;
+        private bool[] _isAllIn1;           // 렌더러별 셰이더 종류.
+        private Color[][] _baseColors;      // URP Lit용: 원본 BaseColor 캐싱.
+        private Material[][] _matInstances; // URP Lit용: 머티리얼 인스턴스 캐싱.
         private ObstacleHit _obstacleHit;
         private DestroyableObstacle _destroyable;
 
@@ -97,13 +104,41 @@ namespace InGame.Obstacle
 
         private void MakeTransparent()
         {
-            for (int i = 0; i < _renderers.Length; i++)
+            int count = _renderers.Length;
+            _isAllIn1 = new bool[count];
+            _baseColors = new Color[count][];
+            _matInstances = new Material[count][];
+
+            for (int i = 0; i < count; i++)
             {
-                if (_renderers[i] == null) continue;
+                if (_renderers[i] == null)
+                {
+                    _matInstances[i] = System.Array.Empty<Material>();
+                    _baseColors[i] = System.Array.Empty<Color>();
+                    continue;
+                }
 
                 var mats = _renderers[i].materials;
-                foreach (var mat in mats)
-                    SetAlphaBlend(mat, true);
+                _matInstances[i] = mats;
+
+                // 첫 번째 머티리얼로 셰이더 종류 판별.
+                _isAllIn1[i] = mats.Length > 0 && mats[0].HasProperty(ID_GeneralAlpha);
+
+                if (_isAllIn1[i])
+                {
+                    _baseColors[i] = System.Array.Empty<Color>();
+                    foreach (var mat in mats)
+                        SetAlphaBlendAllIn1(mat, true);
+                }
+                else
+                {
+                    _baseColors[i] = new Color[mats.Length];
+                    for (int j = 0; j < mats.Length; j++)
+                    {
+                        _baseColors[i][j] = mats[j].GetColor(ID_BaseColor);
+                        SetAlphaBlendUrpLit(mats[j], true);
+                    }
+                }
             }
 
             SetAlpha(0f);
@@ -262,13 +297,27 @@ namespace InGame.Obstacle
             {
                 if (_renderers[i] == null) continue;
 
-                _renderers[i].GetPropertyBlock(_propBlocks[i]);
-                _propBlocks[i].SetFloat(ID_GeneralAlpha, alpha);
-                _renderers[i].SetPropertyBlock(_propBlocks[i]);
+                if (_isAllIn1[i])
+                {
+                    _renderers[i].GetPropertyBlock(_propBlocks[i]);
+                    _propBlocks[i].SetFloat(ID_GeneralAlpha, alpha);
+                    _renderers[i].SetPropertyBlock(_propBlocks[i]);
+                }
+                else
+                {
+                    for (int j = 0; j < _matInstances[i].Length; j++)
+                    {
+                        Color c = _baseColors[i][j];
+                        c.a = alpha;
+                        _matInstances[i][j].SetColor(ID_BaseColor, c);
+                    }
+                }
             }
         }
 
-        private static void SetAlphaBlend(Material mat, bool enable)
+        // ── AllIn13DShader ──
+
+        private static void SetAlphaBlendAllIn1(Material mat, bool enable)
         {
             if (enable)
             {
@@ -282,6 +331,30 @@ namespace InGame.Obstacle
                 mat.SetFloat("_BlendSrc", (float)BlendMode.One);
                 mat.SetFloat("_BlendDst", (float)BlendMode.Zero);
                 mat.SetFloat("_ZWrite", 1f);
+                mat.renderQueue = (int)RenderQueue.Geometry;
+            }
+        }
+
+        // ── URP Lit ──
+
+        private static void SetAlphaBlendUrpLit(Material mat, bool enable)
+        {
+            if (enable)
+            {
+                mat.SetFloat(ID_Surface, 1f);
+                mat.SetFloat(ID_SrcBlend, (float)BlendMode.SrcAlpha);
+                mat.SetFloat(ID_DstBlend, (float)BlendMode.OneMinusSrcAlpha);
+                mat.SetFloat("_ZWrite", 0f);
+                mat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+                mat.renderQueue = (int)RenderQueue.Transparent;
+            }
+            else
+            {
+                mat.SetFloat(ID_Surface, 0f);
+                mat.SetFloat(ID_SrcBlend, (float)BlendMode.One);
+                mat.SetFloat(ID_DstBlend, (float)BlendMode.Zero);
+                mat.SetFloat("_ZWrite", 1f);
+                mat.DisableKeyword("_SURFACE_TYPE_TRANSPARENT");
                 mat.renderQueue = (int)RenderQueue.Geometry;
             }
         }
