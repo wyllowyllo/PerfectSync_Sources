@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using InGame.Player;
 using UnityEngine;
@@ -10,6 +11,9 @@ namespace InGame.Obstacle
 
         public ObstacleHitProfile Profile => _profile;
 
+        public event Action<Collision> OnCollisionDetected;
+        public event Action<Collision> OnCollisionEnded;
+
         private Dictionary<int, float> _lastHitTimes;
 
         private const int PruneThreshold = 16;
@@ -17,6 +21,16 @@ namespace InGame.Obstacle
         private void Awake()
         {
             _lastHitTimes = new Dictionary<int, float>();
+        }
+
+        private void OnCollisionEnter(Collision collision)
+        {
+            OnCollisionDetected?.Invoke(collision);
+        }
+
+        private void OnCollisionExit(Collision collision)
+        {
+            OnCollisionEnded?.Invoke(collision);
         }
 
         public bool TryComputeKnockback(

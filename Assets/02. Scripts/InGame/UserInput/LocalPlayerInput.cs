@@ -25,6 +25,7 @@ namespace InGame.UserInput
         public event Action<HitData, int> OnHitReceived;
         public event Action OnDeathReceived;
         public event Action OnRespawnReceived;
+        public event Action OnRecoveryReceived;
 
         private Vector2 _moveInput;
         private bool _jumpPressed;
@@ -53,6 +54,9 @@ namespace InGame.UserInput
 
             _moveInput = new Vector2(Input.GetAxisRaw("Horizontal"), Input.GetAxisRaw("Vertical"));
             _jumpPressed |= Input.GetButtonDown("Jump");
+
+            if (Input.GetKeyDown(KeyCode.Alpha1))
+                SendRecovery();
         }
 
         public void SendHit(HitData hit, int hitViewID)
@@ -91,6 +95,18 @@ namespace InGame.UserInput
         private void RpcReceiveRespawn()
         {
             OnRespawnReceived?.Invoke();
+        }
+
+        public void SendRecovery()
+        {
+            OnRecoveryReceived?.Invoke();
+            photonView.RPC(nameof(RpcReceiveRecovery), RpcTarget.Others);
+        }
+
+        [PunRPC]
+        private void RpcReceiveRecovery()
+        {
+            OnRecoveryReceived?.Invoke();
         }
     }
 }

@@ -42,6 +42,10 @@ public class RaceProgressTracker : MonoBehaviour
         CheckpointsPassed = index;
     }
 
+    /// <summary>
+    /// 전 세그먼트 중 가장 가까운 스플라인을 고르고, 코스 입구부터 그 투영점까지 호장 거리를 Progress로 씁니다.
+    /// 체크포인트는 PassCheckpoint로만 올라가며 리스폰/완주 판정용입니다.
+    /// </summary>
     private void Update()
     {
         if (RaceRankingManager.Instance == null) return;
