@@ -6,8 +6,8 @@ namespace Core.VFX
     public class SpatialVfxProfile : ScriptableObject
     {
         [Header("Prefab")]
-        [Tooltip("재생할 파티클 프리팹. 루트에 ParticleSystem이 있는 프리팹 하나를 지정합니다.")]
-        [SerializeField] private ParticleSystem _prefab;
+        [Tooltip("재생할 VFX 프리팹. 루트 이하에 하나 이상의 ParticleSystem을 포함해야 합니다.")]
+        [SerializeField] private GameObject _prefab;
 
         [Header("Playback")]
         [Tooltip("같은 호출자(caller)가 이 프로필을 연속 재생할 수 없는 최소 간격(초). 버튼 연타/충돌 플러드를 막습니다.")]
@@ -19,13 +19,13 @@ namespace Core.VFX
         [Tooltip("재생 시 스폰되는 인스턴스의 로컬 스케일 최대값. _scaleMin과 같으면 스케일 랜덤이 꺼집니다.")]
         [SerializeField, Range(0.1f, 3f)] private float _scaleMax = 1f;
 
-        [Tooltip("0보다 크면 이 시간(초) 후 강제 회수. 0이면 prefab의 main.duration + startLifetime.constantMax를 사용합니다.")]
+        [Tooltip("0보다 크면 이 시간(초) 후 강제 회수. 0이면 prefab 하위 모든 ParticleSystem 중 main.duration + startLifetime.constantMax의 최댓값을 사용합니다.")]
         [SerializeField] private float _lifetimeOverride = 0f;
 
         [Tooltip("true면 EmitOn 호출 시 타겟 Transform을 매 프레임 추적. false면 호출 시점 위치에 고정.")]
         [SerializeField] private bool _followTarget = false;
 
-        public ParticleSystem Prefab => _prefab;
+        public GameObject Prefab => _prefab;
         public float Cooldown => _cooldown;
         public bool FollowTarget => _followTarget;
 
@@ -42,8 +42,19 @@ namespace Core.VFX
             if (_prefab == null)
                 return 1f;
 
-            var main = _prefab.main;
-            return main.duration + main.startLifetime.constantMax;
+            var systems = _prefab.GetComponentsInChildren<ParticleSystem>(true);
+            if (systems.Length == 0)
+                return 1f;
+
+            float max = 0f;
+            for (int i = 0; i < systems.Length; i++)
+            {
+                var main = systems[i].main;
+                float candidate = main.duration + main.startLifetime.constantMax;
+                if (candidate > max)
+                    max = candidate;
+            }
+            return max;
         }
     }
 }

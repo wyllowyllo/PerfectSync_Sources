@@ -12,8 +12,8 @@ namespace InGame.VFX
 
         public static InGameVfxManager Instance { get; private set; }
 
-        private readonly Dictionary<ParticleSystem, Queue<ParticleSystem>> _pools = new();
-        private readonly Dictionary<ParticleSystem, int> _totalSpawned = new();
+        private readonly Dictionary<GameObject, Queue<GameObject>> _pools = new();
+        private readonly Dictionary<GameObject, int> _totalSpawned = new();
         private readonly Dictionary<(SpatialVfxProfile profile, int callerId), float> _cooldowns = new();
 
         private Transform _poolRoot;
@@ -39,7 +39,7 @@ namespace InGame.VFX
 
         public void EmitAt(SpatialVfxProfile profile, Vector3 position, Quaternion rotation, Object caller = null)
         {
-            if (!TryBeginEmit(profile, caller, out ParticleSystem instance))
+            if (!TryBeginEmit(profile, caller, out GameObject instance))
                 return;
 
             instance.transform.SetPositionAndRotation(position, rotation);
@@ -51,7 +51,7 @@ namespace InGame.VFX
             if (follow == null)
                 return;
 
-            if (!TryBeginEmit(profile, caller, out ParticleSystem instance))
+            if (!TryBeginEmit(profile, caller, out GameObject instance))
                 return;
 
             instance.transform.SetPositionAndRotation(follow.position, follow.rotation);
@@ -62,7 +62,7 @@ namespace InGame.VFX
                 StartCoroutine(CoPlayStatic(profile, instance));
         }
 
-        private bool TryBeginEmit(SpatialVfxProfile profile, Object caller, out ParticleSystem instance)
+        private bool TryBeginEmit(SpatialVfxProfile profile, Object caller, out GameObject instance)
         {
             instance = null;
 
@@ -82,20 +82,20 @@ namespace InGame.VFX
             return true;
         }
 
-        private IEnumerator CoPlayStatic(SpatialVfxProfile profile, ParticleSystem instance)
+        private IEnumerator CoPlayStatic(SpatialVfxProfile profile, GameObject instance)
         {
-            instance.gameObject.SetActive(true);
-            instance.Play(true);
+            instance.SetActive(true);
+            PlayAll(instance);
 
             yield return new WaitForSeconds(profile.GetEffectiveLifetime());
 
             ReleaseInstance(profile.Prefab, instance);
         }
 
-        private IEnumerator CoPlayFollowing(SpatialVfxProfile profile, ParticleSystem instance, Transform follow)
+        private IEnumerator CoPlayFollowing(SpatialVfxProfile profile, GameObject instance, Transform follow)
         {
-            instance.gameObject.SetActive(true);
-            instance.Play(true);
+            instance.SetActive(true);
+            PlayAll(instance);
 
             float endTime = Time.time + profile.GetEffectiveLifetime();
             while (Time.time < endTime)
@@ -109,6 +109,20 @@ namespace InGame.VFX
             ReleaseInstance(profile.Prefab, instance);
         }
 
+        private static void PlayAll(GameObject instance)
+        {
+            var systems = instance.GetComponentsInChildren<ParticleSystem>(true);
+            for (int i = 0; i < systems.Length; i++)
+                systems[i].Play(false);
+        }
+
+        private static void StopAll(GameObject instance)
+        {
+            var systems = instance.GetComponentsInChildren<ParticleSystem>(true);
+            for (int i = 0; i < systems.Length; i++)
+                systems[i].Stop(false, ParticleSystemStopBehavior.StopEmittingAndClear);
+        }
+
         private void InitializePoolRoot()
         {
             var root = new GameObject(VfxPoolChildName);
@@ -116,18 +130,18 @@ namespace InGame.VFX
             _poolRoot = root.transform;
         }
 
-        private ParticleSystem AcquireInstance(ParticleSystem prefab)
+        private GameObject AcquireInstance(GameObject prefab)
         {
-            if (!_pools.TryGetValue(prefab, out Queue<ParticleSystem> queue))
+            if (!_pools.TryGetValue(prefab, out Queue<GameObject> queue))
             {
-                queue = new Queue<ParticleSystem>();
+                queue = new Queue<GameObject>();
                 _pools[prefab] = queue;
                 _totalSpawned[prefab] = 0;
             }
 
             while (queue.Count > 0)
             {
-                ParticleSystem candidate = queue.Dequeue();
+                GameObject candidate = queue.Dequeue();
                 if (candidate != null)
                     return candidate;
             }
@@ -137,23 +151,23 @@ namespace InGame.VFX
                 Debug.LogWarning($"[InGameVfxManager] Pool for '{prefab.name}' grew to {PoolGrowthWarnThreshold} instances. Review cooldown or pre-allocation.");
 
             var instance = Instantiate(prefab, _poolRoot);
-            instance.gameObject.SetActive(false);
+            instance.SetActive(false);
             _totalSpawned[prefab] = spawned + 1;
             return instance;
         }
 
-        private void ReleaseInstance(ParticleSystem prefab, ParticleSystem instance)
+        private void ReleaseInstance(GameObject prefab, GameObject instance)
         {
             if (instance == null)
                 return;
 
-            instance.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            StopAll(instance);
             instance.transform.SetParent(_poolRoot, worldPositionStays: false);
             instance.transform.localPosition = Vector3.zero;
             instance.transform.localRotation = Quaternion.identity;
-            instance.gameObject.SetActive(false);
+            instance.SetActive(false);
 
-            if (_pools.TryGetValue(prefab, out Queue<ParticleSystem> queue))
+            if (_pools.TryGetValue(prefab, out Queue<GameObject> queue))
                 queue.Enqueue(instance);
         }
     }
