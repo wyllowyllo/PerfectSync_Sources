@@ -50,11 +50,8 @@ public class CeremonyManager : MonoBehaviourPunCallbacks
 
     private void ApplyRankCustomizations()
     {
-        if (RaceRankingManager.Instance == null) return;
+        List<TeamRankEntry> rankings = RaceFinalRankingStore.GetAllOrderedByRank();
 
-        IReadOnlyList<TeamRankEntry> rankings = RaceRankingManager.Instance.CurrentRankings;
-
-        // 인게임 중 C키 토글로 결정된 팀별 "최종 커스터마이징 소스" 수집
         Dictionary<int, int> teamToSourceActor = BuildTeamSourceActorMap();
 
         for (int i = 0; i < _podiumActivators.Length; i++)

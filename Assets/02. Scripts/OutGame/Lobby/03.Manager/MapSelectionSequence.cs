@@ -62,8 +62,6 @@ public class MapSelectionSequence : MonoBehaviour
         if (_mapSelectionCanvas != null) _mapSelectionCanvas.SetActive(false);
         if (_whiteFadeObject != null) _whiteFadeObject.SetActive(false);
         if (_mapInfoObject != null) _mapInfoObject.SetActive(false);
-        // 다음 연출 시 OnEnable이 다시 호출되도록 룰렛 오브젝트는 켜진 상태로 복원
-        if (_rouletteEffect != null) _rouletteEffect.gameObject.SetActive(true);
     }
 
     private IEnumerator SequenceRoutine(Action onComplete)
@@ -81,9 +79,6 @@ public class MapSelectionSequence : MonoBehaviour
 
         if (_whiteFadeObject != null) _whiteFadeObject.SetActive(true);
         yield return new WaitForSeconds(_whiteFadeLeadTime);
-
-        // 화이트 플래시로 가려진 동안 룰렛 오브젝트 끄기 (맵 정보와 겹치지 않도록)
-        if (_rouletteEffect != null) _rouletteEffect.gameObject.SetActive(false);
 
         if (_whiteFadeObject != null) _whiteFadeObject.SetActive(false);
 
