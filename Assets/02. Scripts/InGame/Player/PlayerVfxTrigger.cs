@@ -1,6 +1,7 @@
 using Core.VFX;
 using InGame.Player.Movement;
 using InGame.Player.Network;
+using InGame.Team;
 using InGame.VFX;
 using Photon.Pun;
 using UnityEngine;
@@ -15,16 +16,20 @@ namespace InGame.Player
         [SerializeField] private SpatialVfxProfile _landProfile;
         [SerializeField] private SpatialVfxProfile _hitProfile;
         [SerializeField] private SpatialVfxProfile _finishProfile;
+        [SerializeField] private SpatialVfxProfile _slotJackpotProfile;
+        [SerializeField] private SpatialVfxProfile _slotMissProfile;
 
         private PlayerMovement _movement;
         private HitDetector _hitDetector;
         private InGameCustomizationApplier _customizationApplier;
+        private SlotMachinePresenter _slotPresenter;
 
         private void Awake()
         {
             _movement = GetComponentInChildren<PlayerMovement>();
             _hitDetector = GetComponentInChildren<HitDetector>();
             _customizationApplier = GetComponent<InGameCustomizationApplier>();
+            _slotPresenter = GetComponent<SlotMachinePresenter>();
         }
 
         private void OnEnable()
@@ -37,6 +42,9 @@ namespace InGame.Player
 
             if (_hitDetector != null)
                 _hitDetector.OnHitDetected += HandleHit;
+
+            if (_slotPresenter != null)
+                _slotPresenter.OnSlotResultRevealed += HandleSlotResultRevealed;
 
             RaceRankingManager.OnTeamFinished += HandleTeamFinished;
         }
@@ -51,6 +59,9 @@ namespace InGame.Player
 
             if (_hitDetector != null)
                 _hitDetector.OnHitDetected -= HandleHit;
+
+            if (_slotPresenter != null)
+                _slotPresenter.OnSlotResultRevealed -= HandleSlotResultRevealed;
 
             RaceRankingManager.OnTeamFinished -= HandleTeamFinished;
         }
@@ -82,6 +93,13 @@ namespace InGame.Player
 
             // 모든 클라이언트에서 OnTeamFinished가 동시에 발행되므로 RPC 불필요.
             PlayFinishVfx();
+        }
+
+        private void HandleSlotResultRevealed(Vector3 slotPosition, bool isMatch)
+        {
+            SpatialVfxProfile profile = isMatch ? _slotJackpotProfile : _slotMissProfile;
+            // OnSlotResultReceived가 이미 RpcTarget.All로 전파되어 각 클라에서 로컬 발행 → RPC 불필요.
+            InGameVfxManager.Instance?.EmitAt(profile, slotPosition, Quaternion.identity, this);
         }
 
         #endregion

@@ -235,7 +235,7 @@ namespace InGame.Team
                 _reactionTween?.Kill();
                 _activeSlotMachine.transform.localScale = _prefabBaseScale;
 
-                // VFX는 구독자(TeamModeVfxTrigger)가 처리.
+                // VFX는 구독자(PlayerVfxTrigger)가 처리.
                 OnSlotResultRevealed?.Invoke(_activeSlotMachine.transform.position, _pendingMatch);
 
                 if (_pendingMatch)
