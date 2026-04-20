@@ -38,8 +38,10 @@ namespace InGame.Effect
         private CanvasGroup _canvasGroup;
         private Tween _fadeTween;
         private bool _localIsHost;
-        private Vector3 _lastSelfDir;
-        private Vector3 _lastTeammateDir;
+        private bool _hasSelfTarget;
+        private float _selfTargetWorldAngle;
+        private bool _hasTeammateTarget;
+        private float _teammateTargetWorldAngle;
 
         private void Start()
         {
@@ -128,29 +130,33 @@ namespace InGame.Effect
             Vector3 selfDir = _localIsHost ? _inputRouter.RoutedDirA : _inputRouter.RoutedDirB;
             Vector3 teammateDir = _localIsHost ? _inputRouter.RoutedDirB : _inputRouter.RoutedDirA;
 
-            // 입력이 있을 때만 마지막 방향을 갱신. 0 입력 시엔 이전 월드 방향을 유지해 RootBody yaw 변화에도 화살표가 월드 기준으로 멈춰있게 함.
-            if (selfDir.sqrMagnitude > 0.001f) _lastSelfDir = selfDir;
-            if (teammateDir.sqrMagnitude > 0.001f) _lastTeammateDir = teammateDir;
-
-            // DirectionCanvas가 RootBody의 자식이므로, 월드 방향을 Canvas 로컬 각도로 바꾸려면 RootBody의 yaw를 상쇄해야 함.
+            // DirectionCanvas가 RootBody의 자식이라 바디가 돌면 캔버스도 돎.
+            // 월드 타깃 각도를 따로 보관하고 rootYaw를 매 프레임 상쇄해서 화살표를 월드 기준으로 고정.
             float rootYaw = _rootBodyTransform != null ? _rootBodyTransform.eulerAngles.y : 0f;
             float rotateStep = _profile.ArrowRotateSpeed * Time.deltaTime;
 
-            RotatePivotSmooth(_innerArrowPivot, _lastSelfDir, rootYaw, rotateStep);
-            RotatePivotSmooth(_outerArrowPivot, _lastTeammateDir, rootYaw, rotateStep);
+            UpdateArrow(_innerArrowPivot, selfDir, rootYaw, rotateStep, ref _hasSelfTarget, ref _selfTargetWorldAngle);
+            UpdateArrow(_outerArrowPivot, teammateDir, rootYaw, rotateStep, ref _hasTeammateTarget, ref _teammateTargetWorldAngle);
         }
 
-        private static void RotatePivotSmooth(RectTransform pivot, Vector3 dir, float rootYawDegrees, float maxDeltaDegrees)
+        private static void UpdateArrow(RectTransform pivot, Vector3 dir, float rootYawDegrees, float maxDeltaDegrees,
+                                        ref bool hasTarget, ref float targetWorldAngle)
         {
-            if (dir.sqrMagnitude <= 0.001f) return;
+            // 입력이 있을 때만 타깃 월드 각도를 갱신. 입력 각도 변화에만 smoothing 적용.
+            if (dir.sqrMagnitude > 0.001f)
+            {
+                float newWorldAngle = Mathf.Atan2(dir.x, dir.z) * Mathf.Rad2Deg;
+                targetWorldAngle = hasTarget
+                    ? Mathf.MoveTowardsAngle(targetWorldAngle, newWorldAngle, maxDeltaDegrees)
+                    : newWorldAngle;
+                hasTarget = true;
+            }
 
-            float worldAngle = Mathf.Atan2(dir.x, dir.z) * Mathf.Rad2Deg;
-            float targetZ = rootYawDegrees - worldAngle;
-            float currentZ = pivot.localEulerAngles.z;
+            // 한 번도 입력이 없었으면 초기 로컬 각도 유지.
+            if (!hasTarget) return;
 
-            // ±180° 래핑 안전한 각도 보간.
-            float smoothedZ = Mathf.MoveTowardsAngle(currentZ, targetZ, maxDeltaDegrees);
-            pivot.localEulerAngles = new Vector3(0f, 0f, smoothedZ);
+            // rootYaw 상쇄는 매 프레임 즉시 적용 — 바디 회전에 즉시 반응해 월드 기준 고정.
+            pivot.localEulerAngles = new Vector3(0f, 0f, rootYawDegrees - targetWorldAngle);
         }
     }
 }
