@@ -39,31 +39,16 @@ namespace InGame.Gimmick
             _input = GetComponent<LocalPlayerInput>();
             _formController = GetComponent<MergedBodyController>();
             _input.OnDeathReceived += HandleDeath;
-            _input.OnRecoveryReceived += HandleRecovery;
         }
 
         private void OnDestroy()
         {
             if (_input != null)
-            {
                 _input.OnDeathReceived -= HandleDeath;
-                _input.OnRecoveryReceived -= HandleRecovery;
-            }
             _scaleTween?.Kill();
         }
 
         private void HandleDeath()
-        {
-            var photonView = GetComponent<PhotonView>();
-            if (photonView == null || !photonView.IsMine) return;
-            if (_isRespawning) return;
-
-            StartCoroutine(RespawnCoroutine());
-        }
-
-        // F1 긴급 복구 키 처리. 사망 리스폰과 동일한 코루틴 재사용.
-        // SendRespawn()이 코루틴 내부에서 TriggerRecovery()를 호출하여 현재 상태에 맞게 복구됨.
-        private void HandleRecovery()
         {
             var photonView = GetComponent<PhotonView>();
             if (photonView == null || !photonView.IsMine) return;

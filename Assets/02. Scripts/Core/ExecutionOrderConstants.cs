@@ -26,8 +26,5 @@ namespace Core
         public const int BodyMovementSynchronizer = 100;
         public const int RagdollBoneSynchronizer = 101;
         public const int RagdollStateNetworkBridge = 102;
-
-        // ── 시각 효과 (110+) ── 네트워크 동기화 이후 실행.
-        public const int SyncInputDisplay = 110;
     }
 }

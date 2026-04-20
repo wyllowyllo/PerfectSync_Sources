@@ -23,7 +23,6 @@ namespace InGame.UserInput
         public event Action<HitData, int> OnHitReceived;
         public event Action OnDeathReceived;
         public event Action OnRespawnReceived;
-        public event Action OnRecoveryReceived;
 
         private Vector2 _moveInput;
         private bool _jumpPressed;
@@ -55,11 +54,6 @@ namespace InGame.UserInput
         public void SendRespawn()
         {
             OnRespawnReceived?.Invoke();
-        }
-
-        public void SendRecovery()
-        {
-            OnRecoveryReceived?.Invoke();
         }
     }
 }
