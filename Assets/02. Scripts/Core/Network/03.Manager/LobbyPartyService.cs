@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using ExitGames.Client.Photon;
 using Photon.Pun;
 using Photon.Realtime;
@@ -16,6 +17,16 @@ public class LobbyPartyService : SingletonPunCallbacks<LobbyPartyService>, IOnEv
 
     private int _outgoingInviteTargetActor = -1;
     private int _pendingInviterActor = -1;
+
+    private Coroutine _partnerWaitCoroutine;
+    private const float PartnerWaitTimeoutSeconds = 5f;
+
+    /// <summary>파티 재동기화 대기 시작 (UI: 레디 버튼 비활성화, 안내 표시).</summary>
+    public static event Action PartyWaitStarted;
+    /// <summary>파티 재동기화 대기 중 매 프레임 남은 시간(초) 브로드캐스트.</summary>
+    public static event Action<float> PartyWaitTick;
+    /// <summary>파티 재동기화 대기 종료 (성공/타임아웃/중단 모두 포함).</summary>
+    public static event Action PartyWaitEnded;
 
     protected override bool PersistAcrossScenes => true;
 
@@ -75,6 +86,11 @@ public class LobbyPartyService : SingletonPunCallbacks<LobbyPartyService>, IOnEv
         if (!PhotonNetwork.InRoom)
             return;
 
+        // 로비 방에서만 파티원 이탈을 "파티 해제"로 간주.
+        // 게임 방에서의 이탈은 시상식 후 정상 퇴장이므로 pid를 유지해야 재결합 가능.
+        if (!IsLobbyRoom())
+            return;
+
         string myParty = GetPartyId(PhotonNetwork.LocalPlayer);
         if (string.IsNullOrEmpty(myParty))
             return;
@@ -85,6 +101,142 @@ public class LobbyPartyService : SingletonPunCallbacks<LobbyPartyService>, IOnEv
 
         Debug.Log($"{PartyInviteDebugTag} Party partner left room → ClearLocalPartyState actor={otherPlayer.ActorNumber}");
         ClearLocalPartyState();
+    }
+
+    // ── 게임 종료 후 로비 복귀 시 파티 재동기화 ──
+
+    public override void OnJoinedRoom()
+    {
+        base.OnJoinedRoom();
+
+        if (!IsLobbyRoom())
+            return;
+
+        TryResyncPartyOnLobbyEnter();
+    }
+
+    public override void OnLeftRoom()
+    {
+        base.OnLeftRoom();
+        StopPartnerWait();
+    }
+
+    public override void OnPlayerEnteredRoom(Player newPlayer)
+    {
+        base.OnPlayerEnteredRoom(newPlayer);
+
+        if (!IsLobbyRoom() || newPlayer == null)
+            return;
+
+        if (_partnerWaitCoroutine == null)
+            return;
+
+        TryLinkIfPartyPartner(newPlayer);
+    }
+
+    public override void OnPlayerPropertiesUpdate(Player targetPlayer, Hashtable changedProps)
+    {
+        base.OnPlayerPropertiesUpdate(targetPlayer, changedProps);
+
+        if (!IsLobbyRoom() || targetPlayer == null || changedProps == null)
+            return;
+
+        if (!changedProps.ContainsKey(PhotonTeamManager.PartyIdKey))
+            return;
+
+        if (_partnerWaitCoroutine == null)
+            return;
+
+        TryLinkIfPartyPartner(targetPlayer);
+    }
+
+    private void TryResyncPartyOnLobbyEnter()
+    {
+        string myPid = GetPartyId(PhotonNetwork.LocalPlayer);
+        if (string.IsNullOrEmpty(myPid))
+            return;
+
+        // 1) 이미 로비 방에 파티원이 있으면 즉시 링크
+        if (TryGetPartyPartner(out Player partner))
+        {
+            Debug.Log($"{PartyInviteDebugTag} Party resync: partner already present → re-link actor={partner.ActorNumber}");
+            OnPartyPartnerLinked?.Invoke(partner);
+            return;
+        }
+
+        // 2) 아직 안 들어왔으면 기다림 모드 (5초 타임아웃)
+        Debug.Log($"{PartyInviteDebugTag} Party resync: waiting for partner (timeout {PartnerWaitTimeoutSeconds}s)");
+        StartPartnerWait();
+    }
+
+    private void StartPartnerWait()
+    {
+        if (_partnerWaitCoroutine != null)
+            StopCoroutine(_partnerWaitCoroutine);
+        _partnerWaitCoroutine = StartCoroutine(WaitForPartnerRoutine());
+    }
+
+    private void StopPartnerWait()
+    {
+        if (_partnerWaitCoroutine != null)
+        {
+            StopCoroutine(_partnerWaitCoroutine);
+            _partnerWaitCoroutine = null;
+            PartyWaitEnded?.Invoke();
+        }
+    }
+
+    private IEnumerator WaitForPartnerRoutine()
+    {
+        PartyWaitStarted?.Invoke();
+
+        float remaining = PartnerWaitTimeoutSeconds;
+        while (remaining > 0f)
+        {
+            PartyWaitTick?.Invoke(remaining);
+            yield return null;
+            remaining -= Time.deltaTime;
+        }
+
+        _partnerWaitCoroutine = null;
+        PartyWaitEnded?.Invoke();
+
+        // 타임아웃 → 파티원이 안 돌아옴 → 로컬 파티 정리
+        if (PhotonNetwork.InRoom && IsLobbyRoom())
+        {
+            Debug.Log($"{PartyInviteDebugTag} Partner wait timeout → ClearLocalPartyState");
+            ClearLocalPartyState();
+        }
+    }
+
+    private void TryLinkIfPartyPartner(Player candidate)
+    {
+        if (candidate == PhotonNetwork.LocalPlayer)
+            return;
+
+        string myPid = GetPartyId(PhotonNetwork.LocalPlayer);
+        if (string.IsNullOrEmpty(myPid))
+        {
+            StopPartnerWait();
+            return;
+        }
+
+        string candidatePid = GetPartyId(candidate);
+        if (candidatePid != myPid)
+            return;
+
+        Debug.Log($"{PartyInviteDebugTag} Partner resync succeeded actor={candidate.ActorNumber}");
+        StopPartnerWait();
+        OnPartyPartnerLinked?.Invoke(candidate);
+    }
+
+    private static bool IsLobbyRoom()
+    {
+        if (!PhotonNetwork.InRoom || PhotonNetwork.CurrentRoom?.CustomProperties == null)
+            return false;
+
+        return PhotonNetwork.CurrentRoom.CustomProperties.TryGetValue(PhotonRoomTypes.Key, out object v)
+            && v as string == PhotonRoomTypes.Lobby;
     }
 
     public bool TryFindPlayerByUserId(string userId, out Player player)

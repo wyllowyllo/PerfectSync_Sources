@@ -54,6 +54,10 @@ public class LobbyPopupCoordinator : MonoBehaviour
             LobbyPartyService.Instance.OnPartyCleared += HandlePartyClearedVisual;
         }
 
+        LobbyPartyService.PartyWaitStarted += HandlePartyWaitStarted;
+        LobbyPartyService.PartyWaitTick += HandlePartyWaitTick;
+        LobbyPartyService.PartyWaitEnded += HandlePartyWaitEnded;
+
         EscMenuPopup.CloseAllPopupsAndEscMenuRequested += OnEscMenuCloseAllRequested;
         EscMenuPopup.OpenSettingsFromEscMenuRequested += OnEscMenuOpenSettingsRequested;
         EscMenuPopup.OpenQuitFromEscMenuRequested += OnEscMenuOpenQuitRequested;
@@ -85,6 +89,10 @@ public class LobbyPopupCoordinator : MonoBehaviour
             LobbyPartyService.Instance.OnPartyPartnerLinked -= HandlePartyStateChanged;
             LobbyPartyService.Instance.OnPartyCleared -= HandlePartyClearedVisual;
         }
+
+        LobbyPartyService.PartyWaitStarted -= HandlePartyWaitStarted;
+        LobbyPartyService.PartyWaitTick -= HandlePartyWaitTick;
+        LobbyPartyService.PartyWaitEnded -= HandlePartyWaitEnded;
 
         EscMenuPopup.CloseAllPopupsAndEscMenuRequested -= OnEscMenuCloseAllRequested;
         EscMenuPopup.OpenSettingsFromEscMenuRequested -= OnEscMenuOpenSettingsRequested;
@@ -266,6 +274,36 @@ public class LobbyPopupCoordinator : MonoBehaviour
         _isInParty = false;
         CloseAllPopups();
         UpdateInviteButtonVisuals();
+    }
+
+    // ── 파티 재동기화 대기 안내 (Toast 재사용) ──
+
+    private void HandlePartyWaitStarted()
+    {
+        // 기존 toast 자동 꺼짐 코루틴이 있으면 중단 (카운트다운 동안 꺼지지 않도록)
+        if (_transientToastCoroutine != null)
+        {
+            StopCoroutine(_transientToastCoroutine);
+            _transientToastCoroutine = null;
+        }
+
+        if (_transientToastText != null)
+            _transientToastText.gameObject.SetActive(true);
+    }
+
+    private void HandlePartyWaitTick(float remaining)
+    {
+        if (_transientToastText == null)
+            return;
+
+        int seconds = Mathf.CeilToInt(remaining);
+        _transientToastText.text = $"파티원 기다리는 중... {seconds}초";
+    }
+
+    private void HandlePartyWaitEnded()
+    {
+        if (_transientToastText != null)
+            _transientToastText.gameObject.SetActive(false);
     }
 
     private void ShowTransientToast(string message)
