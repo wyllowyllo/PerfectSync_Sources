@@ -14,10 +14,8 @@ namespace InGame.UserInput
         event Action<HitData, int> OnHitReceived;
         event Action OnDeathReceived;
         event Action OnRespawnReceived;
-        event Action OnRecoveryReceived;
         void SendHit(HitData hit, int hitViewID);
         void SendDeath();
         void SendRespawn();
-        void SendRecovery();
     }
 }

@@ -144,8 +144,7 @@ namespace InGame.Player.Network
 
         private void HandleRespawn()
         {
-            // Dead(사망 리스폰) / 그 외(F1 긴급 복구) 모두 대응.
-            FindInBody<RagdollStateMachine>(_mergedBody)?.TriggerRecovery();
+            FindInBody<RagdollStateMachine>(_mergedBody)?.Respawn();
         }
 
         private static bool MatchesViewID(GameObject body, int viewID)

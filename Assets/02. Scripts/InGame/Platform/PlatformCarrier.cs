@@ -5,7 +5,8 @@ using UnityEngine;
 namespace InGame.Race.Platform
 {
     // 이동/회전하는 플랫폼 위의 Rigidbody를 함께 운반.
-    // PlayerMovement 이후 실행되어 velocity 주입 방식으로 동작.
+    // PlayerMovement 이후 실행되어 position 보정 방식으로 동작하며,
+    // velocity 영역은 PlayerMovement에 위임하여 도메인 충돌을 방지.
     [DefaultExecutionOrder(ExecutionOrderConstants.PlatformCarrier)]
     public class PlatformCarrier : MonoBehaviour
     {
@@ -19,6 +20,7 @@ namespace InGame.Race.Platform
         private static readonly Dictionary<Rigidbody, PlatformCarrier> s_riderToCarrier = new();
 
         private readonly List<Rigidbody> _riders = new();
+        private readonly Dictionary<Rigidbody, Vector3> _riderCarryVelocity = new();
         private Vector3 _prevPosition;
         private Quaternion _prevRotation;
         private Vector3 _angularVelocity;
@@ -40,6 +42,7 @@ namespace InGame.Race.Platform
                     s_riderToCarrier.Remove(_riders[i]);
             }
             _riders.Clear();
+            _riderCarryVelocity.Clear();
         }
 
         private void FixedUpdate()
@@ -67,6 +70,8 @@ namespace InGame.Race.Platform
 
             if (hasMoved || hasRotated)
                 CarryRiders(deltaPos, deltaRot, hasRotated);
+            else
+                ClearCarryVelocities();
 
             _prevPosition = curPos;
             _prevRotation = curRot;
@@ -76,18 +81,20 @@ namespace InGame.Race.Platform
 
         #region Public Static API
 
-        // 라이더의 플랫폼 회전 정보를 반환. 네트워크 원형 외삽에 활용.
+        // 라이더의 플랫폼 회전 정보와 운반 속도를 반환. 네트워크 원형 외삽에 활용.
         public static bool TryGetMotionForRider(Rigidbody rb,
-            out Vector3 angularVelocity, out Vector3 pivot)
+            out Vector3 angularVelocity, out Vector3 pivot, out Vector3 carryVelocity)
         {
             if (s_riderToCarrier.TryGetValue(rb, out var carrier))
             {
                 angularVelocity = carrier._angularVelocity;
                 pivot = carrier._currentPivot;
+                carrier._riderCarryVelocity.TryGetValue(rb, out carryVelocity);
                 return true;
             }
             angularVelocity = Vector3.zero;
             pivot = Vector3.zero;
+            carryVelocity = Vector3.zero;
             return false;
         }
 
@@ -97,6 +104,7 @@ namespace InGame.Race.Platform
             if (rb == null) return;
             if (!s_riderToCarrier.TryGetValue(rb, out var carrier)) return;
 
+            carrier._riderCarryVelocity.Remove(rb);
             carrier._riders.Remove(rb);
             s_riderToCarrier.Remove(rb);
         }
@@ -121,19 +129,32 @@ namespace InGame.Race.Platform
                 Rigidbody rb = _riders[i];
                 if (rb.isKinematic) continue;
 
+                Vector3 prevPos = rb.position;
+
                 if (hasRotated)
                 {
                     Vector3 offset = rb.position - _prevPosition;
-                    Vector3 rotatedPos = deltaRot * offset + transform.position;
-                    rb.linearVelocity += (rotatedPos - rb.position) / dt;
-
-                    if (_applyCentrifugalForce)
-                        ApplyCentrifugalForce(rb, deltaRot);
+                    rb.position = deltaRot * offset + transform.position;
                 }
                 else
                 {
-                    rb.linearVelocity += deltaPos / dt;
+                    rb.position += deltaPos;
                 }
+
+                // 네트워크 동기화용 운반 속도 기록 (물리에는 미적용).
+                _riderCarryVelocity[rb] = (rb.position - prevPos) / dt;
+
+                if (hasRotated && _applyCentrifugalForce)
+                    ApplyCentrifugalForce(rb, deltaRot);
+            }
+        }
+
+        private void ClearCarryVelocities()
+        {
+            foreach (var rb in _riders)
+            {
+                if (rb != null)
+                    _riderCarryVelocity[rb] = Vector3.zero;
             }
         }
 
@@ -171,6 +192,11 @@ namespace InGame.Race.Platform
             Rigidbody rb = collision.rigidbody;
             if (rb != null && _riders.Remove(rb))
             {
+                // 이탈 시 플랫폼 관성 전달.
+                if (_riderCarryVelocity.TryGetValue(rb, out var carry) && !rb.isKinematic)
+                    rb.linearVelocity += carry;
+
+                _riderCarryVelocity.Remove(rb);
                 if (s_riderToCarrier.TryGetValue(rb, out var c) && c == this)
                     s_riderToCarrier.Remove(rb);
             }
