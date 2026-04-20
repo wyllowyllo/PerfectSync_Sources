@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using DG.Tweening;
 using InGame.Camera.PlayerCamera;
@@ -87,6 +88,9 @@ namespace InGame.Team
         private int[] _pendingResult;
         private bool _spinStarted;
         private bool _pendingMatch;
+
+        // 릴 정지 완료 시점(=결과 공개 순간)의 슬롯머신 월드 좌표와 매치 여부를 통지.
+        public event Action<Vector3, bool> OnSlotResultRevealed;
 
         private UnityEngine.Camera GetCamera() => _cameraController != null ? _cameraController.OutputCamera : null;
 
@@ -231,8 +235,8 @@ namespace InGame.Team
                 _reactionTween?.Kill();
                 _activeSlotMachine.transform.localScale = _prefabBaseScale;
 
-                // VFX 재생 (SlotMachine이 자체 처리).
-                _activeSlotMachine.PlayResultVfx(_pendingMatch);
+                // VFX는 구독자(TeamModeVfxTrigger)가 처리.
+                OnSlotResultRevealed?.Invoke(_activeSlotMachine.transform.position, _pendingMatch);
 
                 if (_pendingMatch)
                 {
