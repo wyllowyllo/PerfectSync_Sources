@@ -313,6 +313,16 @@ namespace InGame.Player.Ragdoll
             OnStateChanged?.Invoke(ERagdollState.Animated);
         }
 
+        // 현재 상태에 맞는 복구 경로로 분기.
+        // Dead → Respawn (스켈레톤 재연결), 그 외 → ForceRecover (래그돌 해제 + 초기화).
+        public void TriggerRecovery()
+        {
+            if (_currentState == ERagdollState.Dead)
+                Respawn();
+            else
+                ForceRecover();
+        }
+
         // Animator의 GetUp 애니메이션이 끝나면 호출.
         public void OnGetUpComplete()
         {
@@ -334,6 +344,8 @@ namespace InGame.Player.Ragdoll
             _ragdollRig.ActivateKinematic();
             _animator.enabled = false;
             _rootBody.isKinematic = true;
+
+            OnStateChanged?.Invoke(_currentState);
         }
 
         public void EnterBlendToAnimRemote(Vector3 rootPos, Quaternion rootRot, bool isFaceUp)
@@ -355,6 +367,8 @@ namespace InGame.Player.Ragdoll
             _blender.StartBlend();
             _currentState = ERagdollState.BlendToAnim;
             _stateTimer = 0f;
+
+            OnStateChanged?.Invoke(_currentState);
         }
 
         public void EnterAnimatedRemote()
@@ -370,6 +384,8 @@ namespace InGame.Player.Ragdoll
             _rootBody.isKinematic = false;
             _rootBody.linearVelocity = Vector3.zero;
             _rootBody.angularVelocity = Vector3.zero;
+
+            OnStateChanged?.Invoke(_currentState);
         }
 
         public void PlayStumbleAnimation()
@@ -386,6 +402,8 @@ namespace InGame.Player.Ragdoll
             _ragdollRig.ActivateKinematic();
             _rootBody.isKinematic = true;
             _animator.enabled = false;
+
+            OnStateChanged?.Invoke(_currentState);
         }
 
         public void RespawnRemote()
@@ -398,6 +416,8 @@ namespace InGame.Player.Ragdoll
             _rootBody.isKinematic = false;
             _rootBody.linearVelocity = Vector3.zero;
             _rootBody.angularVelocity = Vector3.zero;
+
+            OnStateChanged?.Invoke(_currentState);
         }
 
         #endregion
