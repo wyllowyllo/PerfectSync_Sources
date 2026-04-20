@@ -24,6 +24,20 @@ namespace InGame.Player.Network
 
         public int CurrentSourceActorNumber => _currentSourceActorNumber;
 
+        /// <summary>
+        /// 이 팀 캐릭터의 소속 팀 번호 (PhotonView.Owner 기준).
+        /// 소유자가 없으면 PhotonTeamManager.TeamNone 반환.
+        /// </summary>
+        public int TeamNumber
+        {
+            get
+            {
+                Photon.Realtime.Player owner = photonView != null ? photonView.Owner : null;
+                if (owner == null) return PhotonTeamManager.TeamNone;
+                return PhotonTeamManager.GetTeamRaw(owner);
+            }
+        }
+        
         public bool CanToggle =>
             InGameManager.Instance != null &&
             InGameManager.Instance.CurrentState != GameState.Playing &&
