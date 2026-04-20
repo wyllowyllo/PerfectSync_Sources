@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using InGame.Player.Network;
 using Photon.Pun;
 using UnityEngine;
 
@@ -49,9 +50,9 @@ public class CeremonyManager : MonoBehaviourPunCallbacks
 
     private void ApplyRankCustomizations()
     {
-        if (RaceRankingManager.Instance == null) return;
+        List<TeamRankEntry> rankings = RaceFinalRankingStore.GetAllOrderedByRank();
 
-        IReadOnlyList<TeamRankEntry> rankings = RaceRankingManager.Instance.CurrentRankings;
+        Dictionary<int, int> teamToSourceActor = BuildTeamSourceActorMap();
 
         for (int i = 0; i < _podiumActivators.Length; i++)
         {
@@ -63,13 +64,29 @@ public class CeremonyManager : MonoBehaviourPunCallbacks
                 continue;
             }
 
-            ApplyTeamCustomizationToPodium(rankings[i].TeamNumber, _podiumActivators[i]);
+            ApplyTeamCustomizationToPodium(
+                rankings[i].TeamNumber, _podiumActivators[i], teamToSourceActor);
         }
     }
 
     private static void ApplyTeamCustomizationToPodium(
-        int teamNumber, CustomizationPartItemsActivator activator)
+        int teamNumber,
+        CustomizationPartItemsActivator activator,
+        IReadOnlyDictionary<int, int> teamToSourceActor)
     {
+        // 1순위: 인게임 중 마지막으로 토글된 소스 플레이어의 커스터마이징
+        if (teamToSourceActor.TryGetValue(teamNumber, out int actorNumber))
+        {
+            Photon.Realtime.Player sourcePlayer =
+                PhotonNetwork.CurrentRoom?.GetPlayer(actorNumber);
+            if (sourcePlayer != null)
+            {
+                LobbyCustomizationPhotonApplier.ApplyFromPlayer(sourcePlayer, activator);
+                return;
+            }
+        }
+
+        // 폴백: 팀 호스트 슬롯 플레이어 (기존 로직)
         Photon.Realtime.Player hostPlayer = FindTeamHostPlayer(teamNumber);
         if (hostPlayer == null)
         {
@@ -78,6 +95,31 @@ public class CeremonyManager : MonoBehaviourPunCallbacks
         }
 
         LobbyCustomizationPhotonApplier.ApplyFromPlayer(hostPlayer, activator);
+    }
+
+    /// <summary>
+    /// 씬에 존재하는 모든 팀 캐릭터의 InGameCustomizationApplier를 뒤져
+    /// "팀 번호 → 마지막으로 토글된 커스터마이징 소스 플레이어 ActorNumber" 맵을 구성.
+    /// </summary>
+    private static Dictionary<int, int> BuildTeamSourceActorMap()
+    {
+        var map = new Dictionary<int, int>();
+        InGameCustomizationApplier[] appliers =
+            UnityEngine.Object.FindObjectsOfType<InGameCustomizationApplier>();
+
+        foreach (var applier in appliers)
+        {
+            if (applier == null) continue;
+
+            int team = applier.TeamNumber;
+            if (team == PhotonTeamManager.TeamNone) continue;
+
+            int actor = applier.CurrentSourceActorNumber;
+            if (actor <= 0) continue;
+
+            map[team] = actor;
+        }
+        return map;
     }
 
     private static Photon.Realtime.Player FindTeamHostPlayer(int teamNumber)
