@@ -7,6 +7,10 @@ namespace InGame.Team
     [RequireComponent(typeof(SlotMachinePresenter))]
     public class TeamModeVfxTrigger : MonoBehaviour
     {
+        [Header("Spatial VFX Profiles")]
+        [SerializeField] private SpatialVfxProfile _slotJackpotProfile;
+        [SerializeField] private SpatialVfxProfile _slotMissProfile;
+
         private SlotMachinePresenter _presenter;
 
         private void Awake()
@@ -26,8 +30,8 @@ namespace InGame.Team
 
         private void HandleSlotResultRevealed(Vector3 slotPosition, bool isMatch)
         {
-            EVfxId id = isMatch ? EVfxId.SlotJackpot : EVfxId.SlotMiss;
-            InGameVfxManager.Instance?.Emit(id, slotPosition, Quaternion.identity, this);
+            SpatialVfxProfile profile = isMatch ? _slotJackpotProfile : _slotMissProfile;
+            InGameVfxManager.Instance?.EmitAt(profile, slotPosition, Quaternion.identity, this);
         }
     }
 }

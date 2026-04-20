@@ -1,4 +1,3 @@
-using System;
 using System.Collections;
 using System.Collections.Generic;
 using Core.VFX;
@@ -13,21 +12,9 @@ namespace InGame.VFX
 
         public static InGameVfxManager Instance { get; private set; }
 
-        [Serializable]
-        private struct ProfileEntry
-        {
-            public EVfxId Id;
-            public SpatialVfxProfile Profile;
-        }
-
-        [Header("VFX Catalog")]
-        [Tooltip("EVfxId ↔ SpatialVfxProfile 매핑. 디자이너는 이곳에서 모든 게임 VFX를 중앙 관리합니다.")]
-        [SerializeField] private List<ProfileEntry> _catalog = new();
-
-        private readonly Dictionary<EVfxId, SpatialVfxProfile> _profileMap = new();
         private readonly Dictionary<ParticleSystem, Queue<ParticleSystem>> _pools = new();
         private readonly Dictionary<ParticleSystem, int> _totalSpawned = new();
-        private readonly Dictionary<(EVfxId id, int callerId), float> _cooldowns = new();
+        private readonly Dictionary<(SpatialVfxProfile profile, int callerId), float> _cooldowns = new();
 
         private Transform _poolRoot;
 
@@ -41,7 +28,6 @@ namespace InGame.VFX
             }
 
             Instance = this;
-            BuildProfileMap();
             InitializePoolRoot();
         }
 
@@ -51,21 +37,21 @@ namespace InGame.VFX
                 Instance = null;
         }
 
-        public void Emit(EVfxId id, Vector3 position, Quaternion rotation, UnityEngine.Object caller = null)
+        public void EmitAt(SpatialVfxProfile profile, Vector3 position, Quaternion rotation, Object caller = null)
         {
-            if (!TryBeginEmit(id, caller, out SpatialVfxProfile profile, out ParticleSystem instance))
+            if (!TryBeginEmit(profile, caller, out ParticleSystem instance))
                 return;
 
             instance.transform.SetPositionAndRotation(position, rotation);
             StartCoroutine(CoPlayStatic(profile, instance));
         }
 
-        public void EmitOn(EVfxId id, Transform follow, UnityEngine.Object caller = null)
+        public void EmitOn(SpatialVfxProfile profile, Transform follow, Object caller = null)
         {
             if (follow == null)
                 return;
 
-            if (!TryBeginEmit(id, caller, out SpatialVfxProfile profile, out ParticleSystem instance))
+            if (!TryBeginEmit(profile, caller, out ParticleSystem instance))
                 return;
 
             instance.transform.SetPositionAndRotation(follow.position, follow.rotation);
@@ -76,22 +62,15 @@ namespace InGame.VFX
                 StartCoroutine(CoPlayStatic(profile, instance));
         }
 
-        private bool TryBeginEmit(EVfxId id, UnityEngine.Object caller, out SpatialVfxProfile profile, out ParticleSystem instance)
+        private bool TryBeginEmit(SpatialVfxProfile profile, Object caller, out ParticleSystem instance)
         {
-            profile = null;
             instance = null;
 
-            if (!_profileMap.TryGetValue(id, out profile) || profile == null)
-            {
-                Debug.LogWarning($"[InGameVfxManager] No profile registered for '{id}'.");
-                return false;
-            }
-
-            if (profile.Prefab == null)
+            if (profile == null || profile.Prefab == null)
                 return false;
 
             int callerId = caller != null ? caller.GetInstanceID() : 0;
-            var key = (id, callerId);
+            var key = (profile, callerId);
             if (_cooldowns.TryGetValue(key, out float lastPlayTime) && Time.time - lastPlayTime < profile.Cooldown)
                 return false;
 
@@ -128,24 +107,6 @@ namespace InGame.VFX
             }
 
             ReleaseInstance(profile.Prefab, instance);
-        }
-
-        private void BuildProfileMap()
-        {
-            _profileMap.Clear();
-            foreach (var entry in _catalog)
-            {
-                if (entry.Profile == null)
-                    continue;
-
-                if (_profileMap.ContainsKey(entry.Id))
-                {
-                    Debug.LogWarning($"[InGameVfxManager] Duplicate catalog entry for '{entry.Id}'; later entries ignored.");
-                    continue;
-                }
-
-                _profileMap[entry.Id] = entry.Profile;
-            }
         }
 
         private void InitializePoolRoot()

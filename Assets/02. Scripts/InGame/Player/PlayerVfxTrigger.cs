@@ -10,6 +10,12 @@ namespace InGame.Player
     [RequireComponent(typeof(PhotonView))]
     public class PlayerVfxTrigger : MonoBehaviourPun
     {
+        [Header("Spatial VFX Profiles")]
+        [SerializeField] private SpatialVfxProfile _jumpProfile;
+        [SerializeField] private SpatialVfxProfile _landProfile;
+        [SerializeField] private SpatialVfxProfile _hitProfile;
+        [SerializeField] private SpatialVfxProfile _finishProfile;
+
         private PlayerMovement _movement;
         private HitDetector _hitDetector;
         private InGameCustomizationApplier _customizationApplier;
@@ -53,19 +59,19 @@ namespace InGame.Player
 
         private void HandleJumped()
         {
-            PlayAtFoot(EVfxId.Jump);
+            PlayJumpVfx();
             photonView.RPC(nameof(RpcPlayJump), RpcTarget.Others);
         }
 
         private void HandleLanded()
         {
-            PlayAtFoot(EVfxId.Land);
+            PlayLandVfx();
             photonView.RPC(nameof(RpcPlayLand), RpcTarget.Others);
         }
 
         private void HandleHit(HitData hitData)
         {
-            PlayAt(EVfxId.Hit, hitData.HitPoint);
+            PlayHitVfx(hitData.HitPoint);
             photonView.RPC(nameof(RpcPlayHit), RpcTarget.Others, hitData.HitPoint);
         }
 
@@ -75,7 +81,7 @@ namespace InGame.Player
             if (teamNumber != _customizationApplier.TeamNumber) return;
 
             // 모든 클라이언트에서 OnTeamFinished가 동시에 발행되므로 RPC 불필요.
-            PlayAtFoot(EVfxId.Finish);
+            PlayFinishVfx();
         }
 
         #endregion
@@ -83,27 +89,29 @@ namespace InGame.Player
         #region Remote RPC 수신
 
         [PunRPC]
-        private void RpcPlayJump() => PlayAtFoot(EVfxId.Jump);
+        private void RpcPlayJump() => PlayJumpVfx();
 
         [PunRPC]
-        private void RpcPlayLand() => PlayAtFoot(EVfxId.Land);
+        private void RpcPlayLand() => PlayLandVfx();
 
         [PunRPC]
-        private void RpcPlayHit(Vector3 hitPoint) => PlayAt(EVfxId.Hit, hitPoint);
+        private void RpcPlayHit(Vector3 hitPoint) => PlayHitVfx(hitPoint);
 
         #endregion
 
         #region Local Playback
 
-        private void PlayAtFoot(EVfxId id)
-        {
-            InGameVfxManager.Instance?.Emit(id, GetFootPosition(), Quaternion.identity, this);
-        }
+        private void PlayJumpVfx() =>
+            InGameVfxManager.Instance?.EmitAt(_jumpProfile, GetFootPosition(), Quaternion.identity, this);
 
-        private void PlayAt(EVfxId id, Vector3 worldPosition)
-        {
-            InGameVfxManager.Instance?.Emit(id, worldPosition, Quaternion.identity, this);
-        }
+        private void PlayLandVfx() =>
+            InGameVfxManager.Instance?.EmitAt(_landProfile, GetFootPosition(), Quaternion.identity, this);
+
+        private void PlayHitVfx(Vector3 hitPoint) =>
+            InGameVfxManager.Instance?.EmitAt(_hitProfile, hitPoint, Quaternion.identity, this);
+
+        private void PlayFinishVfx() =>
+            InGameVfxManager.Instance?.EmitAt(_finishProfile, GetFootPosition(), Quaternion.identity, this);
 
         private Vector3 GetFootPosition()
         {
