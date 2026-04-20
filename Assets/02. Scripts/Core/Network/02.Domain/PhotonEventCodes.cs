@@ -12,5 +12,4 @@ public static class PhotonEventCodes
     public const byte ObstaclePositionSync = 132;
     public const byte ObstacleHide = 133;
     public const byte ObstacleRespawnWarning = 134;
-    public const byte ObstacleReveal = 135;
 }

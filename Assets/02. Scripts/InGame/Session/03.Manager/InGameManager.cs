@@ -186,6 +186,7 @@ public class InGameManager : SingletonPunCallbacks<InGameManager>
     public void EnterLocalRaceComplete()
     {
         if (CurrentState != GameState.Playing) return;
+        TrySaveFinalRankToPlayerProperties();
         SetState(GameState.RaceComplete);
         SetLocalRaceDoneProperty();
     }
@@ -193,6 +194,7 @@ public class InGameManager : SingletonPunCallbacks<InGameManager>
     public void EnterLocalGameOver()
     {
         if (CurrentState != GameState.Playing) return;
+        TrySaveFinalRankToPlayerProperties();
         SetState(GameState.GameOver);
         SetLocalRaceDoneProperty();
     }
@@ -201,60 +203,38 @@ public class InGameManager : SingletonPunCallbacks<InGameManager>
     {
         if (CurrentState < GameState.Playing) return;
         if (CurrentState == GameState.Ceremony) return;
-
-        // 마스터가 자기 RaceRankingManager의 현재 순위를 팀 인덱스 기반 int 배열로 직렬화
-        // 하여 RPC 인자에 실어 모든 클라이언트에 전파. 모든 클라이언트가 동일한 최종 순위를 사용.
-        int[] ranksByTeamIndex = BuildRanksByTeamIndex();
-        photonView.RPC(nameof(RPC_EnterCeremony), RpcTarget.All, ranksByTeamIndex);
-    }
-
-    /// <summary>RaceRankingManager.CurrentRankings를 "팀 인덱스 기반 순위 배열"로 직렬화.</summary>
-    private static int[] BuildRanksByTeamIndex()
-    {
-        int[] ranks = new int[PhotonTeamManager.MaxTeams];
-        if (RaceRankingManager.Instance == null) return ranks;
-
-        foreach (var entry in RaceRankingManager.Instance.CurrentRankings)
-        {
-            int idx = entry.TeamNumber - 1;
-            if (idx < 0 || idx >= ranks.Length) continue;
-            ranks[idx] = entry.Rank;
-        }
-        return ranks;
+        photonView.RPC(nameof(RPC_EnterCeremony), RpcTarget.All);
     }
 
     [PunRPC]
-    private void RPC_EnterCeremony(int[] ranksByTeamIndex)
+    private void RPC_EnterCeremony()
     {
         if (CurrentState < GameState.Playing) return;
         if (CurrentState == GameState.Ceremony) return;
-
-        // 모든 클라이언트가 동일한 최종 순위를 로컬 캐시에 저장
-        RaceFinalRankingStore.Store(ranksByTeamIndex);
-
-        // 자기 팀의 최종 순위를 Player.CustomProperties에 기록 (Awards 씬 등에서 사용)
-        SaveLocalPlayerFinalRank();
-
         SetState(GameState.Ceremony);
         OnCeremonyReady?.Invoke();
-    }
-
-    private static void SaveLocalPlayerFinalRank()
-    {
-        if (!PhotonNetwork.InRoom || PhotonNetwork.LocalPlayer == null) return;
-
-        int myTeam = PhotonTeamManager.GetLocalTeamRaw();
-        if (myTeam == PhotonTeamManager.TeamNone) return;
-
-        if (!RaceFinalRankingStore.TryGetRank(myTeam, out int rank)) return;
-
-        PhotonNetwork.LocalPlayer.SetCustomProperties(
-            new Hashtable { { InGameRaceKeys.FinalRankKey, rank } });
     }
 
     public void RequestReturnToLobby()
     {
         OnCeremonyReturnRequested?.Invoke();
+    }
+
+    private void TrySaveFinalRankToPlayerProperties()
+    {
+        if (!PhotonNetwork.InRoom || PhotonNetwork.LocalPlayer == null) return;
+        if (RaceRankingManager.Instance == null) return;
+
+        int myTeam = PhotonTeamManager.GetLocalTeamRaw();
+        if (myTeam == PhotonTeamManager.TeamNone) return;
+
+        foreach (var e in RaceRankingManager.Instance.CurrentRankings)
+        {
+            if (e.TeamNumber != myTeam) continue;
+
+            PhotonNetwork.LocalPlayer.SetCustomProperties(new Hashtable { { InGameRaceKeys.FinalRankKey, e.Rank } });
+            return;
+        }
     }
 
     private void SetLocalRaceDoneProperty()
