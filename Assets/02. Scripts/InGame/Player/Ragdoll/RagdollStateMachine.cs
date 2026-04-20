@@ -313,6 +313,16 @@ namespace InGame.Player.Ragdoll
             OnStateChanged?.Invoke(ERagdollState.Animated);
         }
 
+        // 현재 상태에 맞는 복구 경로로 분기.
+        // Dead → Respawn (스켈레톤 재연결), 그 외 → ForceRecover (래그돌 해제 + 초기화).
+        public void TriggerRecovery()
+        {
+            if (_currentState == ERagdollState.Dead)
+                Respawn();
+            else
+                ForceRecover();
+        }
+
         // Animator의 GetUp 애니메이션이 끝나면 호출.
         public void OnGetUpComplete()
         {
