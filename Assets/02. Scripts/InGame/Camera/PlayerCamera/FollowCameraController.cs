@@ -33,16 +33,11 @@ namespace InGame.Camera.PlayerCamera
         [SerializeField] private float _obstacleDestroyFovKick = 8f;
         [SerializeField] private float _obstacleDestroyFovDuration = 0.25f;
 
-        [Header("Per-Slot Visibility")]
-        [SerializeField] private LayerMask _hiddenWhenP1;
-        [SerializeField] private LayerMask _hiddenWhenP2;
-
         private CinemachineCamera _followCamera;
         private CinemachineOrbitalFollow _orbitalFollow;
         private Rigidbody _anchorRb;
 
         private bool _initialized;
-        private bool _cullingMaskApplied;
         private UnityEngine.Camera _outputCamera;
         private float _baseFov;
         private Tween _fovTween;
@@ -113,20 +108,6 @@ namespace InGame.Camera.PlayerCamera
                 _followCamera.OnTargetObjectWarped(_anchorRb.transform, targetPos - _followCamera.transform.position);
             }
 
-            TryApplyCullingMask();
-        }
-
-        private void TryApplyCullingMask()
-        {
-            if (_cullingMaskApplied) return;
-            if (_outputCamera == null) return;
-
-            int slot = PhotonTeamManager.GetLocalTeamSlot();
-            if (slot == PhotonTeamManager.SlotNone) return;
-
-            LayerMask hidden = (slot == PhotonTeamManager.SlotHost) ? _hiddenWhenP1 : _hiddenWhenP2;
-            _outputCamera.cullingMask &= ~hidden.value;
-            _cullingMaskApplied = true;
         }
 
         private bool IsMyTeam()
@@ -170,8 +151,6 @@ namespace InGame.Camera.PlayerCamera
                 TryInitialize();
                 if (!_initialized) return;
             }
-
-            if (!_cullingMaskApplied) TryApplyCullingMask();
 
             if (_targetProvider == null) return;
 

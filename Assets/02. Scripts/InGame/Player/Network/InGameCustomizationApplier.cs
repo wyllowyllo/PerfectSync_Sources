@@ -6,6 +6,11 @@ using Hashtable = ExitGames.Client.Photon.Hashtable;
 
 namespace InGame.Player.Network
 {
+    /// <summary>
+    /// TeamCharacter 루트에 부착. 팀 아바타의 현재 소스 플레이어(=커스터마이징 주체)를
+    /// 모든 클라이언트가 동일하게 유지하도록 RPC로 동기화하고, 카운트다운이 끝나기 전까지
+    /// 팀원이 C 키로 소스를 토글할 수 있게 한다.
+    /// </summary>
     [RequireComponent(typeof(PhotonView))]
     public class InGameCustomizationApplier : MonoBehaviourPunCallbacks
     {
@@ -32,7 +37,7 @@ namespace InGame.Player.Network
                 return PhotonTeamManager.GetTeamRaw(owner);
             }
         }
-
+        
         public bool CanToggle =>
             InGameManager.Instance != null &&
             InGameManager.Instance.CurrentState != GameState.Playing &&
