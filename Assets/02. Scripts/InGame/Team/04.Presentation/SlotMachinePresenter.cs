@@ -231,7 +231,6 @@ namespace InGame.Team
                 _reactionTween?.Kill();
                 _activeSlotMachine.transform.localScale = _prefabBaseScale;
 
-                // VFX 재생 (SlotMachine이 자체 처리).
                 _activeSlotMachine.PlayResultVfx(_pendingMatch);
 
                 if (_pendingMatch)
