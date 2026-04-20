@@ -1,4 +1,5 @@
 using Core.VFX;
+using InGame.Gimmick;
 using InGame.Player.Movement;
 using InGame.Player.Network;
 using InGame.VFX;
@@ -15,16 +16,19 @@ namespace InGame.Player
         [SerializeField] private SpatialVfxProfile _landProfile;
         [SerializeField] private SpatialVfxProfile _hitProfile;
         [SerializeField] private SpatialVfxProfile _finishProfile;
+        [SerializeField] private SpatialVfxProfile _respawnProfile;
 
         private PlayerMovement _movement;
         private HitDetector _hitDetector;
         private InGameCustomizationApplier _customizationApplier;
+        private RespawnHandler _respawnHandler;
 
         private void Awake()
         {
             _movement = GetComponentInChildren<PlayerMovement>();
             _hitDetector = GetComponentInChildren<HitDetector>();
             _customizationApplier = GetComponent<InGameCustomizationApplier>();
+            _respawnHandler = GetComponent<RespawnHandler>();
         }
 
         private void OnEnable()
@@ -37,6 +41,9 @@ namespace InGame.Player
 
             if (_hitDetector != null)
                 _hitDetector.OnHitDetected += HandleHit;
+
+            if (_respawnHandler != null)
+                _respawnHandler.OnRespawnInvincibleStart += HandleRespawned;
 
             RaceRankingManager.OnTeamFinished += HandleTeamFinished;
         }
@@ -51,6 +58,9 @@ namespace InGame.Player
 
             if (_hitDetector != null)
                 _hitDetector.OnHitDetected -= HandleHit;
+
+            if (_respawnHandler != null)
+                _respawnHandler.OnRespawnInvincibleStart -= HandleRespawned;
 
             RaceRankingManager.OnTeamFinished -= HandleTeamFinished;
         }
@@ -84,6 +94,12 @@ namespace InGame.Player
             PlayFinishVfx();
         }
 
+        private void HandleRespawned(Vector3 spawnPosition)
+        {
+            PlayRespawnVfx(spawnPosition);
+            photonView.RPC(nameof(RpcPlayRespawn), RpcTarget.Others, spawnPosition);
+        }
+
         #endregion
 
         #region Remote RPC 수신
@@ -96,6 +112,9 @@ namespace InGame.Player
 
         [PunRPC]
         private void RpcPlayHit(Vector3 hitPoint) => PlayHitVfx(hitPoint);
+
+        [PunRPC]
+        private void RpcPlayRespawn(Vector3 position) => PlayRespawnVfx(position);
 
         #endregion
 
@@ -112,6 +131,9 @@ namespace InGame.Player
 
         private void PlayFinishVfx() =>
             InGameVfxManager.Instance?.EmitAt(_finishProfile, GetFootPosition(), Quaternion.identity, this);
+
+        private void PlayRespawnVfx(Vector3 position) =>
+            InGameVfxManager.Instance?.EmitAt(_respawnProfile, position, Quaternion.identity, this);
 
         private Vector3 GetFootPosition()
         {

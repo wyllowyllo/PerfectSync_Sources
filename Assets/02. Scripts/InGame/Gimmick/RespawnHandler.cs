@@ -30,8 +30,7 @@ namespace InGame.Gimmick
 
         public bool IsInvincible => _isRespawnInvincible;
 
-        public event Action OnRespawnInvincibleStart;
-        public event Action OnRespawnInvincibleEnd;
+        public event Action<Vector3> OnRespawnInvincibleStart;
         public event Action<Vector3, Quaternion> OnCameraResetRequested;
 
         private void Start()
@@ -96,8 +95,9 @@ namespace InGame.Gimmick
             Vector3 originalScale = bodyTransform.localScale;
             bodyTransform.localScale = Vector3.zero;
 
-            // VFX 버스트 + 깜빡임 시작.
-            OnRespawnInvincibleStart?.Invoke();
+            // VFX 버스트 시작. 래그돌 상태에서 rootBody가 펠비스로 역추적될 수 있어
+            // Transform 대신 리스폰 좌표를 명시적으로 전달한다.
+            OnRespawnInvincibleStart?.Invoke(respawnPosition);
 
             // 뿅! 펀치 스케일 (0 → 오버슛 → 원래 크기).
             _scaleTween = DOTween.Sequence()
@@ -111,7 +111,6 @@ namespace InGame.Gimmick
             yield return new WaitForSeconds(_invincibilityDuration);
 
             _isRespawnInvincible = false;
-            OnRespawnInvincibleEnd?.Invoke();
         }
 
         private void TeleportBodies(Vector3 position, Quaternion rotation)
