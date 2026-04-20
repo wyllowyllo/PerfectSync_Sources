@@ -85,10 +85,9 @@ public class MapSelectionSequence : MonoBehaviour
         if (MapSelectionManager.Instance != null)
         {
             yield return new WaitUntil(() => MapSelectionManager.Instance.IsMapSelected());
+            if (_mapInfoObject != null) _mapInfoObject.SetActive(true);
             MapSelectionManager.Instance.NotifyMapSelected();
         }
-
-        if (_mapInfoObject != null) _mapInfoObject.SetActive(true);
         yield return new WaitForSeconds(_mapInfoDisplayDuration);
 
         _sequenceCoroutine = null;
