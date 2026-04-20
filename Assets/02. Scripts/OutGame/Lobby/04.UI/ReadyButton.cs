@@ -21,6 +21,9 @@ public class ReadyButton : MonoBehaviourPunCallbacks
         if (_button != null)
             _button.onClick.AddListener(OnReadyClicked);
 
+        LobbyPartyService.PartyWaitStarted += HandlePartyWaitStarted;
+        LobbyPartyService.PartyWaitEnded += HandlePartyWaitEnded;
+
         if (_label == null)
             _label = GetComponentInChildren<TMP_Text>(true);
 
@@ -31,6 +34,19 @@ public class ReadyButton : MonoBehaviourPunCallbacks
     {
         if (_button != null)
             _button.onClick.RemoveListener(OnReadyClicked);
+
+        LobbyPartyService.PartyWaitStarted -= HandlePartyWaitStarted;
+        LobbyPartyService.PartyWaitEnded -= HandlePartyWaitEnded;
+    }
+
+    private void HandlePartyWaitStarted()
+    {
+        if (_button != null) _button.interactable = false;
+    }
+
+    private void HandlePartyWaitEnded()
+    {
+        if (_button != null) _button.interactable = true;
     }
 
     public override void OnJoinedRoom()
