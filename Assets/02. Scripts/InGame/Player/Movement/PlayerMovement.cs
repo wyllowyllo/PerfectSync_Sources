@@ -45,12 +45,14 @@ namespace InGame.Player.Movement
         private ERagdollState _previousRagdollState;
         private float _lastGroundedTime;
         private float _jumpBufferTime = float.NegativeInfinity;
+        private float _groundLockoutUntil = float.NegativeInfinity;
         private bool _isGrounded;
         private Vector3 _inputDirection;
         private float _momentumBlend;
 
         private const float CoyoteTime = 0.15f;
         private const float JumpBufferDuration = 0.15f;
+        private const float GroundLockoutDuration = 0.15f;
 
         // Host-authoritative 합체 모드: 애니메이션 트리거 동기화용.
         public event Action OnJumped;
@@ -119,14 +121,23 @@ namespace InGame.Player.Movement
             }
 
             bool wasGrounded = _isGrounded;
-            _isGrounded = IsGrounded();
-            if (_isGrounded)
+            if (Time.time < _groundLockoutUntil)
             {
-                _lastGroundedTime = Time.time;
-                _airControlBoost = 1f;
+                // 점프 직후 Impulse가 콜라이더를 지면 스피어 밖으로 밀어낼 때까지 판정 보류.
+                // 이 시간 동안 wasGrounded=false → IsGrounded()=true 전이가 잡혀 Land 이벤트가 오발되는 것을 차단.
+                _isGrounded = false;
+            }
+            else
+            {
+                _isGrounded = IsGrounded();
+                if (_isGrounded)
+                {
+                    _lastGroundedTime = Time.time;
+                    _airControlBoost = 1f;
 
-                if (!wasGrounded)
-                    OnLanded?.Invoke();
+                    if (!wasGrounded)
+                        OnLanded?.Invoke();
+                }
             }
 
             // 다이브 중 착지 → 이동 속도 초기화.
@@ -150,16 +161,24 @@ namespace InGame.Player.Movement
             _anim.Locomotion(_isGrounded, speed);
 
             bool hasBufferedJump = Time.time - _jumpBufferTime <= JumpBufferDuration;
-            if (hasBufferedJump && !_anim.IsJumpLocked())
+            if (hasBufferedJump)
             {
                 bool canJump = Time.time - _lastGroundedTime <= CoyoteTime;
-                if (canJump)
+                if (canJump && _anim.CanAcceptJump())
                 {
                     _playerJump.Jump();
                     OnJumped?.Invoke();
                     _jumpBufferTime = float.NegativeInfinity;
+
+                    // 이륙 직후 콜라이더가 지면 스피어 내에 남아있는 동안 판정을 보류하여
+                    // (1) 같은 착지에서의 2단 점프와 (2) 다음 프레임의 가짜 OnLanded 오발을 동시에 차단.
+                    _groundLockoutUntil = Time.time + GroundLockoutDuration;
+                    _isGrounded = false;
+                    _lastGroundedTime = float.NegativeInfinity;
                 }
-                else if (InGameManager.IsLocalPlayerControllable
+                else if (!canJump
+                         && _anim.CanAcceptDive()
+                         && InGameManager.IsLocalPlayerControllable
                          && _playerJump.TryDive(_inputDirection))
                 {
                     _currentVelocity = Vector3.zero;
