@@ -1,5 +1,7 @@
 using InGame.Audio;
+using InGame.Gimmick;
 using InGame.Player.Movement;
+using InGame.Player.Network;
 using InGame.Player.Ragdoll;
 using InGame.Team;
 using Photon.Pun;
@@ -13,12 +15,15 @@ namespace InGame.Player
         [Header("Spatial SFX Profiles")]
         [SerializeField] private SpatialSfxProfile _jumpProfile;
         [SerializeField] private SpatialSfxProfile _diveProfile;
+        [SerializeField] private SpatialSfxProfile _landProfile;
         [SerializeField] private SpatialSfxProfile _launchProfile;
         [SerializeField] private SpatialSfxProfile _hitProfile;
         [SerializeField] private SpatialSfxProfile _stumbleProfile;
         [SerializeField] private SpatialSfxProfile _ragdollProfile;
         [SerializeField] private SpatialSfxProfile _invincibleEnterProfile;
         [SerializeField] private SpatialSfxProfile _invincibleExitProfile;
+        [SerializeField] private SpatialSfxProfile _finishProfile;
+        [SerializeField] private SpatialSfxProfile _respawnProfile;
 
         [Header("Team References")]
         [SerializeField] private InvincibleModeController _invincibleController;
@@ -27,6 +32,8 @@ namespace InGame.Player
         private LaunchController _launchController;
         private RagdollStateMachine _ragdollStateMachine;
         private HitDetector _hitDetector;
+        private RespawnHandler _respawnHandler;
+        private InGameCustomizationApplier _customizationApplier;
 
         private void Awake()
         {
@@ -34,6 +41,8 @@ namespace InGame.Player
             _launchController = GetComponent<LaunchController>();
             _ragdollStateMachine = GetComponent<RagdollStateMachine>();
             _hitDetector = GetComponentInChildren<HitDetector>();
+            _respawnHandler = GetComponent<RespawnHandler>();
+            _customizationApplier = GetComponent<InGameCustomizationApplier>();
         }
 
         private void OnEnable()
@@ -42,6 +51,7 @@ namespace InGame.Player
             {
                 _movement.OnJumped += HandleJumped;
                 _movement.OnDived += HandleDived;
+                _movement.OnLanded += HandleLanded;
             }
 
             if (_launchController != null)
@@ -61,6 +71,11 @@ namespace InGame.Player
                 _invincibleController.OnInvincibleEnter += HandleInvincibleEnter;
                 _invincibleController.OnInvincibleExit += HandleInvincibleExit;
             }
+
+            if (_respawnHandler != null)
+                _respawnHandler.OnRespawnInvincibleStart += HandleRespawned;
+
+            RaceRankingManager.OnTeamFinished += HandleTeamFinished;
         }
 
         private void OnDisable()
@@ -69,6 +84,7 @@ namespace InGame.Player
             {
                 _movement.OnJumped -= HandleJumped;
                 _movement.OnDived -= HandleDived;
+                _movement.OnLanded -= HandleLanded;
             }
 
             if (_launchController != null)
@@ -88,6 +104,11 @@ namespace InGame.Player
                 _invincibleController.OnInvincibleEnter -= HandleInvincibleEnter;
                 _invincibleController.OnInvincibleExit -= HandleInvincibleExit;
             }
+
+            if (_respawnHandler != null)
+                _respawnHandler.OnRespawnInvincibleStart -= HandleRespawned;
+
+            RaceRankingManager.OnTeamFinished -= HandleTeamFinished;
         }
 
         #region Authority → Local + Remote
@@ -102,6 +123,12 @@ namespace InGame.Player
         {
             PlayDiveSfx();
             photonView.RPC(nameof(RpcPlayDive), RpcTarget.Others);
+        }
+
+        private void HandleLanded()
+        {
+            PlayLandSfx();
+            photonView.RPC(nameof(RpcPlayLand), RpcTarget.Others);
         }
 
         private void HandleLaunched()
@@ -137,6 +164,21 @@ namespace InGame.Player
         private void HandleInvincibleExit()
             => InGameSfxManager.Instance?.EmitSpatialOn(_invincibleExitProfile, transform, this);
 
+        private void HandleRespawned(Vector3 spawnPosition)
+        {
+            PlayRespawnSfx(spawnPosition);
+            photonView.RPC(nameof(RpcPlayRespawn), RpcTarget.Others, spawnPosition);
+        }
+
+        private void HandleTeamFinished(int teamNumber, int place)
+        {
+            if (_customizationApplier == null) return;
+            if (teamNumber != _customizationApplier.TeamNumber) return;
+
+            // 모든 클라이언트에서 OnTeamFinished가 동시에 발행되므로 RPC 불필요.
+            PlayFinishSfx();
+        }
+
         #endregion
 
         #region Remote RPC 수신
@@ -146,6 +188,9 @@ namespace InGame.Player
 
         [PunRPC]
         private void RpcPlayDive() => PlayDiveSfx();
+
+        [PunRPC]
+        private void RpcPlayLand() => PlayLandSfx();
 
         [PunRPC]
         private void RpcPlayLaunch() => PlayLaunchSfx();
@@ -159,16 +204,22 @@ namespace InGame.Player
         [PunRPC]
         private void RpcPlayHit() => PlayHitSfx();
 
+        [PunRPC]
+        private void RpcPlayRespawn(Vector3 position) => PlayRespawnSfx(position);
+
         #endregion
 
         #region Local Playback
 
         private void PlayJumpSfx() => InGameSfxManager.Instance?.EmitSpatialOn(_jumpProfile, transform, this);
         private void PlayDiveSfx() => InGameSfxManager.Instance?.EmitSpatialOn(_diveProfile, transform, this);
+        private void PlayLandSfx() => InGameSfxManager.Instance?.EmitSpatialOn(_landProfile, transform, this);
         private void PlayLaunchSfx() => InGameSfxManager.Instance?.EmitSpatialOn(_launchProfile, transform, this);
         private void PlayRagdollSfx() => InGameSfxManager.Instance?.EmitSpatialOn(_ragdollProfile, transform, this);
         private void PlayStumbleSfx() => InGameSfxManager.Instance?.EmitSpatialOn(_stumbleProfile, transform, this);
         private void PlayHitSfx() => InGameSfxManager.Instance?.EmitSpatialOn(_hitProfile, transform, this);
+        private void PlayFinishSfx() => InGameSfxManager.Instance?.EmitSpatialOn(_finishProfile, transform, this);
+        private void PlayRespawnSfx(Vector3 position) => InGameSfxManager.Instance?.EmitSpatialAt(_respawnProfile, position, this);
 
         #endregion
     }
