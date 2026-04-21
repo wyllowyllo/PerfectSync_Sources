@@ -37,13 +37,18 @@ namespace InGame.Player
 
         private void Awake()
         {
-            _movement = GetComponent<PlayerMovement>();
-            _launchController = GetComponent<LaunchController>();
-            _ragdollStateMachine = GetComponent<RagdollStateMachine>();
+            _movement = GetComponentInChildren<PlayerMovement>();
+            _launchController = GetComponentInChildren<LaunchController>();
+            _ragdollStateMachine = GetComponentInChildren<RagdollStateMachine>();
             _hitDetector = GetComponentInChildren<HitDetector>();
             _respawnHandler = GetComponent<RespawnHandler>();
             _customizationApplier = GetComponent<InGameCustomizationApplier>();
         }
+
+        private Transform FollowTransform =>
+            _movement != null && _movement.BodyTransform != null
+                ? _movement.BodyTransform
+                : transform;
 
         private void OnEnable()
         {
@@ -154,15 +159,15 @@ namespace InGame.Player
 
         private void HandleHit(HitData hitData)
         {
-            PlayHitSfx();
-            photonView.RPC(nameof(RpcPlayHit), RpcTarget.Others);
+            PlayHitSfx(hitData.HitPoint);
+            photonView.RPC(nameof(RpcPlayHit), RpcTarget.Others, hitData.HitPoint);
         }
 
         private void HandleInvincibleEnter()
-            => InGameSfxManager.Instance?.EmitSpatialOn(_invincibleEnterProfile, transform, this);
+            => InGameSfxManager.Instance?.EmitSpatialOn(_invincibleEnterProfile, FollowTransform, this);
 
         private void HandleInvincibleExit()
-            => InGameSfxManager.Instance?.EmitSpatialOn(_invincibleExitProfile, transform, this);
+            => InGameSfxManager.Instance?.EmitSpatialOn(_invincibleExitProfile, FollowTransform, this);
 
         private void HandleRespawned(Vector3 spawnPosition)
         {
@@ -202,7 +207,7 @@ namespace InGame.Player
         private void RpcPlayStumble() => PlayStumbleSfx();
 
         [PunRPC]
-        private void RpcPlayHit() => PlayHitSfx();
+        private void RpcPlayHit(Vector3 hitPoint) => PlayHitSfx(hitPoint);
 
         [PunRPC]
         private void RpcPlayRespawn(Vector3 position) => PlayRespawnSfx(position);
@@ -211,14 +216,14 @@ namespace InGame.Player
 
         #region Local Playback
 
-        private void PlayJumpSfx() => InGameSfxManager.Instance?.EmitSpatialOn(_jumpProfile, transform, this);
-        private void PlayDiveSfx() => InGameSfxManager.Instance?.EmitSpatialOn(_diveProfile, transform, this);
-        private void PlayLandSfx() => InGameSfxManager.Instance?.EmitSpatialOn(_landProfile, transform, this);
-        private void PlayLaunchSfx() => InGameSfxManager.Instance?.EmitSpatialOn(_launchProfile, transform, this);
-        private void PlayRagdollSfx() => InGameSfxManager.Instance?.EmitSpatialOn(_ragdollProfile, transform, this);
-        private void PlayStumbleSfx() => InGameSfxManager.Instance?.EmitSpatialOn(_stumbleProfile, transform, this);
-        private void PlayHitSfx() => InGameSfxManager.Instance?.EmitSpatialOn(_hitProfile, transform, this);
-        private void PlayFinishSfx() => InGameSfxManager.Instance?.EmitSpatialOn(_finishProfile, transform, this);
+        private void PlayJumpSfx() => InGameSfxManager.Instance?.EmitSpatialOn(_jumpProfile, FollowTransform, this);
+        private void PlayDiveSfx() => InGameSfxManager.Instance?.EmitSpatialOn(_diveProfile, FollowTransform, this);
+        private void PlayLandSfx() => InGameSfxManager.Instance?.EmitSpatialOn(_landProfile, FollowTransform, this);
+        private void PlayLaunchSfx() => InGameSfxManager.Instance?.EmitSpatialOn(_launchProfile, FollowTransform, this);
+        private void PlayRagdollSfx() => InGameSfxManager.Instance?.EmitSpatialOn(_ragdollProfile, FollowTransform, this);
+        private void PlayStumbleSfx() => InGameSfxManager.Instance?.EmitSpatialOn(_stumbleProfile, FollowTransform, this);
+        private void PlayHitSfx(Vector3 hitPoint) => InGameSfxManager.Instance?.EmitSpatialAt(_hitProfile, hitPoint, this);
+        private void PlayFinishSfx() => InGameSfxManager.Instance?.EmitSpatialOn(_finishProfile, FollowTransform, this);
         private void PlayRespawnSfx(Vector3 position) => InGameSfxManager.Instance?.EmitSpatialAt(_respawnProfile, position, this);
 
         #endregion
