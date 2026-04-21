@@ -42,7 +42,7 @@ namespace InGame.VFX
             if (!TryBeginEmit(profile, caller, out GameObject instance))
                 return;
 
-            instance.transform.SetPositionAndRotation(position, rotation);
+            instance.transform.SetPositionAndRotation(position + profile.Offset, rotation);
             StartCoroutine(CoPlayStatic(profile, instance));
         }
 
@@ -54,7 +54,7 @@ namespace InGame.VFX
             if (!TryBeginEmit(profile, caller, out GameObject instance))
                 return;
 
-            instance.transform.SetPositionAndRotation(follow.position, follow.rotation);
+            instance.transform.SetPositionAndRotation(follow.position + profile.Offset, follow.rotation);
 
             if (profile.FollowTarget)
                 StartCoroutine(CoPlayFollowing(profile, instance, follow));
@@ -102,7 +102,7 @@ namespace InGame.VFX
             {
                 if (follow == null)
                     break;
-                instance.transform.position = follow.position;
+                instance.transform.position = follow.position + profile.Offset;
                 yield return null;
             }
 

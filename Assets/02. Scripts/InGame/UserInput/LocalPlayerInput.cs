@@ -22,6 +22,16 @@ namespace InGame.UserInput
             }
         }
 
+        public bool CustomizeTogglePressed
+        {
+            get
+            {
+                bool val = _customizeTogglePressed;
+                _customizeTogglePressed = false;
+                return val;
+            }
+        }
+
         public event Action<HitData, int> OnHitReceived;
         public event Action OnDeathReceived;
         public event Action OnRespawnReceived;
@@ -29,6 +39,7 @@ namespace InGame.UserInput
 
         private Vector2 _moveInput;
         private bool _jumpPressed;
+        private bool _customizeTogglePressed;
         private bool? _isMyTeam;
 
         private bool CheckIsMyTeam()
@@ -54,8 +65,9 @@ namespace InGame.UserInput
 
             _moveInput = new Vector2(Input.GetAxisRaw("Horizontal"), Input.GetAxisRaw("Vertical"));
             _jumpPressed |= Input.GetButtonDown("Jump");
+            _customizeTogglePressed |= Input.GetKeyDown(KeyCode.C);
 
-            if (Input.GetKeyDown(KeyCode.Alpha1))
+            if (Input.GetKeyDown(KeyCode.R))
                 SendRecovery();
         }
 

@@ -1,10 +1,18 @@
+using Core.Utilities;
+using InGame.Player.Network;
+using Photon.Pun;
 using UnityEngine;
 
 namespace InGame.Player.Animation
 {
     public class PlayerAnimation : MonoBehaviour
     {
+        private const int FinishVariantCount = 3;
+
         [SerializeField] private Animator _animator;
+
+        private InGameCustomizationApplier _customizationApplier;
+        private PhotonView _photonView;
 
         private static readonly int s_speedHash = Animator.StringToHash("Speed");
         private static readonly int s_isGroundedHash = Animator.StringToHash("IsGrounded");
@@ -14,6 +22,24 @@ namespace InGame.Player.Animation
         private static readonly int s_getUpFromBellyHash = Animator.StringToHash("GetUpFromBelly");
         private static readonly int s_stumbleHash = Animator.StringToHash("Stumble");
         private static readonly int s_trampolineLaunchHash = Animator.StringToHash("TrampolineLaunch");
+        private static readonly int s_finishHash = Animator.StringToHash("Finish");
+        private static readonly int s_finishVariantHash = Animator.StringToHash("FinishVariant");
+
+        private void Awake()
+        {
+            _customizationApplier = GetComponentInParent<InGameCustomizationApplier>();
+            _photonView = GetComponentInParent<PhotonView>();
+        }
+
+        private void OnEnable()
+        {
+            RaceRankingManager.OnTeamFinished += HandleTeamFinished;
+        }
+
+        private void OnDisable()
+        {
+            RaceRankingManager.OnTeamFinished -= HandleTeamFinished;
+        }
 
         public void Locomotion(bool isGrounded, float speed)
         {
@@ -83,6 +109,23 @@ namespace InGame.Player.Animation
         public void TrampolineLaunch()
         {
             _animator.SetTrigger(s_trampolineLaunchHash);
+        }
+
+        // OnTeamFinished는 모든 클라에서 동시 발행, ViewID는 전 클라 공통 → RPC 없이 variant 일치.
+        private void HandleTeamFinished(int teamNumber, int place)
+        {
+            if (_customizationApplier == null || _photonView == null) return;
+            if (teamNumber != _customizationApplier.TeamNumber) return;
+
+            int variant = DeterministicHash.PickIndex(_photonView.ViewID, FinishVariantCount);
+            Finish(variant);
+        }
+
+        private void Finish(int variantIndex)
+        {
+            // Trigger 소비 전 Int가 반영되어야 Any State 전이에서 올바른 분기가 선택됨.
+            _animator.SetInteger(s_finishVariantHash, variantIndex);
+            _animator.SetTrigger(s_finishHash);
         }
     }
 }

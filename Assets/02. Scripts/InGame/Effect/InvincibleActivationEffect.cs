@@ -21,6 +21,16 @@ namespace InGame.Effect
         [Tooltip("무적 지속 중 재생할 루프 파티클 프리팹")]
         [SerializeField] private ParticleSystem _loopEffectPrefab;
 
+        [Header("Spawn Anchor")]
+        [Tooltip("파티클 스폰 기준 Transform. 미지정 시 컴포넌트가 붙은 Transform 사용. 캐릭터 중앙(허리/가슴 본 등)을 지정하면 발밑이 아닌 중앙에서 재생된다.")]
+        [SerializeField] private Transform _spawnAnchor;
+
+        [Header("Scale")]
+        [Tooltip("원샷(충격파/버스트) 파티클에 적용할 균등 스케일 배율.")]
+        [SerializeField, Min(0.01f)] private float _oneShotScale = 1f;
+        [Tooltip("루프 파티클에 적용할 균등 스케일 배율.")]
+        [SerializeField, Min(0.01f)] private float _loopScale = 1f;
+
         private InvincibleModeController _controller;
         private ParticleSystem _loopEffectInstance;
 
@@ -49,7 +59,11 @@ namespace InGame.Effect
 
             if (_loopEffectPrefab != null && _loopEffectInstance == null)
             {
-                _loopEffectInstance = Instantiate(_loopEffectPrefab, transform);
+                Transform parent = _spawnAnchor != null ? _spawnAnchor : transform;
+                _loopEffectInstance = Instantiate(_loopEffectPrefab, parent);
+                _loopEffectInstance.transform.localPosition = Vector3.zero;
+                _loopEffectInstance.transform.localRotation = Quaternion.identity;
+                _loopEffectInstance.transform.localScale = Vector3.one * _loopScale;
                 _loopEffectInstance.Play();
             }
         }
@@ -67,7 +81,9 @@ namespace InGame.Effect
         private void SpawnOneShot(ParticleSystem prefab)
         {
             if (prefab == null) return;
-            var instance = Instantiate(prefab, transform.position, Quaternion.identity);
+            Vector3 spawnPosition = _spawnAnchor != null ? _spawnAnchor.position : transform.position;
+            var instance = Instantiate(prefab, spawnPosition, Quaternion.identity);
+            instance.transform.localScale = Vector3.one * _oneShotScale;
             instance.Play();
             float lifetime = instance.main.duration + instance.main.startLifetime.constantMax;
             Destroy(instance.gameObject, lifetime);

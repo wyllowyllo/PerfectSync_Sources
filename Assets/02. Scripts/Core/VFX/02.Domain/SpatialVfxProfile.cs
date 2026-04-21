@@ -25,9 +25,13 @@ namespace Core.VFX
         [Tooltip("true면 EmitOn 호출 시 타겟 Transform을 매 프레임 추적. false면 호출 시점 위치에 고정.")]
         [SerializeField] private bool _followTarget = false;
 
+        [Tooltip("호출자가 전달한 위치에 더해지는 월드 공간 오프셋. 프리팹 피벗 보정/머리 위 스폰 등 프로필별 고유 스폰 보정에 사용.")]
+        [SerializeField] private Vector3 _offset = Vector3.zero;
+
         public GameObject Prefab => _prefab;
         public float Cooldown => _cooldown;
         public bool FollowTarget => _followTarget;
+        public Vector3 Offset => _offset;
 
         public float GetRandomScale()
         {

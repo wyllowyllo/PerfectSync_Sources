@@ -231,7 +231,7 @@ namespace InGame.Team
                 _reactionTween?.Kill();
                 _activeSlotMachine.transform.localScale = _prefabBaseScale;
 
-                _activeSlotMachine.PlayResultVfx(_pendingMatch);
+                _activeSlotMachine.PlayResultEffects(_pendingMatch);
 
                 if (_pendingMatch)
                 {
