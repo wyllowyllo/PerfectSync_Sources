@@ -150,16 +150,23 @@ namespace InGame.Player.Movement
             _anim.Locomotion(_isGrounded, speed);
 
             bool hasBufferedJump = Time.time - _jumpBufferTime <= JumpBufferDuration;
-            if (hasBufferedJump && !_anim.IsJumpLocked())
+            if (hasBufferedJump)
             {
                 bool canJump = Time.time - _lastGroundedTime <= CoyoteTime;
-                if (canJump)
+                if (canJump && _anim.CanAcceptJump())
                 {
                     _playerJump.Jump();
                     OnJumped?.Invoke();
                     _jumpBufferTime = float.NegativeInfinity;
+
+                    // AddForce Impulse 반영 전까지 IsGrounded가 true로 남을 수 있어 같은 착지에서 2단 점프가 발생.
+                    // 지면/코요테 윈도우를 즉시 폐쇄하여 차단.
+                    _isGrounded = false;
+                    _lastGroundedTime = float.NegativeInfinity;
                 }
-                else if (InGameManager.IsLocalPlayerControllable
+                else if (!canJump
+                         && _anim.CanAcceptDive()
+                         && InGameManager.IsLocalPlayerControllable
                          && _playerJump.TryDive(_inputDirection))
                 {
                     _currentVelocity = Vector3.zero;

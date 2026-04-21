@@ -24,6 +24,11 @@ namespace InGame.Player.Animation
         private static readonly int s_trampolineLaunchHash = Animator.StringToHash("TrampolineLaunch");
         private static readonly int s_finishHash = Animator.StringToHash("Finish");
         private static readonly int s_finishVariantHash = Animator.StringToHash("FinishVariant");
+        private static readonly int s_locomotionHash = Animator.StringToHash("Locomotion");
+        private static readonly int s_jumpLandHash = Animator.StringToHash("JumpLand");
+        private static readonly int s_jumpStateHash = Animator.StringToHash("Jump");
+        private static readonly int s_jumpAirHash = Animator.StringToHash("JumpAir");
+        private static readonly int s_trampolineFlyHash = Animator.StringToHash("TrampolineFly");
 
         private void Awake()
         {
@@ -49,6 +54,8 @@ namespace InGame.Player.Animation
 
         public void Jump()
         {
+            // 이전 프레임에 소비되지 못해 큐에 남은 Jump 트리거 제거 후 재발행.
+            _animator.ResetTrigger(s_jumpHash);
             _animator.SetTrigger(s_jumpHash);
         }
 
@@ -74,26 +81,46 @@ namespace InGame.Player.Animation
             _animator.SetBool(s_getUpFromBellyHash, false);
         }
 
-        private static readonly int s_jumpLandHash = Animator.StringToHash("JumpLand");
-
-        // GetUp 또는 JumpLand 재생/전환 중이면 점프 차단.
-        // 단, 회복 상태에서 빠져나가는 전환 중에는 점프 허용.
-        public bool IsJumpLocked()
+        // Any State → Jump 전이가 없으므로 Locomotion/JumpLand state에서만 Jump 트리거가 소비됨.
+        // 물리 점프 게이트를 이 함수와 일치시켜 "물리만 발동, 애니 누락" 불일치를 방지.
+        public bool CanAcceptJump()
         {
             if (_animator.IsInTransition(0))
             {
+                int currentHash = _animator.GetCurrentAnimatorStateInfo(0).shortNameHash;
                 int nextHash = _animator.GetNextAnimatorStateInfo(0).shortNameHash;
-                return IsRecoveryHash(nextHash);
+                return IsJumpAcceptingHash(currentHash) && IsJumpAcceptingHash(nextHash);
             }
 
             int hash = _animator.GetCurrentAnimatorStateInfo(0).shortNameHash;
-            return IsRecoveryHash(hash);
+            return IsJumpAcceptingHash(hash);
         }
 
-        private bool IsRecoveryHash(int hash)
+        private bool IsJumpAcceptingHash(int hash)
         {
-            return hash == s_getUpFromBackHash
-                || hash == s_getUpFromBellyHash;
+            return hash == s_locomotionHash || hash == s_jumpLandHash;
+        }
+
+        // Dive 트리거는 JumpAir/TrampolineFly에서만 소비되므로 공중 상태 그룹에서만 허용.
+        // Jump state는 곧 JumpAir로 자동 전이되므로 포함해도 트리거가 큐잉되어 정상 소비된다.
+        public bool CanAcceptDive()
+        {
+            if (_animator.IsInTransition(0))
+            {
+                int currentHash = _animator.GetCurrentAnimatorStateInfo(0).shortNameHash;
+                int nextHash = _animator.GetNextAnimatorStateInfo(0).shortNameHash;
+                return IsDiveAcceptingHash(currentHash) || IsDiveAcceptingHash(nextHash);
+            }
+
+            int hash = _animator.GetCurrentAnimatorStateInfo(0).shortNameHash;
+            return IsDiveAcceptingHash(hash);
+        }
+
+        private bool IsDiveAcceptingHash(int hash)
+        {
+            return hash == s_jumpStateHash
+                || hash == s_jumpAirHash
+                || hash == s_trampolineFlyHash;
         }
 
         public void Stumble()
