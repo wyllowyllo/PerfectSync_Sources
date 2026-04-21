@@ -81,6 +81,7 @@ public class MapSelectionSequence : MonoBehaviour
         yield return new WaitForSeconds(_whiteFadeLeadTime);
 
         if (_whiteFadeObject != null) _whiteFadeObject.SetActive(false);
+        if(_rouletteEffect != null) _rouletteEffect.gameObject.SetActive(false);
 
         if (MapSelectionManager.Instance != null)
         {
