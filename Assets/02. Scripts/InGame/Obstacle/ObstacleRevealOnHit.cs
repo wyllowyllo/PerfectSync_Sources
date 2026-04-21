@@ -161,7 +161,7 @@ namespace InGame.Obstacle
             _destroyable = GetComponentInParent<DestroyableObstacle>();
             if (_destroyable != null)
             {
-                _destroyable.OnDestroyed += HandleLifecycleInterrupt;
+                _destroyable.OnDestroyed += HandleDestroyed;
                 _destroyable.OnHidden += HandleLifecycleInterrupt;
                 _destroyable.OnRespawned += HandleRespawned;
             }
@@ -174,7 +174,7 @@ namespace InGame.Obstacle
 
             if (_destroyable != null)
             {
-                _destroyable.OnDestroyed -= HandleLifecycleInterrupt;
+                _destroyable.OnDestroyed -= HandleDestroyed;
                 _destroyable.OnHidden -= HandleLifecycleInterrupt;
                 _destroyable.OnRespawned -= HandleRespawned;
             }
@@ -244,6 +244,12 @@ namespace InGame.Obstacle
             if (_isRevealing) return;
 
             _revealCoroutine = StartCoroutine(RevealCoroutine());
+        }
+
+        // 물리 충돌을 거치지 않는 파괴 경로(무적 OverlapSphere 등)에서도 hidden 플레이어에게 잠깐 노출되도록.
+        private void HandleDestroyed()
+        {
+            TryReveal();
         }
 
         private void HandleLifecycleInterrupt()
