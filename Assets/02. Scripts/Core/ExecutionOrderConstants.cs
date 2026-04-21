@@ -13,6 +13,9 @@ namespace Core
         public const int RagdollBoneReceiver = 1;
         public const int PlayerMovement = 2;
         public const int LaunchController = 3;
+
+        // ── 플랫폼 동기화 → 운반 (3~4) ── PlatformCarrier 이전에 위치 갱신.
+        public const int MovingPlatformSync = 3;
         public const int PlatformCarrier = 4;
 
         // ── 카메라 타겟 ──
