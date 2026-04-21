@@ -1,6 +1,7 @@
 using InGame.Audio;
 using InGame.Player.Movement;
 using InGame.Player.Ragdoll;
+using InGame.Team;
 using Photon.Pun;
 using UnityEngine;
 
@@ -16,6 +17,11 @@ namespace InGame.Player
         [SerializeField] private SpatialSfxProfile _hitProfile;
         [SerializeField] private SpatialSfxProfile _stumbleProfile;
         [SerializeField] private SpatialSfxProfile _ragdollProfile;
+        [SerializeField] private SpatialSfxProfile _invincibleEnterProfile;
+        [SerializeField] private SpatialSfxProfile _invincibleExitProfile;
+
+        [Header("Team References")]
+        [SerializeField] private InvincibleModeController _invincibleController;
 
         private PlayerMovement _movement;
         private LaunchController _launchController;
@@ -49,6 +55,12 @@ namespace InGame.Player
 
             if (_hitDetector != null)
                 _hitDetector.OnHitDetected += HandleHit;
+
+            if (_invincibleController != null)
+            {
+                _invincibleController.OnInvincibleEnter += HandleInvincibleEnter;
+                _invincibleController.OnInvincibleExit += HandleInvincibleExit;
+            }
         }
 
         private void OnDisable()
@@ -70,6 +82,12 @@ namespace InGame.Player
 
             if (_hitDetector != null)
                 _hitDetector.OnHitDetected -= HandleHit;
+
+            if (_invincibleController != null)
+            {
+                _invincibleController.OnInvincibleEnter -= HandleInvincibleEnter;
+                _invincibleController.OnInvincibleExit -= HandleInvincibleExit;
+            }
         }
 
         #region Authority → Local + Remote
@@ -112,6 +130,12 @@ namespace InGame.Player
             PlayHitSfx();
             photonView.RPC(nameof(RpcPlayHit), RpcTarget.Others);
         }
+
+        private void HandleInvincibleEnter()
+            => InGameSfxManager.Instance?.EmitSpatialOn(_invincibleEnterProfile, transform, this);
+
+        private void HandleInvincibleExit()
+            => InGameSfxManager.Instance?.EmitSpatialOn(_invincibleExitProfile, transform, this);
 
         #endregion
 
