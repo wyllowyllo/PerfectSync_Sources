@@ -24,6 +24,11 @@ public class LobbyVCamController : MonoBehaviour
     [SerializeField] private float matchmakingTargetY = 5f;
     [SerializeField] private float matchmakingDuration = 2f;
 
+    [Tooltip("솔로 매칭 시 매치메이킹 카메라 X 좌표")]
+    [SerializeField] private float matchmakingSoloX = 0f;
+    [Tooltip("파티 매칭 시 매치메이킹 카메라 X 좌표")]
+    [SerializeField] private float matchmakingPartyX = 2f;
+
     [Header("References")]
     [SerializeField] private CinemachineBrain _brain;
     [SerializeField] private CharacterCustomizationPartNavigator _navigator;
@@ -93,7 +98,20 @@ public class LobbyVCamController : MonoBehaviour
 
     public void EnterMatchmaking()
     {
+        // 솔로/파티 모드별로 매치메이킹 카메라의 X 좌표를 먼저 세팅한 뒤 전환.
+        // Y 애니메이션은 AnimateMatchmakingY에서 시작 X를 기준으로 돌아가므로 여기서 X만 덮어쓰면 됨.
+        bool inParty = LobbyPartyService.Instance != null
+                       && LobbyPartyService.Instance.LocalPlayerHasParty;
+        ApplyMatchmakingX(inParty ? matchmakingPartyX : matchmakingSoloX);
+
         SetActiveCamera(LobbyVCamZone.Matchmaking);
+    }
+
+    private void ApplyMatchmakingX(float x)
+    {
+        if (matchmakingCam == null) return;
+        Vector3 pos = matchmakingCam.transform.position;
+        matchmakingCam.transform.position = new Vector3(x, pos.y, pos.z);
     }
 
     private void OnPartIndexChanged(int partIndex)

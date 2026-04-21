@@ -81,14 +81,14 @@ public class MapSelectionSequence : MonoBehaviour
         yield return new WaitForSeconds(_whiteFadeLeadTime);
 
         if (_whiteFadeObject != null) _whiteFadeObject.SetActive(false);
+        if(_rouletteEffect != null) _rouletteEffect.gameObject.SetActive(false);
 
         if (MapSelectionManager.Instance != null)
         {
             yield return new WaitUntil(() => MapSelectionManager.Instance.IsMapSelected());
+            if (_mapInfoObject != null) _mapInfoObject.SetActive(true);
             MapSelectionManager.Instance.NotifyMapSelected();
         }
-
-        if (_mapInfoObject != null) _mapInfoObject.SetActive(true);
         yield return new WaitForSeconds(_mapInfoDisplayDuration);
 
         _sequenceCoroutine = null;

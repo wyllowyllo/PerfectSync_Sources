@@ -49,6 +49,14 @@ public class TitleSceneUIController : MonoBehaviour
         PlayTitleIntro();
     }
 
+    private void Update()
+    {
+        if(Input.anyKeyDown && _skipButton.interactable == true)
+        {
+            ShowLoginPopup();
+        }
+    }
+
     private void OnDisable()
     {
         KillIntroSequence();
