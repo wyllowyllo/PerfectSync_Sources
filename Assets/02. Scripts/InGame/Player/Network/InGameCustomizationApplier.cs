@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using InGame.UserInput;
 using Photon.Pun;
 using Photon.Realtime;
 using UnityEngine;
@@ -17,8 +18,7 @@ namespace InGame.Player.Network
         [Tooltip("비워두면 자식에서 CustomizationPartItemsActivator를 자동으로 찾는다.")]
         [SerializeField] private CustomizationPartItemsActivator _activator;
 
-        [SerializeField] private KeyCode _toggleKey = KeyCode.C;
-
+        private LocalPlayerInput _localInput;
         private int _currentSourceActorNumber = -1;
         private bool _stateHandlerHooked;
 
@@ -47,6 +47,7 @@ namespace InGame.Player.Network
         private void Start()
         {
             EnsureActivator();
+            _localInput = GetComponent<LocalPlayerInput>();
 
             Photon.Realtime.Player owner = photonView != null ? photonView.Owner : null;
             int initialActor = owner != null ? owner.ActorNumber : -1;
@@ -60,10 +61,7 @@ namespace InGame.Player.Network
             if (!_stateHandlerHooked)
                 TryHookGameStateChanged();
 
-            if (!Input.GetKeyDown(_toggleKey))
-                return;
-
-            if (!CanToggle || !IsLocalPlayerOnThisTeam())
+            if (_localInput == null || !_localInput.CustomizeTogglePressed)
                 return;
 
             RequestToggle();
