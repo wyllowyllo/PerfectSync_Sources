@@ -1,4 +1,5 @@
 using System.Collections;
+using InGame.Audio;
 using UnityEngine;
 
 public class RaceInfoPresenter : MonoBehaviour
@@ -7,6 +8,11 @@ public class RaceInfoPresenter : MonoBehaviour
 
     [SerializeField] private RaceInfoUI _raceInfoUI;
     [SerializeField] private int _finishWindowSeconds = DefaultFinishWindowSeconds;
+
+    [Header("SFX Profiles")]
+    [SerializeField] private SfxProfile _startCountdownTickProfile;
+    [SerializeField] private SfxProfile _startCountdownGoProfile;
+    [SerializeField] private SfxProfile _finishWindowTickProfile;
 
     private LocalPlayerRaceFinishRules _rules;
     private Coroutine _finishWindowRoutine;
@@ -45,12 +51,16 @@ public class RaceInfoPresenter : MonoBehaviour
     private void HandleGameStateChanged(GameState state)
     {
         if (state == GameState.Playing)
+        {
             _raceInfoUI?.ShowStart();
+            InGameSfxManager.Instance?.PlaySfx2D(_startCountdownGoProfile);
+        }
     }
 
     private void HandleRaceCountdownTick(int value)
     {
         _raceInfoUI?.ShowCountdown(value);
+        InGameSfxManager.Instance?.PlaySfx2D(_startCountdownTickProfile);
     }
 
     private void HandleFirstPlaceFinishedStatic(int firstTeam)
@@ -84,7 +94,10 @@ public class RaceInfoPresenter : MonoBehaviour
             StopFinishWindowRoutine();
 
         if (d.DisplayFinishWindowSeconds > 0)
+        {
             _raceInfoUI?.ShowFinishWindowSeconds(d.DisplayFinishWindowSeconds);
+            InGameSfxManager.Instance?.PlaySfx2D(_finishWindowTickProfile);
+        }
 
         if (d.ShowWinner)
             _raceInfoUI?.ShowWinner();
