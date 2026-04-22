@@ -29,8 +29,12 @@ public class SpatialSfxProfile : ScriptableObject
     [Tooltip("MinDistance와 MaxDistance 사이 구간의 감쇠 커브 종류. Linear=직관적·예측 가능, Logarithmic=현실적·근거리 강조, Custom=커브 에디터로 수동 조정.")]
     [SerializeField] private AudioRolloffMode _rolloffMode = AudioRolloffMode.Linear;
 
+    [Tooltip("클립을 반복 재생할지 여부. true면 StopSpatial(handle) 호출 전까지 무한 재생됩니다. 지속 사운드(엔진, 스핀 루프 등)에 사용.")]
+    [SerializeField] private bool _loop;
+
     public float VolumeScale => _volumeScale;
     public float Cooldown => _cooldown;
+    public bool Loop => _loop;
 
     public AudioClip GetRandomClip()
     {
