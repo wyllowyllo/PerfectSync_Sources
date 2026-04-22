@@ -22,6 +22,8 @@ namespace InGame.Player
         [SerializeField] private SpatialSfxProfile _ragdollProfile;
         [SerializeField] private SpatialSfxProfile _invincibleEnterProfile;
         [SerializeField] private SpatialSfxProfile _invincibleExitProfile;
+        [SerializeField] private SpatialSfxProfile _invincibleAttackerProfile;
+        [SerializeField] private SpatialSfxProfile _invincibleVictimHitProfile;
         [SerializeField] private SpatialSfxProfile _finishProfile;
         [SerializeField] private SpatialSfxProfile _respawnProfile;
 
@@ -32,6 +34,7 @@ namespace InGame.Player
         private LaunchController _launchController;
         private RagdollStateMachine _ragdollStateMachine;
         private HitDetector _hitDetector;
+        private InvincibleContactDetector _invincibleContactDetector;
         private RespawnHandler _respawnHandler;
         private InGameCustomizationApplier _customizationApplier;
 
@@ -40,7 +43,8 @@ namespace InGame.Player
             _movement = GetComponentInChildren<PlayerMovement>();
             _launchController = GetComponentInChildren<LaunchController>();
             _ragdollStateMachine = GetComponentInChildren<RagdollStateMachine>();
-            _hitDetector = GetComponentInChildren<HitDetector>();
+            _hitDetector = GetComponentInChildren<HitDetector>(true);
+            _invincibleContactDetector = GetComponentInChildren<InvincibleContactDetector>(true);
             _respawnHandler = GetComponent<RespawnHandler>();
             _customizationApplier = GetComponent<InGameCustomizationApplier>();
         }
@@ -69,12 +73,21 @@ namespace InGame.Player
             }
 
             if (_hitDetector != null)
+            {
                 _hitDetector.OnHitDetected += HandleHit;
+                _hitDetector.OnInvincibleHitReceived += HandleInvincibleVictim;
+            }
 
             if (_invincibleController != null)
             {
                 _invincibleController.OnInvincibleEnter += HandleInvincibleEnter;
                 _invincibleController.OnInvincibleExit += HandleInvincibleExit;
+            }
+
+            if (_invincibleContactDetector != null)
+            {
+                _invincibleContactDetector.OnHitLocal += HandleInvincibleAttacker;
+                _invincibleContactDetector.OnObstacleDestroyLocal += HandleInvincibleAttacker;
             }
 
             if (_respawnHandler != null)
@@ -102,12 +115,21 @@ namespace InGame.Player
             }
 
             if (_hitDetector != null)
+            {
                 _hitDetector.OnHitDetected -= HandleHit;
+                _hitDetector.OnInvincibleHitReceived -= HandleInvincibleVictim;
+            }
 
             if (_invincibleController != null)
             {
                 _invincibleController.OnInvincibleEnter -= HandleInvincibleEnter;
                 _invincibleController.OnInvincibleExit -= HandleInvincibleExit;
+            }
+
+            if (_invincibleContactDetector != null)
+            {
+                _invincibleContactDetector.OnHitLocal -= HandleInvincibleAttacker;
+                _invincibleContactDetector.OnObstacleDestroyLocal -= HandleInvincibleAttacker;
             }
 
             if (_respawnHandler != null)
@@ -168,6 +190,20 @@ namespace InGame.Player
 
         private void HandleInvincibleExit()
             => InGameSfxManager.Instance?.EmitSpatialOn(_invincibleExitProfile, FollowTransform, this);
+
+        // 가해자 공용 (플레이어 넉백 + 장애물 파괴).
+        private void HandleInvincibleAttacker()
+        {
+            if (_invincibleAttackerProfile == null) return;
+            InGameSfxManager.Instance?.EmitSpatialOn(_invincibleAttackerProfile, FollowTransform, this);
+        }
+
+        // 피해자 전용 (RPC 수신 경로).
+        private void HandleInvincibleVictim(HitData hit)
+        {
+            if (_invincibleVictimHitProfile == null) return;
+            InGameSfxManager.Instance?.EmitSpatialAt(_invincibleVictimHitProfile, hit.HitPoint, this);
+        }
 
         private void HandleRespawned(Vector3 spawnPosition)
         {

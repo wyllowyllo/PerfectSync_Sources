@@ -10,6 +10,7 @@ public class MapSelectionSequence : MonoBehaviour
     [Header("Step 2: White Fade")]
     [SerializeField] private GameObject _whiteFadeObject;
     [SerializeField] private float _whiteFadeLeadTime = 0.5f;
+    [SerializeField] private SfxProfile _whiteFadeSfx;
 
     [Header("Step 3: Map Info")]
     [SerializeField] private GameObject _mapInfoObject;
@@ -78,6 +79,7 @@ public class MapSelectionSequence : MonoBehaviour
         yield return new WaitForSeconds(waitBeforeWhite);
 
         if (_whiteFadeObject != null) _whiteFadeObject.SetActive(true);
+        PlayWhiteFadeSfx();
         yield return new WaitForSeconds(_whiteFadeLeadTime);
 
         if (_whiteFadeObject != null) _whiteFadeObject.SetActive(false);
@@ -93,5 +95,17 @@ public class MapSelectionSequence : MonoBehaviour
 
         _sequenceCoroutine = null;
         onComplete?.Invoke();
+    }
+
+    private void PlayWhiteFadeSfx()
+    {
+        if (_whiteFadeSfx == null)
+            return;
+
+        AudioClip clip = _whiteFadeSfx.GetRandomClip();
+        if (clip == null)
+            return;
+
+        AudioManager.Instance?.Play(AudioType.Sfx, clip);
     }
 }

@@ -95,6 +95,10 @@ namespace InGame.Player.Network
             var hit = new HitData(knockback, hitPoint, torque, (EHitResponse)response);
             ragdoll.ApplyHit(hit);
 
+            // 피해자 측 피격 연출용 경로. HitDetector.OnHitDetected를 우회하므로 별도 통지.
+            var victimHitDetector = victimView.GetComponentInChildren<HitDetector>();
+            victimHitDetector?.NotifyInvincibleHit(hit);
+
             OnInvincibleHitApplied?.Invoke(knockback.normalized);
         }
     }

@@ -15,7 +15,9 @@ namespace InGame.Audio
         private Transform _spatialPoolRoot;
         private readonly Queue<AudioSource> _spatialSfxPool = new Queue<AudioSource>();
         private readonly Dictionary<(SpatialSfxProfile profile, int callerId), float> _spatialCooldowns = new Dictionary<(SpatialSfxProfile, int), float>();
+        private readonly Dictionary<int, AudioSource> _activeSpatialHandles = new Dictionary<int, AudioSource>();
         private int _totalSpatialSources;
+        private int _nextHandle = 1;
 
         private void Awake()
         {
@@ -44,15 +46,30 @@ namespace InGame.Audio
             StartCoroutine(CoEmitStatic(source, profile, clip, volume, position));
         }
 
-        public void EmitSpatialOn(SpatialSfxProfile profile, Transform follow, Object caller = null)
+        public int EmitSpatialOn(SpatialSfxProfile profile, Transform follow, Object caller = null)
         {
             if (follow == null)
-                return;
+                return 0;
 
             if (!TryBeginSpatialEmit(profile, caller, out AudioSource source, out AudioClip clip, out float volume))
+                return 0;
+
+            int handle = _nextHandle++;
+            _activeSpatialHandles[handle] = source;
+            StartCoroutine(CoEmitFollowing(source, profile, clip, volume, follow, handle));
+            return handle;
+        }
+
+        public void StopSpatial(int handle)
+        {
+            if (handle == 0)
                 return;
 
-            StartCoroutine(CoEmitFollowing(source, profile, clip, volume, follow));
+            if (_activeSpatialHandles.TryGetValue(handle, out AudioSource source))
+            {
+                _activeSpatialHandles.Remove(handle);
+                ReleaseSpatialSource(source);
+            }
         }
 
         public void PlaySfx2D(SfxProfile profile)
@@ -113,24 +130,42 @@ namespace InGame.Audio
             ReleaseSpatialSource(source);
         }
 
-        private IEnumerator CoEmitFollowing(AudioSource source, SpatialSfxProfile profile, AudioClip clip, float volume, Transform follow)
+        private IEnumerator CoEmitFollowing(AudioSource source, SpatialSfxProfile profile, AudioClip clip, float volume, Transform follow, int handle)
         {
             profile.ConfigureSource(source);
             source.pitch = profile.GetRandomPitch();
             source.transform.position = follow.position;
             source.gameObject.SetActive(true);
-            source.PlayOneShot(clip, volume);
+
+            if (profile.Loop)
+            {
+                source.loop = true;
+                source.clip = clip;
+                source.volume = volume;
+                source.Play();
+            }
+            else
+            {
+                source.PlayOneShot(clip, volume);
+            }
 
             float endTime = Time.time + clip.length / Mathf.Max(source.pitch, 0.01f);
-            while (Time.time < endTime)
+            while (profile.Loop || Time.time < endTime)
             {
                 if (follow == null)
                     break;
+
+                // 외부에서 StopSpatial(handle) 호출 시 dict에서 제거되므로 재release 방지.
+                if (!_activeSpatialHandles.ContainsKey(handle))
+                    yield break;
+
                 source.transform.position = follow.position;
                 yield return null;
             }
 
-            ReleaseSpatialSource(source);
+            // 자연 종료 (loop=false + clip 끝, 또는 follow 파괴).
+            if (_activeSpatialHandles.Remove(handle))
+                ReleaseSpatialSource(source);
         }
 
         private void ReleaseSpatialSource(AudioSource source)
@@ -140,6 +175,7 @@ namespace InGame.Audio
 
             source.Stop();
             source.clip = null;
+            source.loop = false;
             source.transform.SetParent(_spatialPoolRoot, worldPositionStays: false);
             source.transform.localPosition = Vector3.zero;
             source.gameObject.SetActive(false);

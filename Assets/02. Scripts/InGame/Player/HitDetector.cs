@@ -17,11 +17,19 @@ namespace InGame.Player
 
         public event Action<HitData> OnHitDetected;
 
+        // 무적 모드 RPC 경로로 받은 피격 통지. 모든 클라이언트에서 발행 (authority 가드 없음).
+        public event Action<HitData> OnInvincibleHitReceived;
+
         public void ApplyExternalHit(HitData hit)
         {
             if (IsAnySourceInvincible()) return;
             if (!_isAuthority) return;
             OnHitDetected?.Invoke(hit);
+        }
+
+        public void NotifyInvincibleHit(HitData hit)
+        {
+            OnInvincibleHitReceived?.Invoke(hit);
         }
 
         public void AddInvincibilitySource(IInvincibilitySource source)
