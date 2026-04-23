@@ -20,6 +20,7 @@ namespace InGame.Player
 
         private PlayerMovement _movement;
         private HitDetector _hitDetector;
+        private InvincibleContactDetector _invincibleContactDetector;
         private InGameCustomizationApplier _customizationApplier;
         private RespawnHandler _respawnHandler;
 
@@ -27,6 +28,7 @@ namespace InGame.Player
         {
             _movement = GetComponentInChildren<PlayerMovement>();
             _hitDetector = GetComponentInChildren<HitDetector>();
+            _invincibleContactDetector = GetComponentInChildren<InvincibleContactDetector>(true);
             _customizationApplier = GetComponent<InGameCustomizationApplier>();
             _respawnHandler = GetComponent<RespawnHandler>();
         }
@@ -41,6 +43,12 @@ namespace InGame.Player
 
             if (_hitDetector != null)
                 _hitDetector.OnHitDetected += HandleHit;
+
+            if (_invincibleContactDetector != null)
+            {
+                _invincibleContactDetector.OnHitLocal += HandleInvincibleContact;
+                _invincibleContactDetector.OnObstacleDestroyLocal += HandleInvincibleContact;
+            }
 
             if (_respawnHandler != null)
                 _respawnHandler.OnRespawnInvincibleStart += HandleRespawned;
@@ -58,6 +66,12 @@ namespace InGame.Player
 
             if (_hitDetector != null)
                 _hitDetector.OnHitDetected -= HandleHit;
+
+            if (_invincibleContactDetector != null)
+            {
+                _invincibleContactDetector.OnHitLocal -= HandleInvincibleContact;
+                _invincibleContactDetector.OnObstacleDestroyLocal -= HandleInvincibleContact;
+            }
 
             if (_respawnHandler != null)
                 _respawnHandler.OnRespawnInvincibleStart -= HandleRespawned;
@@ -84,6 +98,9 @@ namespace InGame.Player
             PlayHitVfx(hitData.HitPoint);
             photonView.RPC(nameof(RpcPlayHit), RpcTarget.Others, hitData.HitPoint);
         }
+
+        // 무적 모드 감지 시점에 같은 hit VFX 재생. 각 클라이언트의 InvincibleContactDetector가 개별 감지하므로 RPC 불필요.
+        private void HandleInvincibleContact() => PlayHitVfx(GetFootPosition());
 
         private void HandleTeamFinished(int teamNumber, int place)
         {
