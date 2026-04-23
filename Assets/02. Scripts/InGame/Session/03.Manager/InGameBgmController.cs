@@ -118,6 +118,17 @@ public class InGameBgmController : MonoBehaviour
         _invincibleLayerSource.playOnAwake = false;
         _invincibleLayerSource.loop = true;
         _invincibleLayerSource.volume = 0f;
+
+        // 첫 Play 시점에 발생하는 디코더 초기화 블로킹 제거:
+        // 1) 클립 오디오 데이터 강제 상주, 2) AudioSource DSP 버퍼 워밍.
+        if (_invincibleBgmClip != null)
+        {
+            _invincibleBgmClip.LoadAudioData();
+            _invincibleLayerSource.clip = _invincibleBgmClip;
+            _invincibleLayerSource.Play();
+            _invincibleLayerSource.Pause();
+            _invincibleLayerSource.time = 0f;
+        }
     }
 
     private void HandleVolumesChanged()
@@ -131,11 +142,12 @@ public class InGameBgmController : MonoBehaviour
 
     private IEnumerator CoPlayInvincibleLayer(float fadeDuration)
     {
-        _invincibleLayerSource.Stop();
-        _invincibleLayerSource.clip = _invincibleBgmClip;
+        // Awake 워밍 결과 Paused 상태 유지. Pause/Play 재개로 디코드 블로킹 회피.
         _invincibleLayerSource.time = 0f;
         _invincibleLayerSource.volume = 0f;
-        _invincibleLayerSource.Play();
+        _invincibleLayerSource.UnPause();
+        if (!_invincibleLayerSource.isPlaying)
+            _invincibleLayerSource.Play();
 
         yield return CoFadeInvincibleLayer(0f, EffectiveBgmVolume, fadeDuration);
         _invincibleRoutine = null;
@@ -145,8 +157,9 @@ public class InGameBgmController : MonoBehaviour
     {
         yield return CoFadeInvincibleLayer(_invincibleLayerSource.volume, 0f, fadeDuration);
 
-        _invincibleLayerSource.Stop();
-        _invincibleLayerSource.clip = null;
+        // 재발동 시 다시 디코드되지 않도록 clip은 유지, Pause로만 정지.
+        _invincibleLayerSource.Pause();
+        _invincibleLayerSource.time = 0f;
         _invincibleRoutine = null;
     }
 
