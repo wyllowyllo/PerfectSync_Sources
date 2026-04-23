@@ -40,6 +40,7 @@ public class InGameManager : SingletonPunCallbacks<InGameManager>
 
         InGameLocalPlayerPropertyReset.ApplyForLobbyScene(clearTeamBecauseNotInRoom: false);
         CloseRoomToNewJoiners();
+        ApplyCursorState();
     }
 
     public void NotifyLocalIntroDone()
@@ -199,7 +200,7 @@ public class InGameManager : SingletonPunCallbacks<InGameManager>
 
     private void ApplyCursorState()
     {
-        bool locked = IsLocalPlayerControllable;
+        bool locked = !IsLocalPaused;
         Cursor.lockState = locked ? CursorLockMode.Locked : CursorLockMode.None;
         Cursor.visible = !locked;
     }
