@@ -101,5 +101,21 @@ namespace InGame.Player.Network
 
             OnInvincibleHitApplied?.Invoke(knockback.normalized);
         }
+
+        // ── 무적 장애물 파괴 피드백 ─────────────────────────────
+
+        /// <summary>RPC 수신 시 파괴 방향 전달. 비-authority 측 연출 릴레이용.</summary>
+        public event Action<Vector3> OnObstacleDestroyFeedback;
+
+        public void BroadcastObstacleDestroyFeedback(Vector3 direction)
+        {
+            photonView.RPC(nameof(RpcObstacleDestroyFeedback), RpcTarget.All, direction);
+        }
+
+        [PunRPC]
+        private void RpcObstacleDestroyFeedback(Vector3 direction)
+        {
+            OnObstacleDestroyFeedback?.Invoke(direction);
+        }
     }
 }

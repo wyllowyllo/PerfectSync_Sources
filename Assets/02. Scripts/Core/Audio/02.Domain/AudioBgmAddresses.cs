@@ -7,5 +7,6 @@ public static class AudioBgmAddresses
     public const string MapDecided = "MapDecided";
     public const string InGame1 = "InGame_1";
     public const string InGame2 = "InGame_2";
+    public const string InGameInvincible = "InGameInvincible";
     public const string Ceremony = "Ceremony";
 }

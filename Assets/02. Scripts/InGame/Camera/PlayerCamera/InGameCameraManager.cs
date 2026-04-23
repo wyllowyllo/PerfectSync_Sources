@@ -9,6 +9,7 @@ namespace InGame.Camera.PlayerCamera
     {
         [Header("Scene Cameras")]
         [SerializeField] private CinemachineCamera _followCamera;
+        [SerializeField] private CinemachineInputAxisController _followCameraInput;
         [SerializeField] private IntroCameraController _introCamera;
         [SerializeField] private CinemachineCamera _ceremonyCamera;
 
@@ -33,7 +34,9 @@ namespace InGame.Camera.PlayerCamera
             if (InGameManager.Instance != null)
             {
                 InGameManager.Instance.OnGameStateChanged += HandleGameStateChanged;
+                InGameManager.Instance.OnLocalPauseChanged += HandleLocalPauseChanged;
                 HandleGameStateChanged(InGameManager.Instance.CurrentState);
+                HandleLocalPauseChanged(InGameManager.Instance.IsLocalPaused);
             }
         }
 
@@ -43,7 +46,16 @@ namespace InGame.Camera.PlayerCamera
                 _introCamera.OnIntroComplete -= HandleIntroComplete;
 
             if (InGameManager.Instance != null)
+            {
                 InGameManager.Instance.OnGameStateChanged -= HandleGameStateChanged;
+                InGameManager.Instance.OnLocalPauseChanged -= HandleLocalPauseChanged;
+            }
+        }
+
+        private void HandleLocalPauseChanged(bool paused)
+        {
+            if (_followCameraInput != null)
+                _followCameraInput.enabled = !paused;
         }
 
         private void HandleGameStateChanged(GameState newState)

@@ -25,7 +25,10 @@ public class InGameManager : SingletonPunCallbacks<InGameManager>
     [SerializeField] private TextMeshProUGUI _avatarInfoText;
 
     public GameState CurrentState { get; private set; } = GameState.Loading;
+    public bool IsLocalPaused { get; private set; }
+
     public event Action<GameState> OnGameStateChanged;
+    public event Action<bool> OnLocalPauseChanged;
     public event Action<int> OnRaceCountdownTick;
     public event Action OnCeremonyReady;
     public event Action OnCeremonyReturnRequested;
@@ -37,6 +40,7 @@ public class InGameManager : SingletonPunCallbacks<InGameManager>
 
         InGameLocalPlayerPropertyReset.ApplyForLobbyScene(clearTeamBecauseNotInRoom: false);
         CloseRoomToNewJoiners();
+        ApplyCursorState();
     }
 
     public void NotifyLocalIntroDone()
@@ -178,10 +182,28 @@ public class InGameManager : SingletonPunCallbacks<InGameManager>
     {
         CurrentState = newState;
         OnGameStateChanged?.Invoke(newState);
+        ApplyCursorState();
     }
 
     public static bool IsLocalPlayerControllable =>
-        Instance != null && Instance.CurrentState == GameState.Playing;
+        Instance != null
+        && Instance.CurrentState == GameState.Playing
+        && !Instance.IsLocalPaused;
+
+    public void SetLocalPaused(bool paused)
+    {
+        if (IsLocalPaused == paused) return;
+        IsLocalPaused = paused;
+        ApplyCursorState();
+        OnLocalPauseChanged?.Invoke(paused);
+    }
+
+    private void ApplyCursorState()
+    {
+        bool locked = !IsLocalPaused;
+        Cursor.lockState = locked ? CursorLockMode.Locked : CursorLockMode.None;
+        Cursor.visible = !locked;
+    }
 
     public void EnterLocalRaceComplete()
     {

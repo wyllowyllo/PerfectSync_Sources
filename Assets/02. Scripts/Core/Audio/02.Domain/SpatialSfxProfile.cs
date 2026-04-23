@@ -32,9 +32,17 @@ public class SpatialSfxProfile : ScriptableObject
     [Tooltip("클립을 반복 재생할지 여부. true면 StopSpatial(handle) 호출 전까지 무한 재생됩니다. 지속 사운드(엔진, 스핀 루프 등)에 사용.")]
     [SerializeField] private bool _loop;
 
+    [Tooltip("루프 재생 시작 시 0에서 목표 볼륨까지 서서히 올리는 시간(초). 0이면 즉시 재생. Loop=true일 때만 의미가 있습니다.")]
+    [SerializeField, Range(0f, 5f)] private float _fadeInDuration = 0f;
+
+    [Tooltip("StopSpatial 호출 시 목표 볼륨에서 0까지 서서히 줄이는 시간(초). 0이면 즉시 정지. Loop=true일 때만 의미가 있습니다.")]
+    [SerializeField, Range(0f, 5f)] private float _fadeOutDuration = 0f;
+
     public float VolumeScale => _volumeScale;
     public float Cooldown => _cooldown;
     public bool Loop => _loop;
+    public float FadeInDuration => _fadeInDuration;
+    public float FadeOutDuration => _fadeOutDuration;
 
     public AudioClip GetRandomClip()
     {

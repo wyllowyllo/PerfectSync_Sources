@@ -15,7 +15,7 @@ namespace InGame.Audio
         private Transform _spatialPoolRoot;
         private readonly Queue<AudioSource> _spatialSfxPool = new Queue<AudioSource>();
         private readonly Dictionary<(SpatialSfxProfile profile, int callerId), float> _spatialCooldowns = new Dictionary<(SpatialSfxProfile, int), float>();
-        private readonly Dictionary<int, AudioSource> _activeSpatialHandles = new Dictionary<int, AudioSource>();
+        private readonly Dictionary<int, ActiveSpatialSlot> _activeSpatialHandles = new Dictionary<int, ActiveSpatialSlot>();
         private int _totalSpatialSources;
         private int _nextHandle = 1;
 
@@ -55,7 +55,7 @@ namespace InGame.Audio
                 return 0;
 
             int handle = _nextHandle++;
-            _activeSpatialHandles[handle] = source;
+            _activeSpatialHandles[handle] = new ActiveSpatialSlot(source, profile, volume);
             StartCoroutine(CoEmitFollowing(source, profile, clip, volume, follow, handle));
             return handle;
         }
@@ -65,11 +65,15 @@ namespace InGame.Audio
             if (handle == 0)
                 return;
 
-            if (_activeSpatialHandles.TryGetValue(handle, out AudioSource source))
-            {
-                _activeSpatialHandles.Remove(handle);
-                ReleaseSpatialSource(source);
-            }
+            if (!_activeSpatialHandles.TryGetValue(handle, out ActiveSpatialSlot slot))
+                return;
+
+            _activeSpatialHandles.Remove(handle);
+
+            if (slot.Profile != null && slot.Profile.FadeOutDuration > 0f && slot.Source != null && slot.Source.isPlaying)
+                StartCoroutine(CoFadeOutAndRelease(slot.Source, slot.TargetVolume, slot.Profile.FadeOutDuration));
+            else
+                ReleaseSpatialSource(slot.Source);
         }
 
         public void PlaySfx2D(SfxProfile profile)
@@ -141,8 +145,11 @@ namespace InGame.Audio
             {
                 source.loop = true;
                 source.clip = clip;
-                source.volume = volume;
+                source.volume = profile.FadeInDuration > 0f ? 0f : volume;
                 source.Play();
+
+                if (profile.FadeInDuration > 0f)
+                    StartCoroutine(CoFadeInVolume(source, volume, profile.FadeInDuration));
             }
             else
             {
@@ -166,6 +173,53 @@ namespace InGame.Audio
             // 자연 종료 (loop=false + clip 끝, 또는 follow 파괴).
             if (_activeSpatialHandles.Remove(handle))
                 ReleaseSpatialSource(source);
+        }
+
+        private static IEnumerator CoFadeInVolume(AudioSource source, float targetVolume, float duration)
+        {
+            float elapsed = 0f;
+            while (elapsed < duration)
+            {
+                if (source == null || !source.isPlaying)
+                    yield break;
+
+                elapsed += Time.deltaTime;
+                source.volume = Mathf.Lerp(0f, targetVolume, elapsed / duration);
+                yield return null;
+            }
+
+            if (source != null)
+                source.volume = targetVolume;
+        }
+
+        private IEnumerator CoFadeOutAndRelease(AudioSource source, float startVolume, float duration)
+        {
+            float elapsed = 0f;
+            while (elapsed < duration)
+            {
+                if (source == null)
+                    yield break;
+
+                elapsed += Time.deltaTime;
+                source.volume = Mathf.Lerp(startVolume, 0f, elapsed / duration);
+                yield return null;
+            }
+
+            ReleaseSpatialSource(source);
+        }
+
+        private readonly struct ActiveSpatialSlot
+        {
+            public readonly AudioSource Source;
+            public readonly SpatialSfxProfile Profile;
+            public readonly float TargetVolume;
+
+            public ActiveSpatialSlot(AudioSource source, SpatialSfxProfile profile, float targetVolume)
+            {
+                Source = source;
+                Profile = profile;
+                TargetVolume = targetVolume;
+            }
         }
 
         private void ReleaseSpatialSource(AudioSource source)
