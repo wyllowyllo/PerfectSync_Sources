@@ -10,6 +10,10 @@ namespace InGame.Player
         [Header("Bodies")]
         [SerializeField] private GameObject _mergedBody;
 
+        [Header("Dual Input")]
+        [Tooltip("두 플레이어가 완전히 같은 방향을 입력할 때의 속도 배율. 1 = 시너지 없음, 1.5 = 기존 동작, 2 이상도 자유 설정.")]
+        [SerializeField, Min(1f)] private float _dualBoostAtFullAlign = 1.5f;
+
         private IControllableBody _mergedControllable;
 
         public Transform PrimaryBodyTransform => _mergedControllable.BodyTransform;
@@ -26,7 +30,7 @@ namespace InGame.Player
 
         public void ApplyInput(Vector3 worldDirA, Vector3 worldDirB, bool jumpA, bool jumpB)
         {
-            Vector3 combined = DualInputCombiner.Combine(worldDirA, worldDirB);
+            Vector3 combined = DualInputCombiner.Combine(worldDirA, worldDirB, _dualBoostAtFullAlign);
             _mergedControllable.ApplyInput(combined, jumpA || jumpB);
         }
 
