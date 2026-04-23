@@ -68,7 +68,10 @@ namespace InGame.Player
 
             // Non-authority는 RPC 수신 시 넉백 피드백 재생 (authority는 로컬에서 이미 재생).
             if (!_isAuthority)
+            {
                 _synchronizer.OnInvincibleHitApplied += HandleRemoteHitFeedback;
+                _synchronizer.OnObstacleDestroyFeedback += HandleRemoteObstacleDestroyFeedback;
+            }
 
             _invincibleController.OnInvincibleExit += RestoreIgnoredCollisions;
         }
@@ -76,7 +79,10 @@ namespace InGame.Player
         private void OnDestroy()
         {
             if (_synchronizer != null)
+            {
                 _synchronizer.OnInvincibleHitApplied -= HandleRemoteHitFeedback;
+                _synchronizer.OnObstacleDestroyFeedback -= HandleRemoteObstacleDestroyFeedback;
+            }
 
             if (_invincibleController != null)
                 _invincibleController.OnInvincibleExit -= RestoreIgnoredCollisions;
@@ -86,6 +92,12 @@ namespace InGame.Player
         {
             if (_invincibleController == null || !_invincibleController.IsInvincible) return;
             PlayHitFeedback(direction);
+        }
+
+        // 장애물 파괴는 이미 네트워크 확정된 상태이므로 IsInvincible 가드 없이 재생.
+        private void HandleRemoteObstacleDestroyFeedback(Vector3 direction)
+        {
+            PlayObstacleDestroyFeedback(direction);
         }
 
         private float EffectiveObstacleRadius =>
@@ -158,13 +170,14 @@ namespace InGame.Player
             if (_isAuthority)
             {
                 manager.RequestDestroy(id, force);
+                _synchronizer.BroadcastObstacleDestroyFeedback(direction);
+                PlayObstacleDestroyFeedback(direction);
             }
             else
             {
                 manager.PredictDestroy(id, force);
+                // 피드백은 OnObstacleDestroyFeedback RPC 수신 시 재생.
             }
-
-            PlayObstacleDestroyFeedback(direction);
         }
 
         // ── 플레이어 넉백 (기존) ────────────────────────────────
