@@ -79,6 +79,7 @@ public class MapSelectionSequence : MonoBehaviour
         yield return new WaitForSeconds(waitBeforeWhite);
 
         if (_whiteFadeObject != null) _whiteFadeObject.SetActive(true);
+        if (_rouletteEffect != null) _rouletteEffect.StopShiftSfx();
         PlayWhiteFadeSfx();
         yield return new WaitForSeconds(_whiteFadeLeadTime);
 

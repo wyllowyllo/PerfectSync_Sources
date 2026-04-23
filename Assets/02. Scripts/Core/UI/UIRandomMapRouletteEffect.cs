@@ -35,6 +35,7 @@ public class UIRandomMapRouletteEffect : MonoBehaviour
     private Vector3[] _baseScales;
     private Vector3 _nameBaseScale;
     private int _currentIndex;
+    private bool _sfxSuppressed;
 
     /// <summary>
     /// 캔버스가 꺼져있어 OnEnable/Awake가 실행되지 않으므로,
@@ -56,8 +57,14 @@ public class UIRandomMapRouletteEffect : MonoBehaviour
     private void OnEnable()
     {
         if (_maps == null || _maps.Length == 0) return;
+        _sfxSuppressed = false;
         if (_routine != null) StopCoroutine(_routine);
         _routine = StartCoroutine(RouletteRoutine());
+    }
+
+    public void StopShiftSfx()
+    {
+        _sfxSuppressed = true;
     }
 
     private void OnDisable()
@@ -131,6 +138,9 @@ public class UIRandomMapRouletteEffect : MonoBehaviour
 
     private void PlayShiftSfx()
     {
+        if (_sfxSuppressed)
+            return;
+
         if (_shiftSfx == null)
             return;
 
