@@ -89,9 +89,6 @@ namespace InGame.Camera.PlayerCamera
             _followCamera.Follow = _anchorRb.transform;
             _followCamera.LookAt = _anchorRb.transform;
 
-            Cursor.lockState = CursorLockMode.Locked;
-            Cursor.visible = false;
-
             if (_targetProvider != null)
             {
                 Vector3 targetPos = _targetProvider.SmoothedPosition + _targetOffset;
