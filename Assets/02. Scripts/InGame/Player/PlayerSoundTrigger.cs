@@ -25,10 +25,6 @@ namespace InGame.Player
         [Header("Team References")]
         [SerializeField] private InvincibleModeController _invincibleController;
 
-        [Header("Invincible BGM (team-local only)")]
-        [SerializeField, Range(0f, 5f)] private float _invincibleMuffleFade = 0.3f;
-        [SerializeField, Range(0f, 5f)] private float _invincibleLayerFade = 0.5f;
-
         private PlayerMovement _movement;
         private LaunchController _launchController;
         private HitDetector _hitDetector;
@@ -123,11 +119,8 @@ namespace InGame.Player
             RaceRankingManager.OnTeamFinished -= HandleTeamFinished;
 
             // 무적 도중 컴포넌트가 비활성/파괴되어도 BGM이 머플 상태로 남지 않도록 원복.
-            if (IsLocalOnSameTeam() && AudioManager.Instance != null)
-            {
-                AudioManager.Instance.SetBgmMuffled(false, _invincibleMuffleFade);
-                AudioManager.Instance.StopBgmLayer(_invincibleLayerFade);
-            }
+            if (IsLocalOnSameTeam())
+                InGameBgmController.Instance?.StopInvincibleBgm();
         }
 
         #region Authority → Local + Remote
@@ -165,23 +158,13 @@ namespace InGame.Player
         private void HandleInvincibleEnter()
         {
             if (!IsLocalOnSameTeam()) return;
-
-            AudioManager audio = AudioManager.Instance;
-            if (audio == null) return;
-
-            audio.SetBgmMuffled(true, _invincibleMuffleFade);
-            audio.PlayBgmLayer(AudioBgmAddresses.InGameInvincible, _invincibleLayerFade);
+            InGameBgmController.Instance?.PlayInvincibleBgm();
         }
 
         private void HandleInvincibleExit()
         {
             if (!IsLocalOnSameTeam()) return;
-
-            AudioManager audio = AudioManager.Instance;
-            if (audio == null) return;
-
-            audio.SetBgmMuffled(false, _invincibleMuffleFade);
-            audio.StopBgmLayer(_invincibleLayerFade);
+            InGameBgmController.Instance?.StopInvincibleBgm();
         }
 
         private bool IsLocalOnSameTeam() =>
