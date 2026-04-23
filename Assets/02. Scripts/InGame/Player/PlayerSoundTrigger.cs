@@ -2,7 +2,6 @@ using InGame.Audio;
 using InGame.Gimmick;
 using InGame.Player.Movement;
 using InGame.Player.Network;
-using InGame.Player.Ragdoll;
 using InGame.Team;
 using Photon.Pun;
 using UnityEngine;
@@ -18,10 +17,7 @@ namespace InGame.Player
         [SerializeField] private SpatialSfxProfile _landProfile;
         [SerializeField] private SpatialSfxProfile _launchProfile;
         [SerializeField] private SpatialSfxProfile _hitProfile;
-        [SerializeField] private SpatialSfxProfile _stumbleProfile;
-        [SerializeField] private SpatialSfxProfile _ragdollProfile;
-        [SerializeField] private SpatialSfxProfile _invincibleEnterProfile;
-        [SerializeField] private SpatialSfxProfile _invincibleExitProfile;
+        [SerializeField] private SpatialSfxProfile _invincibleLoopProfile;
         [SerializeField] private SpatialSfxProfile _invincibleAttackerProfile;
         [SerializeField] private SpatialSfxProfile _invincibleVictimHitProfile;
         [SerializeField] private SpatialSfxProfile _finishProfile;
@@ -32,17 +28,16 @@ namespace InGame.Player
 
         private PlayerMovement _movement;
         private LaunchController _launchController;
-        private RagdollStateMachine _ragdollStateMachine;
         private HitDetector _hitDetector;
         private InvincibleContactDetector _invincibleContactDetector;
         private RespawnHandler _respawnHandler;
         private InGameCustomizationApplier _customizationApplier;
+        private int _invincibleLoopHandle;
 
         private void Awake()
         {
             _movement = GetComponentInChildren<PlayerMovement>();
             _launchController = GetComponentInChildren<LaunchController>();
-            _ragdollStateMachine = GetComponentInChildren<RagdollStateMachine>();
             _hitDetector = GetComponentInChildren<HitDetector>(true);
             _invincibleContactDetector = GetComponentInChildren<InvincibleContactDetector>(true);
             _respawnHandler = GetComponent<RespawnHandler>();
@@ -65,12 +60,6 @@ namespace InGame.Player
 
             if (_launchController != null)
                 _launchController.OnLaunched += HandleLaunched;
-
-            if (_ragdollStateMachine != null)
-            {
-                _ragdollStateMachine.OnStateChanged += HandleRagdollStateChanged;
-                _ragdollStateMachine.OnStumblePlayed += HandleStumble;
-            }
 
             if (_hitDetector != null)
             {
@@ -108,12 +97,6 @@ namespace InGame.Player
             if (_launchController != null)
                 _launchController.OnLaunched -= HandleLaunched;
 
-            if (_ragdollStateMachine != null)
-            {
-                _ragdollStateMachine.OnStateChanged -= HandleRagdollStateChanged;
-                _ragdollStateMachine.OnStumblePlayed -= HandleStumble;
-            }
-
             if (_hitDetector != null)
             {
                 _hitDetector.OnHitDetected -= HandleHit;
@@ -136,6 +119,8 @@ namespace InGame.Player
                 _respawnHandler.OnRespawnInvincibleStart -= HandleRespawned;
 
             RaceRankingManager.OnTeamFinished -= HandleTeamFinished;
+
+            StopInvincibleLoopSfx();
         }
 
         #region Authority → Local + Remote
@@ -164,21 +149,6 @@ namespace InGame.Player
             photonView.RPC(nameof(RpcPlayLaunch), RpcTarget.Others);
         }
 
-        private void HandleRagdollStateChanged(ERagdollState state)
-        {
-            if (state != ERagdollState.Ragdolled)
-                return;
-
-            PlayRagdollSfx();
-            photonView.RPC(nameof(RpcPlayRagdoll), RpcTarget.Others);
-        }
-
-        private void HandleStumble()
-        {
-            PlayStumbleSfx();
-            photonView.RPC(nameof(RpcPlayStumble), RpcTarget.Others);
-        }
-
         private void HandleHit(HitData hitData)
         {
             PlayHitSfx(hitData.HitPoint);
@@ -186,10 +156,26 @@ namespace InGame.Player
         }
 
         private void HandleInvincibleEnter()
-            => InGameSfxManager.Instance?.EmitSpatialOn(_invincibleEnterProfile, FollowTransform, this);
+        {
+            if (_invincibleLoopProfile == null || InGameSfxManager.Instance == null) return;
+
+            // 중복 진입 방지: 기존 루프가 남아있으면 먼저 정지.
+            StopInvincibleLoopSfx();
+            _invincibleLoopHandle = InGameSfxManager.Instance.EmitSpatialOn(_invincibleLoopProfile, FollowTransform, this);
+        }
 
         private void HandleInvincibleExit()
-            => InGameSfxManager.Instance?.EmitSpatialOn(_invincibleExitProfile, FollowTransform, this);
+        {
+            StopInvincibleLoopSfx();
+        }
+
+        private void StopInvincibleLoopSfx()
+        {
+            if (_invincibleLoopHandle == 0) return;
+
+            InGameSfxManager.Instance?.StopSpatial(_invincibleLoopHandle);
+            _invincibleLoopHandle = 0;
+        }
 
         // 가해자 공용 (플레이어 넉백 + 장애물 파괴).
         private void HandleInvincibleAttacker()
@@ -237,12 +223,6 @@ namespace InGame.Player
         private void RpcPlayLaunch() => PlayLaunchSfx();
 
         [PunRPC]
-        private void RpcPlayRagdoll() => PlayRagdollSfx();
-
-        [PunRPC]
-        private void RpcPlayStumble() => PlayStumbleSfx();
-
-        [PunRPC]
         private void RpcPlayHit(Vector3 hitPoint) => PlayHitSfx(hitPoint);
 
         [PunRPC]
@@ -256,8 +236,6 @@ namespace InGame.Player
         private void PlayDiveSfx() => InGameSfxManager.Instance?.EmitSpatialOn(_diveProfile, FollowTransform, this);
         private void PlayLandSfx() => InGameSfxManager.Instance?.EmitSpatialOn(_landProfile, FollowTransform, this);
         private void PlayLaunchSfx() => InGameSfxManager.Instance?.EmitSpatialOn(_launchProfile, FollowTransform, this);
-        private void PlayRagdollSfx() => InGameSfxManager.Instance?.EmitSpatialOn(_ragdollProfile, FollowTransform, this);
-        private void PlayStumbleSfx() => InGameSfxManager.Instance?.EmitSpatialOn(_stumbleProfile, FollowTransform, this);
         private void PlayHitSfx(Vector3 hitPoint) => InGameSfxManager.Instance?.EmitSpatialAt(_hitProfile, hitPoint, this);
         private void PlayFinishSfx() => InGameSfxManager.Instance?.EmitSpatialOn(_finishProfile, FollowTransform, this);
         private void PlayRespawnSfx(Vector3 position) => InGameSfxManager.Instance?.EmitSpatialAt(_respawnProfile, position, this);
