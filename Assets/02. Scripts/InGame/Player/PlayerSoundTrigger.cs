@@ -17,7 +17,6 @@ namespace InGame.Player
         [SerializeField] private SpatialSfxProfile _landProfile;
         [SerializeField] private SpatialSfxProfile _launchProfile;
         [SerializeField] private SpatialSfxProfile _hitProfile;
-        [SerializeField] private SpatialSfxProfile _invincibleLoopProfile;
         [SerializeField] private SpatialSfxProfile _invincibleAttackerProfile;
         [SerializeField] private SpatialSfxProfile _invincibleVictimHitProfile;
         [SerializeField] private SpatialSfxProfile _finishProfile;
@@ -26,13 +25,16 @@ namespace InGame.Player
         [Header("Team References")]
         [SerializeField] private InvincibleModeController _invincibleController;
 
+        [Header("Invincible BGM (team-local only)")]
+        [SerializeField, Range(0f, 5f)] private float _invincibleMuffleFade = 0.3f;
+        [SerializeField, Range(0f, 5f)] private float _invincibleLayerFade = 0.5f;
+
         private PlayerMovement _movement;
         private LaunchController _launchController;
         private HitDetector _hitDetector;
         private InvincibleContactDetector _invincibleContactDetector;
         private RespawnHandler _respawnHandler;
         private InGameCustomizationApplier _customizationApplier;
-        private int _invincibleLoopHandle;
 
         private void Awake()
         {
@@ -120,7 +122,12 @@ namespace InGame.Player
 
             RaceRankingManager.OnTeamFinished -= HandleTeamFinished;
 
-            StopInvincibleLoopSfx();
+            // 무적 도중 컴포넌트가 비활성/파괴되어도 BGM이 머플 상태로 남지 않도록 원복.
+            if (IsLocalOnSameTeam() && AudioManager.Instance != null)
+            {
+                AudioManager.Instance.SetBgmMuffled(false, _invincibleMuffleFade);
+                AudioManager.Instance.StopBgmLayer(_invincibleLayerFade);
+            }
         }
 
         #region Authority → Local + Remote
@@ -157,25 +164,28 @@ namespace InGame.Player
 
         private void HandleInvincibleEnter()
         {
-            if (_invincibleLoopProfile == null || InGameSfxManager.Instance == null) return;
+            if (!IsLocalOnSameTeam()) return;
 
-            // 중복 진입 방지: 기존 루프가 남아있으면 먼저 정지.
-            StopInvincibleLoopSfx();
-            _invincibleLoopHandle = InGameSfxManager.Instance.EmitSpatialOn(_invincibleLoopProfile, FollowTransform, this);
+            AudioManager audio = AudioManager.Instance;
+            if (audio == null) return;
+
+            audio.SetBgmMuffled(true, _invincibleMuffleFade);
+            audio.PlayBgmLayer(AudioBgmAddresses.InGameInvincible, _invincibleLayerFade);
         }
 
         private void HandleInvincibleExit()
         {
-            StopInvincibleLoopSfx();
+            if (!IsLocalOnSameTeam()) return;
+
+            AudioManager audio = AudioManager.Instance;
+            if (audio == null) return;
+
+            audio.SetBgmMuffled(false, _invincibleMuffleFade);
+            audio.StopBgmLayer(_invincibleLayerFade);
         }
 
-        private void StopInvincibleLoopSfx()
-        {
-            if (_invincibleLoopHandle == 0) return;
-
-            InGameSfxManager.Instance?.StopSpatial(_invincibleLoopHandle);
-            _invincibleLoopHandle = 0;
-        }
+        private bool IsLocalOnSameTeam() =>
+            _customizationApplier != null && _customizationApplier.IsLocalPlayerOnThisTeam();
 
         // 가해자 공용 (플레이어 넉백 + 장애물 파괴).
         private void HandleInvincibleAttacker()
