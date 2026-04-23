@@ -27,6 +27,9 @@ public class UIRandomMapRouletteEffect : MonoBehaviour
     [SerializeField] private int _punchVibrato = 6;
     [SerializeField] private float _punchElasticity = 0.8f;
 
+    [Header("SFX")]
+    [SerializeField] private SfxProfile _shiftSfx;
+
     private MapDefinition[] _maps;
     private Coroutine _routine;
     private Vector3[] _baseScales;
@@ -89,6 +92,8 @@ public class UIRandomMapRouletteEffect : MonoBehaviour
             _images[1].sprite = _images[0].sprite;
             _images[0].sprite = _maps[_currentIndex].Thumbnail;
 
+            PlayShiftSfx();
+
             // 가운데 맵 이름 업데이트 (시프트 후 가운데 = 이전 왼쪽)
             if (_centerMapName != null)
                 _centerMapName.text = _maps[_currentIndex].MapName;
@@ -122,6 +127,18 @@ public class UIRandomMapRouletteEffect : MonoBehaviour
         }
 
         _routine = null;
+    }
+
+    private void PlayShiftSfx()
+    {
+        if (_shiftSfx == null)
+            return;
+
+        AudioClip clip = _shiftSfx.GetRandomClip();
+        if (clip == null)
+            return;
+
+        AudioManager.Instance?.Play(AudioType.Sfx, clip);
     }
 
     private void KillAllPunchTweens()
