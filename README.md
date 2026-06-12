@@ -1,15 +1,8 @@
-# Perfect Sync 🏁🤝⚡
+Perfect Sync
+두 사람이 합을 맞춰 하나의 캐릭터를 조종하며 다른 팀들과 경쟁하는 멀티플레이 파티 게임
+<img width="1402" height="776" alt="화면 캡처 2026-06-12 224307" src="https://github.com/user-attachments/assets/bc58b833-77c1-4b0d-9622-78246f0f448d" />
 
-https://github.com/user-attachments/assets/824b84de-b028-41bc-9d92-0776d2d3b790
-
-
-두 명이 하나의 캐릭터를 같이 조종한다. 합치면 빠르고, 나누면 자유롭다. 단,
-**둘 다 같은 방향을 보지 않으면 캐릭터는 멈춘다**. 이름 그대로, *Perfect Sync*가
-필요하다. 🤝
-
-**Perfect Sync**는 합체/분리(Merged / Separated) 듀얼 아바타 시스템을 핵심으로 하는
-2인 1팀 협동 멀티플레이 레이싱 게임입니다. 함께 호흡을 맞춰 결승선까지 — 매 라운드,
-같은 코스라도 같은 레이스는 다시 만들어지지 않습니다. 🏁
+MainMenuBackgroundEdit
 
 ## 목차
 
