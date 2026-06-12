@@ -1,8 +1,7 @@
-Perfect Sync
-두 사람이 합을 맞춰 하나의 캐릭터를 조종하며 다른 팀들과 경쟁하는 멀티플레이 파티 게임
+
 <img width="1402" height="776" alt="화면 캡처 2026-06-12 224307" src="https://github.com/user-attachments/assets/bc58b833-77c1-4b0d-9622-78246f0f448d" />
 
-MainMenuBackgroundEdit
+
 
 ## 목차
 
